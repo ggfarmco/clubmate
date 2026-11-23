@@ -218,7 +218,12 @@ func storeBase(ctx context.Context, h *pluginsdk.Host, key, base string) error {
 }
 
 func (a *app) dropBaseIfGone(ctx context.Context, h *pluginsdk.Host, primary gitrepo.Worktree, branch string) {
-	if !hasRef(ctx, primary.Path, headsPrefix+branch) {
+	exists, err := refExists(ctx, primary.Path, headsPrefix+branch)
+	if err != nil {
+		logError("read branch "+branch, err)
+		return
+	}
+	if !exists {
 		logError("drop base of "+branch, a.recordBase(ctx, h, primary.Real, branch, ""))
 	}
 }

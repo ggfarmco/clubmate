@@ -504,6 +504,7 @@ func TestCallWithNoTurnOpenIsRefused(t *testing.T) {
 	var h gateHistory
 	require.NoError(t, f.run(t, workspace, "agents.gate-verdicts", map[string]any{"id": gate}, &h))
 	assert.Equal(t, "git push", h.Verdicts[0].Call)
+	assert.Zero(t, h.Verdicts[0].Round)
 }
 
 func TestTurnEndRefusesItsHeldCall(t *testing.T) {
@@ -712,20 +713,28 @@ func TestVerdictWithNobodyWaitingServesTheRetryOnce(t *testing.T) {
 	f := start(t, script)
 	workspace, session := f.heldSession(t)
 	gate := f.session(t, workspace, session).Calls[0].Gate
-	f.callReviewer(t, workspace, session, gate, "")
+	old := f.callReviewer(t, workspace, session, gate, "")
 
 	f.restartPlugin(t, workspace)
 	f.waitRecord(t, workspace, session, "the hold without its call", func(r record) bool { return len(r.Calls) == 1 && !r.Calls[0].Held })
+	var judge string
 	testutil.Eventually(t, func() bool {
 		var list []record
 		require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
-		return slices.ContainsFunc(list, func(r record) bool {
+		i := slices.IndexFunc(list, func(r record) bool {
 			gf := r.GateFor
 			return gf != nil && gf.Lander == session && gf.Gate == gate && gf.Verdict && r.Status != "closed" &&
 				f.runAs(t, workspace, r.ID, "agents.land-verdict", map[string]any{"key": gf.Key, "outcome": "approved"}, nil) == nil
 		})
+		if i >= 0 {
+			judge = list[i].ID
+		}
+		return i >= 0
 	}, wait)
 	f.waitRecord(t, workspace, session, "no hold", func(r record) bool { return len(r.Calls) == 0 })
+	if judge != old.ID {
+		f.waitStatus(t, workspace, old.ID, "closed")
+	}
 	f.waitStatus(t, workspace, session, "done")
 
 	f.prompt(t, workspace, session, "again")
@@ -734,6 +743,32 @@ func TestVerdictWithNobodyWaitingServesTheRetryOnce(t *testing.T) {
 	f.prompt(t, workspace, session, "third")
 	f.waitHeldCall(t, workspace, session, 1)
 	testutil.Never(t, func() bool { return f.allowed(t) != 1 }, time.Second)
+}
+
+func TestRestartClosesAReviewRunNoHoldNames(t *testing.T) {
+	t.Parallel()
+	script := callScript(bashSteps("push", "push1", "git push", false), bashSteps("again", "push2", "git push", false))
+	script["resume"] = true
+	f := start(t, script)
+	workspace, session := f.heldSession(t)
+	gate := f.session(t, workspace, session).Calls[0].Gate
+	old := f.callReviewer(t, workspace, session, gate, "")
+	f.waitRecord(t, workspace, session, "the hold on its run", func(r record) bool { return len(r.Calls) == 1 && r.Calls[0].Run == old.GateFor.Run })
+
+	f.editStoredRecord(t, workspace, session, func(rec map[string]any) {
+		calls, _ := rec["calls"].([]any)
+		require.Len(t, calls, 1)
+		hold := calls[0].(map[string]any)["hold"].(map[string]any)
+		delete(hold, "run")
+		delete(hold, "reviewer")
+	})
+
+	f.waitStatus(t, workspace, old.ID, "closed")
+	f.callVerdict(t, workspace, f.callReviewer(t, workspace, session, gate, old.ID), "approved")
+	f.waitRecord(t, workspace, session, "no hold", func(r record) bool { return len(r.Calls) == 0 })
+	f.waitStatus(t, workspace, session, "done")
+	f.prompt(t, workspace, session, "again")
+	testutil.Eventually(t, func() bool { return f.allowed(t) == 1 }, wait)
 }
 
 func TestRetriedCallJoinsTheRunningRound(t *testing.T) {
@@ -998,6 +1033,45 @@ func TestMovedLongInputKeepsItsFile(t *testing.T) {
 	moved := filepath.Join(filepath.Dir(m[1]), after.GateFor.Key)
 	testutil.Eventually(t, func() bool { data, err := os.ReadFile(moved); return err == nil && string(data) == command }, wait)
 	testutil.Eventually(t, func() bool { _, err := os.Stat(m[1]); return os.IsNotExist(err) }, wait)
+}
+
+func TestReheldGateIsBackInTheCallsMark(t *testing.T) {
+	t.Parallel()
+	steps, withdraw := withdrawn(t, "push", "push1", "git push origin main")
+	f := start(t, callScript(steps, bashSteps("again", "push2", "git push origin main", false)))
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	push := f.addPushGate(t, workspace, repo)
+	origin := f.addContainsGate(t, workspace, repo, "Bash", "origin")
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "push")
+	f.waitHeldCall(t, workspace, session, 2)
+	pushReviewer := f.callReviewer(t, workspace, session, push.ID, "")
+	write(t, withdraw, "")
+	f.waitRecord(t, workspace, session, "the holds kept", func(r record) bool { return len(r.Calls) == 2 && r.Status == "done" })
+	f.callVerdict(t, workspace, pushReviewer, "approved")
+	f.waitRecord(t, workspace, session, "only the origin gate holds", func(r record) bool { return len(r.Calls) == 1 && r.Calls[0].Gate == origin.ID })
+	f.prompt(t, workspace, session, "again")
+	f.waitHeldCall(t, workspace, session, 1)
+	marked := func() []string {
+		var holds []struct {
+			Gate string `json:"gate"`
+		}
+		_ = json.Unmarshal(gateMarkOf(t, f.transcript(t, workspace, session), "push2")["holds"], &holds)
+		var out []string
+		for _, h := range holds {
+			out = append(out, h.Gate)
+		}
+		return out
+	}
+	require.Equal(t, []string{origin.ID}, marked())
+	write(t, filepath.Join(f.session(t, workspace, session).Worktree, "moved.txt"), "moved")
+	_, moved := f.movedReviewer(t, workspace, session, origin.ID)
+
+	f.callVerdict(t, workspace, moved, "approved")
+
+	f.callReviewer(t, workspace, session, push.ID, pushReviewer.ID)
+	testutil.Eventually(t, func() bool { return slices.Contains(marked(), push.ID) }, wait)
 }
 
 func (f *fixture) approveAny(t *testing.T, workspace, session, gate string) {
@@ -1463,6 +1537,129 @@ func TestTwoRefusedCallsInOneBatchTellBoth(t *testing.T) {
 	tr := f.transcript(t, workspace, session)
 	assert.Len(t, gateEntries(tr, "a1"), 1)
 	assert.Len(t, gateEntries(tr, "b1"), 1)
+}
+
+func TestTwoRefusedCallsInOneBatchWithoutAHookTellBoth(t *testing.T) {
+	t.Parallel()
+	failed := func(id string) map[string]any {
+		return map[string]any{"match": "alpha", "update": map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": id, "status": "failed"}}
+	}
+	a := callSteps("alpha", "", "a1", "Bash", map[string]any{"command": "git push origin a"}, false)
+	b := callSteps("alpha", "", "b1", "Bash", map[string]any{"command": "git push origin b"}, false)
+	f := start(t, callScript([]map[string]any{a[0], b[0], a[1], failed("a1"), b[1], failed("b1")}))
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	gate := f.addPushGate(t, workspace, repo).ID
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "alpha")
+	f.waitHeldCall(t, workspace, session, 1)
+	first := f.callReviewer(t, workspace, session, gate, "")
+	f.callChanges(t, workspace, first, "finding A")
+	testutil.Eventually(t, func() bool { return f.refused(t) == 1 }, wait)
+	second := first
+	testutil.Eventually(t, func() bool {
+		second = f.callReviewer(t, workspace, session, gate, "")
+		return second.GateFor.Key != first.GateFor.Key
+	}, wait)
+
+	f.callChanges(t, workspace, second, "finding B")
+
+	testutil.Eventually(t, func() bool { return len(f.gatePrompts(t)) > 0 }, wait)
+	f.waitStatus(t, workspace, session, "done")
+	sent := strings.Join(f.gatePrompts(t), "\n")
+	assert.Contains(t, sent, "finding A")
+	assert.Contains(t, sent, "finding B")
+}
+
+func TestFindingsOfAnErroredTurnAreQueuedForTheNextPrompt(t *testing.T) {
+	t.Parallel()
+	crash := map[string]any{"match": "alpha", "fail": "Internal error: max_output_tokens", "errorKind": "max_output_tokens"}
+	f := start(t, callScript(refusedSteps("alpha", "", "a1", "git push"), []map[string]any{crash}))
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	gate := f.addPushGate(t, workspace, repo).ID
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "alpha")
+	f.waitHeldCall(t, workspace, session, 1)
+
+	f.callChanges(t, workspace, f.callReviewer(t, workspace, session, gate, ""), "main.go:3 — skips CI")
+
+	f.waitStatus(t, workspace, session, "error")
+	f.agentPrompt(t, workspace, session, "beta")
+	testutil.Eventually(t, func() bool { return len(f.gatePrompts(t)) == 1 }, wait)
+	f.waitStatus(t, workspace, session, "done")
+	order := f.calls(t, "session/prompt")
+	gateAt := slices.IndexFunc(order, func(c fakeCall) bool { return strings.HasPrefix(promptText(t, c), gateFrom) })
+	betaAt := slices.IndexFunc(order, func(c fakeCall) bool { return strings.Contains(promptText(t, c), "beta") })
+	require.GreaterOrEqual(t, betaAt, 0)
+	assert.Less(t, gateAt, betaAt)
+	assert.Contains(t, f.gatePrompts(t)[0], "main.go:3 — skips CI")
+}
+
+func TestMergedFindingsOfACallOnTwoGatesAreToldOnce(t *testing.T) {
+	t.Parallel()
+	failed := func(id string) map[string]any {
+		return map[string]any{"match": "alpha", "update": map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": id, "status": "failed"}}
+	}
+	a := callSteps("alpha", "", "a1", "Bash", map[string]any{"command": "git push origin a"}, false)
+	b := callSteps("alpha", "", "b1", "Bash", map[string]any{"command": "git push upstream b"}, false)
+	f := start(t, callScript([]map[string]any{a[0], b[0], a[1], failed("a1"), b[1], failed("b1")}))
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	push := f.addPushGate(t, workspace, repo).ID
+	origin := f.addContainsGate(t, workspace, repo, "Bash", "origin").ID
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "alpha")
+	f.waitHeldCall(t, workspace, session, 2)
+	first := f.callReviewer(t, workspace, session, push, "")
+	f.callChanges(t, workspace, first, "finding A-push")
+	f.callChanges(t, workspace, f.callReviewer(t, workspace, session, origin, ""), "finding A-origin")
+	testutil.Eventually(t, func() bool { return f.refused(t) == 1 }, wait)
+	second := first
+	testutil.Eventually(t, func() bool {
+		second = f.callReviewer(t, workspace, session, push, "")
+		return second.GateFor.Key != first.GateFor.Key
+	}, wait)
+
+	f.callChanges(t, workspace, second, "finding B")
+
+	testutil.Eventually(t, func() bool { return len(f.gatePrompts(t)) > 0 }, wait)
+	f.waitStatus(t, workspace, session, "done")
+	testutil.Never(t, func() bool { return len(f.gatePrompts(t)) != 1 }, quiet)
+	sent := f.gatePrompts(t)[0]
+	for _, finding := range []string{"finding A-push", "finding A-origin", "finding B"} {
+		assert.Equal(t, 1, strings.Count(sent, finding), finding)
+	}
+	tr := f.transcript(t, workspace, session)
+	require.Len(t, gateEntries(tr, "a1"), 1)
+	shown := gateEntries(tr, "b1")
+	require.Len(t, shown, 1)
+	for _, finding := range []string{"finding A-push", "finding A-origin", "finding B"} {
+		assert.Equal(t, 1, strings.Count(shown[0].Text, finding), finding)
+	}
+}
+
+func TestFindingsSentAtTheTurnEndAreTheOnesTheGateGave(t *testing.T) {
+	t.Parallel()
+	end := filepath.Join(t.TempDir(), "end")
+	failed := map[string]any{"match": "alpha", "update": map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "a1", "status": "failed"}}
+	a := callSteps("alpha", "", "a1", "Bash", map[string]any{"command": "git push origin a"}, false)
+	b := callSteps("alpha", "", "b1", "Bash", map[string]any{"command": "git push origin b"}, true)
+	f := start(t, callScript([]map[string]any{a[0], b[0], a[1], failed, b[1], {"match": "alpha", "await": end}}))
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	gate := f.addPushGate(t, workspace, repo).ID
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "alpha")
+	first := f.callReviewer(t, workspace, session, gate, "")
+	f.callChanges(t, workspace, first, "finding A")
+	testutil.Eventually(t, func() bool { return f.refused(t) == 1 }, wait)
+	testutil.Eventually(t, func() bool { return f.callReviewer(t, workspace, session, gate, "").GateFor.Key != first.GateFor.Key }, wait)
+
+	write(t, end, "")
+
+	testutil.Eventually(t, func() bool { return f.refused(t) == 2 && len(f.gatePrompts(t)) == 1 }, wait)
+	assert.Contains(t, f.gatePrompts(t)[0], "\n- finding A\n")
 }
 
 func TestUndeliveredFindingsFinishTheTurnOnce(t *testing.T) {
@@ -2416,4 +2613,53 @@ func TestCallMadeInAnotherRepoIsHeldByThatReposGate(t *testing.T) {
 	var prompts []fakeCall
 	testutil.Eventually(t, func() bool { prompts = f.reviewPrompts(t); return len(prompts) == 1 }, wait)
 	assert.Contains(t, promptText(t, prompts[0]), "Worktree: "+other+"\n")
+}
+
+func lateCallScript(prompt ...map[string]any) map[string]any {
+	after := append([]map[string]any{{"match": "push", "sleep": 50}}, bashSteps("push", "late1", "git push", true)...)
+	return map[string]any{"prompt": append(reviewSteps(), prompt...), "after": append(after, map[string]any{"match": "push", "wait": never})}
+}
+
+func TestCallOfAFollowUpRightAfterTheTurnStaysHeld(t *testing.T) {
+	t.Parallel()
+	f := start(t, lateCallScript())
+	workspace, session, _ := f.gatedSession(t)
+
+	f.prompt(t, workspace, session, "push")
+
+	f.waitCall(t, "prompt_end", func(fakeCall) bool { return true })
+	f.waitRecord(t, workspace, session, "the call held in the follow-up", func(r record) bool {
+		return r.Status == "running" && len(r.Calls) == 1 && r.Calls[0].Held
+	})
+}
+
+func TestLateFollowUpBeforeAQueuedPromptKeepsItsCall(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	f := start(t, lateCallScript(map[string]any{"match": "push", "await": filepath.Join(dir, "end")}, map[string]any{"match": "next", "wait": never}))
+	workspace, session, _ := f.gatedSession(t)
+	f.prompt(t, workspace, session, "push")
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+	f.prompt(t, workspace, session, "next")
+
+	write(t, filepath.Join(dir, "end"), "")
+
+	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(string(c.Params), "next") })
+	f.waitRecord(t, workspace, session, "the call held in the next turn", func(r record) bool {
+		return r.Status == "running" && len(r.Calls) == 1 && r.Calls[0].Held
+	})
+}
+
+func TestLateFollowUpAfterAFailedTurnKeepsItsCall(t *testing.T) {
+	t.Parallel()
+	script := lateCallScript(map[string]any{"match": "push", "fail": "Internal error: max_output_tokens", "errorKind": "max_output_tokens"})
+	script["afterFail"] = true
+	f := start(t, script)
+	workspace, session, _ := f.gatedSession(t)
+
+	f.prompt(t, workspace, session, "push")
+
+	f.waitRecord(t, workspace, session, "failed, the call held", func(r record) bool {
+		return r.Status == "error" && len(r.Calls) == 1 && r.Calls[0].Held
+	})
 }

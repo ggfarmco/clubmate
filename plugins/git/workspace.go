@@ -68,6 +68,9 @@ func (a *app) open(ctx context.Context, h *pluginsdk.Host, id string) {
 	}
 	logError("watch "+id, a.rewatch(ctx, h, id, s))
 	a.schedule(h, id, s, 0)
+	if a.firstOpen(id) {
+		go a.sweepStartTrees(h, id)
+	}
 }
 
 func (a *app) idle(ctx context.Context, h *pluginsdk.Host, id string) {

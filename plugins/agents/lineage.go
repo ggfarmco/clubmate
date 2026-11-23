@@ -64,7 +64,17 @@ func (a *app) subtree(s *session) []*session {
 func (a *app) runningChildren(id string) int {
 	n := 0
 	for _, c := range a.children(id) {
-		if st := c.snapshot().Status; st == statusRunning || st == statusWaiting {
+		if turnActive(c.snapshot()) {
+			n++
+		}
+	}
+	return n
+}
+
+func (a *app) limitChildren(id string) int {
+	n := 0
+	for _, c := range a.children(id) {
+		if rec := c.snapshot(); turnActive(rec) && (rec.Held == nil || c.working()) {
 			n++
 		}
 	}
@@ -126,7 +136,7 @@ func (a *app) finished(t api.Turn) bool {
 }
 
 func (a *app) activeBelow(workspace, id string) bool {
-	return activeDescendant(id, statusKids(a.list(workspace)), map[string]bool{}) != ""
+	return activeDescendant(id, statusKids(a.list(workspace), a.gateRunOpen), map[string]bool{}) != ""
 }
 
 func statusParent(rec record) string {
@@ -136,11 +146,14 @@ func statusParent(rec record) string {
 	return rec.ParentSession
 }
 
-func statusKids(recs []record) map[string][]record {
+func statusKids(recs []record, live func(string) bool) map[string][]record {
 	kids := map[string][]record{}
 	for _, rec := range recs {
 		if p := statusParent(rec); p != "" && !rec.isAside() {
 			kids[p] = append(kids[p], rec)
+		}
+		if run := rec.reviewRun(live); run != "" {
+			kids[rec.ID] = append(kids[rec.ID], record{ID: run, Status: statusRunning})
 		}
 	}
 	return kids
@@ -156,8 +169,8 @@ func kidsOf(recs []record) map[string][]record {
 	return kids
 }
 
-func childStatuses(recs []record) map[string]string {
-	kids := statusKids(recs)
+func childStatuses(recs []record, live func(string) bool) map[string]string {
+	kids := statusKids(recs, live)
 	out := map[string]string{}
 	for _, rec := range recs {
 		if rec.Status != statusDone && rec.Status != statusIdle || needsYou(rec) {

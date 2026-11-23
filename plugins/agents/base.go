@@ -64,6 +64,12 @@ func (c *baseCache) reset(workspace string) {
 	c.mu.Unlock()
 }
 
+func (c *baseCache) forget(id string) {
+	c.mu.Lock()
+	delete(c.protect, id)
+	c.mu.Unlock()
+}
+
 func (a *app) sessionBases(ctx context.Context, rec record) []string {
 	b, err := a.worktreeBase(ctx, rec.Workspace, rec.Worktree, "")
 	if err != nil || b.Base == "" {

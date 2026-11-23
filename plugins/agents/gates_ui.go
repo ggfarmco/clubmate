@@ -521,7 +521,7 @@ func (a *app) sheetUnhooked(ctx context.Context, gates []gateConfig, primary str
 	n := 0
 	for _, s := range a.allSessions() {
 		rec, live, _, _ := s.hookView()
-		if !live || rec.closed() || !hookable(rec) || !s.working() {
+		if !live || rec.closed() || !hookable(rec) || !s.working() || !a.hooksLater(s) {
 			continue
 		}
 		if p, err := a.hookPrimary(ctx, rec.Worktree); err == nil && p == primary {

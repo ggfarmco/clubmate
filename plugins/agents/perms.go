@@ -101,6 +101,10 @@ func (s *session) pending() []string {
 func (s *session) onlyQuestions() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.onlyQuestionsLocked()
+}
+
+func (s *session) onlyQuestionsLocked() bool {
 	if len(s.perms) == 0 {
 		return false
 	}

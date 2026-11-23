@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"clubmate/internal/proc"
@@ -56,12 +58,15 @@ func (s *session) trackLocked(kind string, payload json.RawMessage) (started, en
 		s.late = false
 	case kind == acp.UpdateUsage && s.cycle && !s.running && hasCost(payload):
 		s.cycle = false
-		s.followedUpLocked()
+		if s.dropping > 0 {
+			s.followOwed = true
+		} else {
+			s.followedUpLocked()
+		}
 		s.refuseCallsLocked()
 		return false, true
 	case slices.Contains(cycleKinds, kind) && !s.workingLocked() && s.proc != nil:
 		s.cycle = true
-		s.background = nil
 		s.started = time.Now()
 		s.settleLocked()
 		return true, false
@@ -103,36 +108,143 @@ func (a *app) pruneBackground(s *session) bool {
 	return true
 }
 
+func (a *app) dropEnded(s *session) {
+	s.mu.Lock()
+	p, agentID := s.proc, s.rec.AgentSessionID
+	known := slices.Collect(maps.Keys(s.background))
+	var commands []bgCommand
+	for _, c := range slices.Backward(s.bgCalls) {
+		if c.task != "" && s.background[c.task] {
+			commands = append(commands, bgCommand{task: c.task, text: plainCommand(c.command)})
+		}
+	}
+	s.mu.Unlock()
+	if len(known) == 0 {
+		return
+	}
+	var live map[string]bool
+	if p != nil {
+		if procs, err := proc.List(); err == nil {
+			live = liveCommands(p.pgid, agentID, len(p.attached()) == 1, procs, proc.ReadArgs, commands)
+		}
+	}
+	s.mu.Lock()
+	s.dropDeadLocked(known, live)
+	s.mu.Unlock()
+}
+
+func (s *session) dropDeadLocked(known []string, live map[string]bool) {
+	for _, task := range known {
+		if !live[task] {
+			delete(s.background, task)
+		}
+	}
+	if len(s.background) == 0 {
+		s.background = nil
+	}
+}
+
+type bgCommand struct {
+	task string
+	text string
+}
+
+func liveCommands(leader int, agentID string, alone bool, procs []proc.Process, args func(int) []string, commands []bgCommand) map[string]bool {
+	root, known := sessionRoot(leader, agentID, alone, procs, args)
+	if !known {
+		return nil
+	}
+	kids := childrenOf(procs)
+	live := map[string]bool{}
+	var walk func(pid int)
+	walk = func(pid int) {
+		for _, c := range kids[pid] {
+			if isShell(c.Comm) {
+				argv := plainCommand(strings.Join(args(c.PID), " "))
+				if i := slices.IndexFunc(commands, func(b bgCommand) bool { return !live[b.task] && runsCommand(argv, b.text) }); i >= 0 {
+					live[commands[i].task] = true
+					continue
+				}
+			}
+			walk(c.PID)
+		}
+	}
+	walk(root)
+	return live
+}
+
+func childrenOf(procs []proc.Process) map[int][]proc.Process {
+	kids := make(map[int][]proc.Process, len(procs))
+	for _, p := range procs {
+		kids[p.PPID] = append(kids[p.PPID], p)
+	}
+	return kids
+}
+
+func runsCommand(argv, command string) bool {
+	if command == "" {
+		return false
+	}
+	for at := 0; ; {
+		i := strings.Index(argv[at:], command)
+		if i < 0 {
+			return false
+		}
+		start, end := at+i, at+i+len(command)
+		if (start == 0 || !commandRune(argv[start-1])) && (end == len(argv) || !commandRune(argv[end])) {
+			return true
+		}
+		at = start + 1
+	}
+}
+
+func commandRune(b byte) bool {
+	return b == '-' || b == '_' || b == '.' || b == '/' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
+}
+
+var unquote = strings.NewReplacer("'", "", `"`, "", `\`, "")
+
+func plainCommand(text string) string {
+	return strings.Join(strings.Fields(unquote.Replace(text)), " ")
+}
+
 func sessionBackground(leader int, agentID string, alone bool, procs []proc.Process, args func(int) []string) (alive, known bool) {
+	root, known := sessionRoot(leader, agentID, alone, procs, args)
+	return known && len(shellsUnder(root, procs)) > 0, known
+}
+
+func sessionRoot(leader int, agentID string, alone bool, procs []proc.Process, args func(int) []string) (int, bool) {
 	for _, p := range procs {
 		if p.PPID != leader {
 			continue
 		}
 		argv := args(p.PID)
 		if slices.Contains(argv, "--resume="+agentID) || slices.Contains(argv, "--session-id="+agentID) {
-			return runsShell(p.PID, procs), true
+			return p.PID, true
 		}
 	}
-	if alone {
-		return runsShell(leader, procs), true
-	}
-	return false, false
+	return leader, alone
 }
 
-func runsShell(root int, procs []proc.Process) bool {
-	kids := make(map[int][]proc.Process, len(procs))
-	for _, p := range procs {
-		kids[p.PPID] = append(kids[p.PPID], p)
+func shellsUnder(root int, procs []proc.Process) []int {
+	kids := childrenOf(procs)
+	var out []int
+	var walk func(pid int)
+	walk = func(pid int) {
+		for _, c := range kids[pid] {
+			if isShell(c.Comm) {
+				out = append(out, c.PID)
+			}
+			walk(c.PID)
+		}
 	}
-	var walk func(pid int) bool
-	walk = func(pid int) bool {
-		return slices.ContainsFunc(kids[pid], func(c proc.Process) bool { return isShell(c.Comm) || walk(c.PID) })
-	}
-	return walk(root)
+	walk(root)
+	return out
 }
 
 func (a *app) settleBackground(s *session) {
 	a.pruneBackground(s)
 	a.logRefusals(s)
 	a.finishTurn(s)
+	a.retryAfterCycle(s)
 }

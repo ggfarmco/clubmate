@@ -80,7 +80,7 @@ func (a *app) prompt(workspaceID string, args promptArgs) error {
 	}
 	a.spawnMu.Lock()
 	defer a.spawnMu.Unlock()
-	if st := s.snapshot().Status; st != statusRunning && st != statusWaiting && a.runningChildren(args.From) >= maxChildren {
+	if st := s.snapshot().Status; st != statusRunning && st != statusWaiting && a.limitChildren(args.From) >= maxChildren {
 		return errChildLimit
 	}
 	return a.submit(s, &args)
@@ -242,10 +242,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	}
 	if err != nil {
 		s.mu.Lock()
-		stale := s.epoch != epoch
-		if !stale {
-			s.requeueSendingLocked()
-		}
+		stale := s.attachFailedLocked(epoch)
 		s.mu.Unlock()
 		if !stale {
 			a.fail(s, err.Error())
@@ -320,13 +317,20 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	s.changed(changeUpdate, true)
 	req.Prompt = sendable(req.Prompt)
 	var res acp.PromptResponse
-	err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, req, &res)
+	answered := acp.WithAnswered(context.Background(), func() {
+		s.mu.Lock()
+		if s.epoch == epoch {
+			s.answered = true
+		}
+		s.mu.Unlock()
+	})
+	err = p.conn.Call(answered, acp.MethodSessionPrompt, req, &res)
 	if s.supersededOnly(err) {
 		err, res = nil, acp.PromptResponse{StopReason: acp.StopEndTurn}
 	}
 	if retry, ok := a.retryTurn(s, rec, epoch, err); ok {
 		res = acp.PromptResponse{}
-		err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, retry, &res)
+		err = p.conn.Call(answered, acp.MethodSessionPrompt, retry, &res)
 	}
 	s.mu.Lock()
 	s.answered = true
@@ -352,9 +356,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	s.mu.Lock()
 	cancelled := s.cancelRequested || res.StopReason == acp.StopCancelled
 	s.mu.Unlock()
-	if err == nil {
-		a.tellFindings(s, cancelled)
-	}
+	a.tellFindings(s, cancelled)
 	s.mu.Lock()
 	ends := err == nil && !s.rec.closed() && (cancelled || len(s.queue) == 0) && s.rec.Status != statusWaiting && len(s.background) == 0 && !s.late
 	s.mu.Unlock()
@@ -363,7 +365,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		p := a.planDone(s, cancelled)
 		plan = &p
 	}
-	s.mu.Lock()
+	a.lockDropped(s)
 	if s.epoch != epoch {
 		s.mu.Unlock()
 		return 0, 0, promptArgs{}
@@ -381,8 +383,9 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	if cancelled && plan != nil {
 		plan = &donePlan{stop: true}
 	}
-	handover := err == nil && !s.rec.closed() && !cancelled && len(s.queue) == 0 && s.late
-	if !handover {
+	late := !s.rec.closed() && !cancelled && s.late
+	handover := late && (err != nil || len(s.queue) == 0)
+	if !late {
 		s.refuseCallsLocked()
 	}
 	prior := s.rec.Held
@@ -392,6 +395,9 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	case err != nil:
 		s.recordLocked(actorClubmate, kindTurnEnd, turnEndPayload{Error: err.Error()})
 		s.setStatusLocked(statusError, status)
+		if handover {
+			s.cycle, s.started = true, time.Now()
+		}
 	case !cancelled && len(s.queue) > 0:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
 		next, _ = s.dequeueLocked()
@@ -399,7 +405,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	default:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
 		if handover {
-			s.cycle, s.background, s.started = true, nil, time.Now()
+			s.cycle, s.started = true, time.Now()
 		}
 		switch {
 		case s.rec.Status == statusWaiting:
@@ -467,6 +473,16 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	return nextTurn, nextEpoch, next
 }
 
+func (a *app) lockDropped(s *session) {
+	s.mu.Lock()
+	if !s.late {
+		return
+	}
+	s.mu.Unlock()
+	a.dropEnded(s)
+	s.mu.Lock()
+}
+
 func (a *app) retryTurn(s *session, rec record, epoch int, err error) (acp.PromptRequest, bool) {
 	rpcErr, ok := errors.AsType[*acp.Error](err)
 	if !ok || rpcErr.Code != acp.CodeInternal || rec.Night != "" {
@@ -482,6 +498,7 @@ func (a *app) retryTurn(s *session, rec record, epoch int, err error) (acp.Promp
 	s.mu.Lock()
 	ok = s.epoch == epoch && !s.cancelRequested && !s.rec.closed() && !s.deleted
 	if ok {
+		s.answered, s.late = false, false
 		s.recordLocked(actorClubmate, kindPrompt, promptPayload{PromptRequest: req, Steered: true})
 	}
 	s.mu.Unlock()
@@ -489,6 +506,17 @@ func (a *app) retryTurn(s *session, rec record, epoch int, err error) (acp.Promp
 		s.changed(changeUpdate, true)
 	}
 	return req, ok
+}
+
+func (s *session) attachFailedLocked(epoch int) bool {
+	if s.epoch != epoch {
+		return true
+	}
+	s.requeueSendingLocked()
+	if s.cancelRequested {
+		s.unqueueMessageLocked("")
+	}
+	return false
 }
 
 func (a *app) abandon(s *session, epoch int) bool {
@@ -558,10 +586,6 @@ func (s *session) beginTurnLocked() (int, int) {
 			s.rec.HeldGate = h.Gate
 		}
 		s.rec.Held = nil
-	}
-	if s.sending != nil && s.sending.Message != nil {
-		s.rec.Calls = toldCalls(s.rec.Calls, s.sending.Message.Call, true)
-		delete(s.telling, s.sending.Message.Call)
 	}
 	if w := s.rec.LimitWait; w != nil && !w.Fired {
 		s.rec.LimitWait = nil

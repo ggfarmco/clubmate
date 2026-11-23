@@ -14,6 +14,7 @@ import (
 type gateTreeResult struct {
 	Path   string `json:"path"`
 	Commit string `json:"commit"`
+	Setup  string `json:"setup"`
 }
 
 func gateTree(t *testing.T, h *testutil.PluginHarness, id string, args map[string]any) (gateTreeResult, error) {
@@ -100,6 +101,68 @@ func TestGateTreeRemove(t *testing.T) {
 	assert.NoDirExists(t, made["gt_1/lt_2"])
 	assert.DirExists(t, made["gt_2/lt_1"])
 	assert.NotContains(t, git(t, repo, "worktree", "list"), ".gate-gt_1")
+}
+
+func TestGateTreeGetsIncludedFilesAndSaysSetupIsUntrusted(t *testing.T) {
+	repo, feat := featWorktree(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(feat, ".clubmate"), 0o755))
+	write(t, filepath.Join(feat, ".clubmate", "worktree-include"), ".env\n")
+	write(t, filepath.Join(feat, ".clubmate", "setup.sh"), "touch ran\n")
+	write(t, filepath.Join(feat, ".gitignore"), ".env\nran\n")
+	git(t, feat, "add", ".")
+	git(t, feat, "commit", "-qm", "hooks")
+	write(t, filepath.Join(repo, ".env"), "SECRET=1\n")
+	h, id := open(t, repo)
+
+	out, err := gateTree(t, h, id, map[string]any{"repo": repo, "gate": "gt_1", "key": "lt_1", "old": git(t, repo, "rev-parse", "main"), "tree": git(t, feat, "rev-parse", "HEAD^{tree}")})
+
+	require.NoError(t, err)
+	assert.Equal(t, "untrusted", out.Setup)
+	got, err := os.ReadFile(filepath.Join(out.Path, ".env"))
+	require.NoError(t, err)
+	assert.Equal(t, "SECRET=1\n", string(got))
+	assert.NoFileExists(t, filepath.Join(out.Path, "ran"))
+}
+
+func TestGateTreeRemoveSweepsHandDeletedAndUnlistedDirs(t *testing.T) {
+	repo, feat := featWorktree(t)
+	h, id := open(t, repo)
+	args := map[string]any{"repo": repo, "gate": "gt_1", "key": "lt_1", "old": git(t, repo, "rev-parse", "main"), "tree": git(t, feat, "rev-parse", "HEAD^{tree}")}
+	one, err := gateTree(t, h, id, args)
+	require.NoError(t, err)
+	require.NoError(t, os.RemoveAll(one.Path))
+	orphan := filepath.Join(repo, ".worktrees", ".gate-gt_1-lt_2")
+	require.NoError(t, os.MkdirAll(orphan, 0o755))
+	other := filepath.Join(repo, ".worktrees", ".gate-gt_2-lt_1")
+	require.NoError(t, os.MkdirAll(other, 0o755))
+
+	_, err = gateTree(t, h, id, map[string]any{"repo": repo, "gate": "gt_1", "remove": true})
+
+	require.NoError(t, err)
+	assert.NoDirExists(t, orphan)
+	assert.DirExists(t, other)
+	assert.NotContains(t, git(t, repo, "worktree", "list"), ".gate-gt_1")
+}
+
+func TestPluginStartSweepsLegacyAndUnlistedGateTrees(t *testing.T) {
+	repo := committedRepo(t)
+	legacy := filepath.Join(repo, ".worktrees", ".gate-gt_1")
+	live := filepath.Join(repo, ".worktrees", ".gate-gt_2-lt_1")
+	orphan := filepath.Join(repo, ".worktrees", ".gate-gt_3-lt_1")
+	git(t, repo, "worktree", "add", "-q", "--detach", legacy)
+	git(t, repo, "worktree", "add", "-q", "--detach", live)
+	require.NoError(t, os.MkdirAll(orphan, 0o755))
+
+	open(t, repo)
+
+	testutil.Eventually(t, func() bool {
+		_, errLegacy := os.Stat(legacy)
+		_, errOrphan := os.Stat(orphan)
+		return os.IsNotExist(errLegacy) && os.IsNotExist(errOrphan)
+	}, readyWait)
+	assert.DirExists(t, live)
+	assert.NotContains(t, git(t, repo, "worktree", "list"), ".gate-gt_1 ")
+	assert.Contains(t, git(t, repo, "worktree", "list"), ".gate-gt_2-lt_1")
 }
 
 func TestGateTreeOnlyForTheAgentsPlugin(t *testing.T) {

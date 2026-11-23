@@ -165,7 +165,7 @@ func TestListFiltersAddUpToTheMacBadges(t *testing.T) {
 		"run_o": {Run: "run_o", Kind: needStep, Request: "step-3", Since: at(18)},
 	}
 	landings := map[string]*landingView{"agt_l": {Run: "run_g"}}
-	children := childStatuses(recs)
+	children := childStatuses(recs, nil)
 	infos := make([]sessionInfo, 0, len(recs)+2)
 	rows := make([]sessionRow, 0, len(recs))
 	for _, rec := range recs {

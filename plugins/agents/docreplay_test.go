@@ -13,6 +13,7 @@ import (
 
 	"clubmate/internal/testutil"
 	"clubmate/pkg/contract"
+	"clubmate/plugins/agents/acp"
 )
 
 func replayApp(t *testing.T, rec record, run func(context.Context) error) (*app, *session, *atomic.Int32) {
@@ -86,7 +87,7 @@ func TestDocQueuedAgainDuringItsReplayIsKept(t *testing.T) {
 	rec := record{ID: "s1", Workspace: "ws", Status: statusRunning}
 	a, s, calls := replayApp(t, rec, func(context.Context) error { <-release; return nil })
 	doc := gatedDoc{Workspace: "ws", For: "s1", Path: "/r/a.md", Mode: docGateOpen}
-	require.True(t, s.queueDoc(doc))
+	require.True(t, s.queueDoc(doc, false))
 	s.mu.Lock()
 	s.rec.Status = statusDone
 	s.mu.Unlock()
@@ -95,7 +96,7 @@ func TestDocQueuedAgainDuringItsReplayIsKept(t *testing.T) {
 	s.mu.Lock()
 	s.rec.Status = statusRunning
 	s.mu.Unlock()
-	require.True(t, s.queueDoc(doc))
+	require.True(t, s.queueDoc(doc, false))
 
 	close(release)
 
@@ -120,4 +121,69 @@ func TestLimitResumeThatCannotStartShowsQueuedDocs(t *testing.T) {
 	assert.Zero(t, a.continueLimited("ws", time.Now()))
 
 	testutil.Eventually(t, func() bool { return calls.Load() == 1 && queuedDocs(s) == 0 }, 10*time.Second)
+}
+
+func TestPlainNotFoundDropsTheDocAfterFiveTries(t *testing.T) {
+	t.Parallel()
+	rec := record{ID: "s1", Workspace: "ws", Status: statusDone, GatedDocs: []gatedDoc{{Workspace: "ws", For: "s1", Path: "/r/a.md", Mode: docGateOpen}}}
+	a, s, calls := replayApp(t, rec, func(context.Context) error { return rpcError(codeNotFound, "") })
+
+	for i := int32(1); i <= maxDocMisses; i++ {
+		a.settleGatedDocs(s)
+		want := 1
+		if i == maxDocMisses {
+			want = 0
+		}
+		testutil.Eventually(t, func() bool { return calls.Load() == i && !replaying(s) && queuedDocs(s) == want }, 10*time.Second)
+	}
+}
+
+func TestOnlyAQuestionToTheUserShowsQueuedDocs(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		held   bool
+		parent bool
+		shows  bool
+	}{
+		"to the user":                   {shows: true},
+		"of a held session":             {held: true},
+		"of a child its parent answers": {parent: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rec := record{ID: "s1", Workspace: "ws", Status: statusWaiting, GatedDocs: []gatedDoc{{Workspace: "ws", For: "s1", Path: "/r/a.md", Mode: docGateOpen}}}
+			if tc.held {
+				rec.Held = &heldTurn{Round: 1}
+			}
+			if tc.parent {
+				rec.ParentSession = "p1"
+			}
+			a, s, calls := replayApp(t, rec, func(context.Context) error { return nil })
+			a.sessions["p1"] = &session{rec: record{ID: "p1", Workspace: "ws", Status: statusRunning}}
+			s.mu.Lock()
+			s.perms["elicitation-1"] = &pendingPermission{elicit: make(chan acp.ElicitationResponse, 1)}
+			s.upsert(entryElicitation, "elicitation-1", 1).Elicitation = &elicitation{Mode: acp.ElicitationForm, Message: "Which one?"}
+			s.mu.Unlock()
+
+			a.settleGatedDocs(s)
+
+			if tc.shows {
+				testutil.Eventually(t, func() bool { return calls.Load() == 1 && queuedDocs(s) == 0 }, 10*time.Second)
+				return
+			}
+			testutil.Never(t, func() bool { return calls.Load() > 0 }, time.Second)
+		})
+	}
+}
+
+func TestReplayTurnIsDroppedWhenItsDocShowsElsewhere(t *testing.T) {
+	t.Parallel()
+	a, s, _ := replayApp(t, record{ID: "s1", Workspace: "ws", Status: statusDone}, func(context.Context) error { return nil })
+	s.expectReplay(gatedDoc{Mode: docGateOpen, Path: "/r/a.md", Turn: 1})
+
+	a.docPresented(docGateOpen, docsPresented{Workspace: "other", Session: "s1", Path: "/r/a.md"})
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	assert.Empty(t, s.replayTurns)
 }

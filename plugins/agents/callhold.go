@@ -94,17 +94,18 @@ const (
 var errUserOnly = errors.New("only the user answers this request")
 
 type callHold struct {
-	Hold    *heldTurn `json:"hold"`
-	Call    string    `json:"call,omitempty"`
-	Agent   string    `json:"agent,omitempty"`
-	Tool    string    `json:"tool"`
-	Input   string    `json:"input,omitempty"`
-	Caption string    `json:"caption,omitempty"`
-	Cut     bool      `json:"cut,omitempty"`
-	Told    bool      `json:"told,omitempty"`
-	Sent    string    `json:"sent,omitempty"`
-	Hook    string    `json:"hook,omitempty"`
-	Seen    time.Time `json:"seen,omitzero"`
+	Hold    *heldTurn    `json:"hold"`
+	Call    string       `json:"call,omitempty"`
+	Agent   string       `json:"agent,omitempty"`
+	Tool    string       `json:"tool"`
+	Input   string       `json:"input,omitempty"`
+	Caption string       `json:"caption,omitempty"`
+	Cut     bool         `json:"cut,omitempty"`
+	Told    bool         `json:"told,omitempty"`
+	Sent    string       `json:"sent,omitempty"`
+	Hook    string       `json:"hook,omitempty"`
+	Message *gateMessage `json:"message,omitempty"`
+	Seen    time.Time    `json:"seen,omitzero"`
 }
 
 type callSpare struct {
@@ -437,7 +438,7 @@ func (a *app) takeCall(ctx context.Context, s *session, c *heldCall) {
 		caption := toolHeldWhy(g, hit.Via)
 		hold := &callHold{Hold: &h, Call: c.id, Agent: c.agent, Tool: c.tool, Input: clipBytes(c.text, callInputMax), Caption: caption, Cut: len(c.text) > callInputMax, Told: wasTold, Seen: now}
 		if old != nil && !next {
-			hold.Sent, hold.Hook = old.Sent, old.Hook
+			hold.Sent, hold.Hook, hold.Message = old.Sent, old.Hook, old.Message
 		}
 		if decided {
 			c.decided[hit.ID] = hold
@@ -451,14 +452,11 @@ func (a *app) takeCall(ctx context.Context, s *session, c *heldCall) {
 			continue
 		}
 		calls = append(calls, hold)
-		marks = append(marks, callMark{Gate: hit.ID, Name: toolMatchName(g), Repo: filepath.Base(g.Repo), Round: max(h.Round, 1), Of: g.Rounds + h.Extra, Caption: caption})
+		marks = append(marks, callMarkOf(g, hold))
 	}
 	s.rec.Calls, s.rec.UpdatedAt = calls, now
 	unsent := s.dropUnsentLocked(bumped)
-	c.marks = marks
-	if len(marks) > 0 {
-		s.markCallLocked(c.agent, c.id, &gateMark{State: callStateHeld, Holds: marks})
-	}
+	s.remarkLocked(c, marks)
 	s.mu.Unlock()
 	for _, x := range unsent {
 		dropFindings(x.Hook, x.Sent)
@@ -519,12 +517,7 @@ func (a *app) regateCalls(ctx context.Context, s *session, g *gateConfig, gateID
 			approvals = append(approvals, callSpare{Gate: gateID, Key: d.Hold.Key})
 		}
 		delete(c.decided, gateID)
-		if marks := slices.DeleteFunc(slices.Clone(c.marks), func(m callMark) bool { return m.Gate == gateID }); len(marks) != len(c.marks) {
-			c.marks = marks
-			if len(marks) > 0 {
-				s.markCallLocked(c.agent, c.id, &gateMark{State: callStateHeld, Holds: marks})
-			}
-		}
+		s.remarkLocked(c, slices.DeleteFunc(slices.Clone(c.marks), func(m callMark) bool { return m.Gate == gateID }))
 		if c.decided != nil && len(c.waiting) == 0 {
 			settle = append(settle, c)
 		}
@@ -1060,16 +1053,29 @@ func (a *app) refuseCall(s *session, c *heldCall) {
 		}
 	}
 	msg := callMessage(gates, c.id, holds)
-	dir := s.hookDir
-	s.mu.Unlock()
-	hook := writeFindings(dir, msg)
-	s.mu.Lock()
-	for _, x := range s.rec.Calls {
-		if x.Call == c.id && x.Hold.Last == gateChanges && x.Sent != c.id {
-			s.dropSentLocked(x.Sent)
-		}
+	var seen, merged []string
+	flying := ""
+	if s.sending != nil && s.sending.Message != nil {
+		flying = s.sending.Message.Call
 	}
-	s.rec.Calls = sentCalls(s.rec.Calls, c.id, hook)
+	for _, x := range s.rec.Calls {
+		if x.Call != c.id || x.Hold.Last != gateChanges || x.Sent == c.id || x.Sent == "" || slices.Contains(seen, x.Sent) {
+			continue
+		}
+		seen = append(seen, x.Sent)
+		if x.Sent == flying {
+			claimFindings(x.Hook, x.Sent)
+			continue
+		}
+		if x.Message != nil && claimFindings(x.Hook, x.Sent) {
+			msg.Groups = append(slices.Clone(x.Message.Groups), msg.Groups...)
+			merged = append(merged, x.Sent)
+			delete(s.gateMsgs, x.Sent)
+		}
+		s.dropSentLocked(x.Sent)
+	}
+	hook := writeFindings(s.hookDir, msg)
+	s.rec.Calls = sentCalls(s.rec.Calls, c.id, merged, flying, hook, &msg)
 	if s.gateMsgs == nil {
 		s.gateMsgs = map[string]gateMessage{}
 	}
@@ -1177,12 +1183,20 @@ func claimFindings(dir, call string) bool {
 	return err == nil || !toldOn(dir, call)
 }
 
-func sentCalls(calls []*callHold, call, hook string) []*callHold {
+func sentCalls(calls []*callHold, call string, merged []string, flying, hook string, msg *gateMessage) []*callHold {
+	out := retagged(calls, call, merged, flying, hook, msg)
+	if flying != "" && !slices.ContainsFunc(out, func(c *callHold) bool { return c.Sent == call }) {
+		return retagged(calls, call, merged, "", hook, msg)
+	}
+	return out
+}
+
+func retagged(calls []*callHold, call string, merged []string, flying, hook string, msg *gateMessage) []*callHold {
 	out := make([]*callHold, 0, len(calls))
 	for _, c := range calls {
-		if c.Call == call && c.Hold.Last == gateChanges {
+		if (c.Call == call && c.Hold.Last == gateChanges || c.Sent != "" && slices.Contains(merged, c.Sent)) && (flying == "" || c.Sent != flying) {
 			n := *c
-			n.Sent, n.Hook, n.Told = call, hook, false
+			n.Sent, n.Hook, n.Message, n.Told = call, hook, msg, false
 			c = &n
 		}
 		out = append(out, c)
@@ -1195,7 +1209,7 @@ func toldCalls(calls []*callHold, sent string, delivered bool) []*callHold {
 	for _, c := range calls {
 		if c.Sent == sent {
 			n := *c
-			n.Sent, n.Hook, n.Told = "", "", n.Told || delivered
+			n.Sent, n.Hook, n.Message, n.Told = "", "", nil, n.Told || delivered
 			c = &n
 		}
 		out = append(out, c)
@@ -1211,6 +1225,22 @@ func (a *app) settleTold(s *session) {
 	}
 }
 
+func (s *session) settleDelivered(before, after []queuedPrompt) bool {
+	settled := false
+	for _, q := range before {
+		if q.Message == nil || slices.ContainsFunc(after, func(x queuedPrompt) bool { return x.ID == q.ID }) {
+			continue
+		}
+		for _, c := range sentHolds(s.snapshot()) {
+			if c.Sent == q.Message.Call {
+				s.dropSent(c, true)
+				settled = true
+			}
+		}
+	}
+	return settled
+}
+
 func sentHolds(rec record) []*callHold {
 	var out []*callHold
 	for _, c := range rec.Calls {
@@ -1222,6 +1252,11 @@ func sentHolds(rec record) []*callHold {
 }
 
 func (s *session) settleSent(c *callHold, delivered bool) {
+	s.dropSent(c, delivered)
+	s.changed(changeStatus, true)
+}
+
+func (s *session) dropSent(c *callHold, delivered bool) {
 	s.mu.Lock()
 	s.rec.Calls, s.rec.UpdatedAt = toldCalls(s.rec.Calls, c.Sent, delivered), time.Now().UTC()
 	delete(s.gateMsgs, c.Sent)
@@ -1231,11 +1266,16 @@ func (s *session) settleSent(c *callHold, delivered bool) {
 	}
 	s.mu.Unlock()
 	dropFindings(c.Hook, c.Sent)
-	s.changed(changeStatus, true)
 }
 
 func (s *session) unqueueMessageLocked(call string) {
-	s.queue = slices.DeleteFunc(s.queue, func(q queuedPrompt) bool { return q.Message != nil && (call == "" || q.Message.Call == call) })
+	s.queue = slices.DeleteFunc(s.queue, func(q queuedPrompt) bool {
+		if q.Message == nil || call != "" && q.Message.Call != call {
+			return false
+		}
+		delete(s.telling, q.Message.Call)
+		return true
+	})
 }
 
 func (s *session) dropSentLocked(call string) {
@@ -1286,14 +1326,21 @@ func (a *app) tellFindings(s *session, stopped bool) bool {
 			s.settleSent(c, false)
 		case !s.tellOnce(c.Sent):
 		case claimFindings(c.Hook, c.Sent):
-			holds := slices.DeleteFunc(slices.Clone(rec.Calls), func(x *callHold) bool { return x.Sent != c.Sent })
-			msg := callMessage(a.gatesOrLast(context.Background()), c.Sent, holds)
+			msg := a.sentMessage(rec, c)
 			queued = a.queueMessage(s, c.Sent, promptArgs{Text: msg.text(), Queued: true, Gate: true, Message: &msg}) || queued
 		default:
 			s.settleSent(c, true)
 		}
 	}
 	return queued
+}
+
+func (a *app) sentMessage(rec record, c *callHold) gateMessage {
+	if c.Message != nil {
+		return *c.Message
+	}
+	holds := slices.DeleteFunc(slices.Clone(rec.Calls), func(x *callHold) bool { return x.Sent != c.Sent })
+	return callMessage(a.gatesOrLast(context.Background()), c.Sent, holds)
 }
 
 func (s *session) tellOnce(call string) bool {
@@ -1391,10 +1438,7 @@ func (a *app) releaseCall(s *session, c *heldCall) {
 		a.reholdCall(ctx, s, c, stale, tree, head)
 		return
 	}
-	s.mu.Lock()
-	live := slices.Contains(s.calls, c)
-	s.mu.Unlock()
-	if !live {
+	if !s.holdsCall(c) {
 		return
 	}
 	var undropped []string
@@ -1408,10 +1452,29 @@ func (a *app) releaseCall(s *session, c *heldCall) {
 		return
 	}
 	s.mu.Lock()
+	if !slices.Contains(s.calls, c) {
+		s.mu.Unlock()
+		return
+	}
 	spares := s.takeSparesLocked(hitGates(hits))
 	s.mu.Unlock()
 	a.dropSpares(spares)
-	a.answerCall(s, c.request, a.releaseAnswer(rec, c))
+	answer := a.releaseAnswer(rec, c)
+	s.mu.Lock()
+	i := slices.Index(s.calls, c)
+	if i < 0 {
+		s.mu.Unlock()
+		return
+	}
+	finish := s.answerLocked(i, answer)
+	s.mu.Unlock()
+	a.answered(s, finish)
+}
+
+func (s *session) holdsCall(c *heldCall) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Contains(s.calls, c)
 }
 
 func (a *app) releaseAnswer(rec record, c *heldCall) callAnswer {
@@ -1429,8 +1492,13 @@ func (a *app) releaseAnswer(rec record, c *heldCall) callAnswer {
 func (a *app) reholdCall(ctx context.Context, s *session, c *heldCall, stale []string, tree, head string) {
 	asks := make(map[string]heldAsk, len(stale))
 	keys := make(map[string]string, len(stale))
+	cfgs := make(map[string]gateConfig, len(stale))
 	for _, gate := range stale {
-		asks[gate] = a.heldAskOf(ctx, a.gateByID(ctx, gate))
+		g := a.gateByID(ctx, gate)
+		asks[gate] = a.heldAskOf(ctx, g)
+		if g != nil {
+			cfgs[gate] = *g
+		}
 		keys[gate] = toolgate.Key(gate, s.snapshot().ID, c.tool, c.text, head, tree)
 	}
 	s.mu.Lock()
@@ -1475,12 +1543,24 @@ func (a *app) reholdCall(ctx context.Context, s *session, c *heldCall, stale []s
 		delete(c.decided, gate)
 		c.waiting = append(c.waiting, gate)
 	}
+	marks := make([]callMark, 0, len(c.hits))
 	for _, hit := range c.hits {
-		if i := slices.IndexFunc(ours, func(x *callHold) bool { return x.Hold.Gate == hit.ID }); i >= 0 {
+		i := slices.IndexFunc(ours, func(x *callHold) bool { return x.Hold.Gate == hit.ID })
+		if i >= 0 {
 			calls = append(calls, ours[i])
+		}
+		if j := slices.IndexFunc(c.marks, func(m callMark) bool { return m.Gate == hit.ID }); j >= 0 {
+			marks = append(marks, c.marks[j])
+		} else if i >= 0 && slices.Contains(c.waiting, hit.ID) {
+			g, ok := cfgs[hit.ID]
+			if !ok {
+				g = gateConfig{ID: hit.ID, Tool: hit.Tool, How: hit.How, Text: hit.Text}
+			}
+			marks = append(marks, callMarkOf(g, ours[i]))
 		}
 	}
 	s.rec.Calls, s.rec.UpdatedAt = calls, now
+	s.remarkLocked(c, marks)
 	idle := len(c.waiting) == 0
 	s.mu.Unlock()
 	a.dropSpares(spares)
@@ -1684,6 +1764,13 @@ func (a *app) answerCall(s *session, request string, answer callAnswer) bool {
 		s.mu.Unlock()
 		return false
 	}
+	finish := s.answerLocked(i, answer)
+	s.mu.Unlock()
+	a.answered(s, finish)
+	return true
+}
+
+func (s *session) answerLocked(i int, answer callAnswer) bool {
 	c := s.calls[i]
 	s.calls = slices.Delete(s.calls, i, i+1)
 	if answer == callCancelled {
@@ -1698,14 +1785,15 @@ func (a *app) answerCall(s *session, request string, answer callAnswer) bool {
 		s.markCallLocked(c.agent, c.id, mark)
 	}
 	c.reply <- answer
-	finish := s.settleLocked()
-	s.mu.Unlock()
+	return s.settleLocked()
+}
+
+func (a *app) answered(s *session, finish bool) {
 	s.changed(changeStatus, true)
 	if finish && s.idled != nil {
 		go s.idled()
 	}
 	go a.takeCalls(context.Background(), s)
-	return true
 }
 
 func (s *session) refuseCallsLocked() {
@@ -1720,7 +1808,7 @@ func (s *session) refuseLocked(c *heldCall, reply chan callAnswer) {
 	for _, h := range c.hits {
 		reason := fmt.Sprintf(callNoTurn, c.repo, toolMatchName(gateConfig{Tool: h.Tool, How: h.How, Text: h.Text}))
 		reasons = append(reasons, reason)
-		round := 1
+		round := 0
 		if hold := s.rec.call(h.ID); hold != nil {
 			round = max(hold.Hold.Round, 1)
 		}
@@ -1770,10 +1858,14 @@ func (a *app) withdrawCall(s *session, request string) bool {
 
 func (a *app) endCalls(s *session, user bool) {
 	s.mu.Lock()
+	ended, status := len(s.calls), s.rec.Status
 	dropped, spares := s.endCallsLocked(user)
 	finish := s.settleLocked()
+	moved := ended > 0 || len(dropped) > 0 || len(spares) > 0 || s.rec.Status != status
 	s.mu.Unlock()
-	s.changed(changeStatus, true)
+	if moved {
+		s.changed(changeStatus, true)
+	}
 	if finish && s.idled != nil {
 		go s.idled()
 	}
@@ -1908,6 +2000,22 @@ func (s *session) markCallLocked(agentSession, call string, mark *gateMark) {
 	}
 	e.Seq = s.log.write(e)
 	s.apply(e)
+}
+
+func callMarkOf(g gateConfig, x *callHold) callMark {
+	return callMark{Gate: x.Hold.Gate, Name: toolMatchName(g), Repo: filepath.Base(g.Repo), Round: max(x.Hold.Round, 1), Of: g.Rounds + x.Hold.Extra, Caption: x.Caption}
+}
+
+func (s *session) remarkLocked(c *heldCall, marks []callMark) {
+	if slices.Equal(marks, c.marks) {
+		return
+	}
+	c.marks = marks
+	var mark *gateMark
+	if len(marks) > 0 {
+		mark = &gateMark{State: callStateHeld, Holds: marks}
+	}
+	s.markCallLocked(c.agent, c.id, mark)
 }
 
 func (s *session) unmarkCalls(cleared []clearedCall) {
@@ -2111,7 +2219,10 @@ func (s *session) endedCallLocked(agentSession, kind, was string, payload json.R
 	held := s.held[u.ID]
 	delete(s.held, u.ID)
 	if !hookable(s.rec) || s.toolGated != nil && !s.toolGated() {
-		return nil
+		if s.hookDir == "" {
+			return nil
+		}
+		return &endedCall{id: u.ID, dir: s.hookDir}
 	}
 	c := &endedCall{id: u.ID, held: held, dir: s.hookDir, unhooked: s.hookDir == "" || s.hookWhy != "", epoch: s.epoch, cycle: s.cycle && !s.running}
 	if en := s.toolEntryLocked(agentSession, u.ID); en != nil && u.Status == toolCompleted {

@@ -250,3 +250,15 @@ func (h *PluginHarness) FailKVDeletes(t *testing.T, plugin, prefix string) (heal
 		require.NoError(t, err)
 	}
 }
+
+func (h *PluginHarness) FailKVReads(t *testing.T, plugin, prefix string) (heal func()) {
+	t.Helper()
+	heal = h.KV.FailReads(plugin, prefix)
+	t.Cleanup(heal)
+	return heal
+}
+
+func (h *PluginHarness) OnKVRead(t *testing.T, plugin, prefix string, fn func() error) {
+	t.Helper()
+	t.Cleanup(h.KV.OnRead(plugin, prefix, fn))
+}

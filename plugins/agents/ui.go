@@ -244,7 +244,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	home, _, _ := workRoot(workspace)
 	recs := a.list(workspaceID)
 	all := slices.Clone(recs)
-	children := childStatuses(recs)
+	children := childStatuses(recs, a.gateRunOpen)
 	kids := kidsOf(recs)
 	groups := groupKeys(recs, home)
 	infos := a.infos(workspaceID)

@@ -219,7 +219,7 @@
         "hidden": true,
         "agent": false,
         "timeout": 200,
-        "description": "Only the agents plugin, for a land gate's graph run: one landing's worktree at <main checkout>/.worktrees/.gate-<gate>-<key>, detached at git commit-tree <tree> -p <old>, the exact tree that would land (the last commit is kept when its tree and parent already match). Made once per key (running .clubmate/setup.sh only when the user already trusts it), then checked out with -f and cleaned (git clean -fd, ignored files kept) for each round; a dir deleted by hand is pruned and made again. Never listed by git.worktrees or the index. With remove: the key's worktree, or with no key every worktree of the gate, removed with --force. Returns {path, commit}.",
+        "description": "Only the agents plugin, for a land gate's graph run: one landing's worktree at <main checkout>/.worktrees/.gate-<gate>-<key>, detached at git commit-tree <tree> -p <old>, the exact tree that would land (the last commit is kept when its tree and parent already match). Made once per key (copying the main checkout's .clubmate/worktree-include files, running .clubmate/setup.sh only when the user already trusts it, else returning setup: \"untrusted\"), then checked out with -f and cleaned (git clean -fd, ignored files kept) for each round; a dir deleted by hand is pruned and made again. Never listed by git.worktrees or the index. With remove: the key's worktree, or with no key every worktree of the gate, removed with --force, and leftover .gate-<gate> dirs git no longer lists deleted. Returns {path, commit, setup?}.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "A checkout of the gated repo."},

@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	_ "modernc.org/sqlite"
 
@@ -21,6 +24,7 @@ const (
 )
 
 var (
+	ErrReadFault     = errors.New("read fault")
 	ErrInvalidKey    = errors.New("key must be 1-256 bytes without NUL")
 	ErrInvalidValue  = errors.New("value must be valid JSON")
 	ErrValueTooLarge = errors.New("value exceeds 256 KiB")
@@ -35,7 +39,16 @@ CREATE TABLE IF NOT EXISTS kv(
 );`
 
 type Store struct {
-	db *sql.DB
+	db      *sql.DB
+	faulted atomic.Bool
+	mu      sync.Mutex
+	faults  []*readFault
+}
+
+type readFault struct {
+	plugin string
+	prefix string
+	fn     func() error
 }
 
 func Open(path string) (*Store, error) {
@@ -64,8 +77,49 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+func (s *Store) FailReads(plugin, prefix string) (heal func()) {
+	return s.OnRead(plugin, prefix, func() error { return ErrReadFault })
+}
+
+func (s *Store) OnRead(plugin, prefix string, fn func() error) (remove func()) {
+	f := &readFault{plugin: plugin, prefix: prefix, fn: fn}
+	s.mu.Lock()
+	s.faults = append(s.faults, f)
+	s.faulted.Store(true)
+	s.mu.Unlock()
+	return func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.faults = slices.DeleteFunc(s.faults, func(x *readFault) bool { return x == f })
+		s.faulted.Store(len(s.faults) > 0)
+	}
+}
+
+func (s *Store) readFault(plugin string, hit func(prefix string) bool) error {
+	if !s.faulted.Load() {
+		return nil
+	}
+	s.mu.Lock()
+	var fns []func() error
+	for _, f := range s.faults {
+		if f.plugin == plugin && hit(f.prefix) {
+			fns = append(fns, f.fn)
+		}
+	}
+	s.mu.Unlock()
+	for _, fn := range fns {
+		if err := fn(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Store) Get(ctx context.Context, plugin, key string) (json.RawMessage, bool, error) {
 	if err := validateKey(key); err != nil {
+		return nil, false, err
+	}
+	if err := s.readFault(plugin, func(prefix string) bool { return strings.HasPrefix(key, prefix) }); err != nil {
 		return nil, false, err
 	}
 	var value string
@@ -118,6 +172,9 @@ func (s *Store) DeletePrefix(ctx context.Context, plugin, prefix string) error {
 }
 
 func (s *Store) List(ctx context.Context, plugin, prefix string) ([]string, error) {
+	if err := s.readFault(plugin, func(f string) bool { return strings.HasPrefix(prefix, f) || strings.HasPrefix(f, prefix) }); err != nil {
+		return nil, err
+	}
 	rows, err := s.db.QueryContext(ctx, `SELECT key FROM kv WHERE plugin = ? AND substr(key, 1, length(?)) = ? ORDER BY key`, plugin, prefix, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("list kv: %w", err)

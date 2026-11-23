@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1444,6 +1446,86 @@ func (u unreadSetup) waitReview(t *testing.T) {
 	testutil.Eventually(t, func() bool {
 		h := u.f.held(t, u.workspace, u.session)
 		return h != nil && h.Gate == u.gate && h.Run != ""
+	}, wait)
+}
+
+func (f *fixture) landingWords(t *testing.T, workspace, session string) string {
+	t.Helper()
+	var list []struct {
+		Landing *struct {
+			Words string `json:"words"`
+		} `json:"landing"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{"session": session}, &list))
+	if len(list) == 0 || list[0].Landing == nil {
+		return ""
+	}
+	return list[0].Landing.Words
+}
+
+func TestUnreadGatesHoldOnlyTheGatedRepoAndShowAfterARestart(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_RECHECK=1h"}, map[string]any{"prompt": []map[string]any{{"match": doneReview, "wait": filepath.Join(t.TempDir(), "never")}, {"match": "WORK", "run": writesNote}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	gated, other := newRepo(t), newRepo(t)
+	workspace, elsewhere := f.workspace(t, gated), f.workspace(t, other)
+	gate := f.doneGate(t, workspace, gated, nil)
+	held, done := f.newSession(t, workspace), f.newSession(t, elsewhere)
+	f.h.FailKVReads(t, "agents", "land-gates")
+	f.restartAgents(t, workspace)
+
+	f.prompt(t, workspace, held, "WORK")
+	f.prompt(t, elsewhere, done, "WORK")
+
+	f.waitStatus(t, elsewhere, done, "done")
+	unread := func() bool {
+		h := f.held(t, workspace, held)
+		return h != nil && h.Gate == gate && f.landingWords(t, workspace, held) == "held · checking again"
+	}
+	testutil.Eventually(t, unread, wait)
+	f.restartAgents(t, workspace)
+	testutil.Eventually(t, unread, wait)
+}
+
+func TestGatePausedWhileATurnEndsDoesNotHoldIt(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, nil, map[string]any{"prompt": []map[string]any{{"match": doneReview, "wait": filepath.Join(t.TempDir(), "never")}, {"match": "WORK", "run": writesNote}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	gate := f.doneGate(t, workspace, repo, nil)
+	session := f.newSession(t, workspace)
+	var planning atomic.Bool
+	release := make(chan struct{})
+	var once sync.Once
+	resume := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(resume)
+	f.h.OnKVRead(t, "agents", "turn-verdict/"+gate+"/", func() error {
+		if planning.CompareAndSwap(false, true) {
+			<-release
+		}
+		return nil
+	})
+
+	f.prompt(t, workspace, session, "WORK")
+	testutil.Eventually(t, planning.Load, wait)
+	f.pauseGate(t, workspace, gate)
+	resume()
+
+	testutil.Eventually(t, func() bool {
+		return f.session(t, workspace, session).Status == "done" && f.held(t, workspace, session) == nil
+	}, wait)
+}
+
+func TestHoldIsAskedAboutWhenTheGraphEngineFailsToStart(t *testing.T) {
+	t.Parallel()
+	d := startDone(t, map[string]any{}, map[string]any{}, nil)
+	d.reviewer(t)
+	d.f.h.FailKVReads(t, "agents", "graph/")
+
+	d.f.restartAgents(t, d.workspace)
+
+	testutil.Eventually(t, func() bool {
+		h := d.f.held(t, d.workspace, d.session)
+		return h != nil && h.Request != ""
 	}, wait)
 }
 

@@ -18,6 +18,9 @@ type app struct {
 	meta       metaStore
 	landMu     sync.Mutex
 	bases      baseImport
+	gateTreeMu sync.Mutex
+	swept      map[string]bool
+	sweptWS    map[string]bool
 }
 
 func main() {

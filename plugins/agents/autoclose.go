@@ -47,7 +47,9 @@ func (a *app) closeDone(after time.Duration) {
 	for _, root := range roots {
 		rec := root.snapshot()
 		tree := a.subtree(root)
-		if slices.ContainsFunc(tree, func(s *session) bool { return !s.settled(after, s == root && rec.Run != nil) }) || !a.asidesSettled(tree, after) {
+		if slices.ContainsFunc(tree, func(s *session) bool {
+			return !s.settled(after, s == root && rec.Run != nil) || a.gateBusy(ctx, s.snapshot())
+		}) || !a.asidesSettled(tree, after) {
 			continue
 		}
 		workspace := rec.Workspace
@@ -71,6 +73,14 @@ func (a *app) closeDone(after time.Duration) {
 			}
 		}
 	}
+}
+
+func (a *app) gateBusy(ctx context.Context, rec record) bool {
+	if rec.reviewRun(a.gateRunOpen) != "" {
+		return true
+	}
+	gf := rec.GateFor
+	return gf != nil && gf.Run != "" && !rec.closed() && a.graphs.GateRunning(ctx, gf.Run)
 }
 
 func (a *app) jobOwners(ctx context.Context, workspace string) map[string]bool {

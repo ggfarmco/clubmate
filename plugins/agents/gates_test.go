@@ -50,6 +50,7 @@ type gateVerdictRow struct {
 	By       string    `json:"by"`
 	Lander   string    `json:"lander"`
 	Into     string    `json:"into"`
+	Source   string    `json:"source"`
 	Call     string    `json:"call"`
 	Round    int       `json:"round"`
 	Reviewer string    `json:"reviewer"`
@@ -222,7 +223,9 @@ func TestDockRepoRowOpensTheFirstToolCallGateByName(t *testing.T) {
 
 func TestSheetCountsTheRepoSessionsMidTurn(t *testing.T) {
 	t.Parallel()
-	f := start(t, callScript(openTurn("hold")))
+	script := callScript(openTurn("hold"))
+	script["resume"] = true
+	f := start(t, script)
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
 	busy := f.newSession(t, workspace)
@@ -240,4 +243,29 @@ func TestSheetCountsTheRepoSessionsMidTurn(t *testing.T) {
 			return x.Props["text"] == "1 session mid-turn picks this gate up when its turn ends"
 		})
 	})
+}
+
+func TestSheetLeavesOutSessionsThatCannotTakeTheHook(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{})
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "one")
+	f.waitStatus(t, workspace, session, "done")
+	f.addPushGate(t, workspace, repo)
+	f.waitRecord(t, workspace, session, "never hooked", func(r record) bool {
+		return r.Ungated != nil && r.Ungated.Line == "Not gated yet · from its next start"
+	})
+
+	require.NoError(t, f.run(t, workspace, "agents.gates.new", map[string]any{}, nil))
+	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return len(sheetNodes(n, "sheet")) == 1 })
+	f.h.Event(t, workspace, "agents.sheet", "gateSheet/holds", "gateHolds", "tool")
+
+	sheet := f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool {
+		return slices.ContainsFunc(sheetNodes(n, "text"), func(x sdui.Node) bool { return x.Props["text"] == "= Bash · a gh pr create command" })
+	})
+	assert.False(t, slices.ContainsFunc(sheetNodes(sheet, "text"), func(x sdui.Node) bool {
+		return x.Props["text"] == "1 session mid-turn picks this gate up when its turn ends"
+	}))
 }

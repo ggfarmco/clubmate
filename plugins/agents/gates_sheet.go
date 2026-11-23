@@ -323,11 +323,7 @@ func (d gateDraft) toolConfig() (gateConfig, error) {
 	if d.call() != gateCallCustom {
 		return toolMatch(toolgate.Bash, toolgate.HowCommand, d.call())
 	}
-	text := d.Text
-	if d.customHow() == toolgate.HowContains {
-		text = strings.TrimSpace(text)
-	}
-	return toolMatch(d.Tool, d.customHow(), text)
+	return toolMatch(d.Tool, d.customHow(), d.Text)
 }
 
 func (d gateDraft) takenTool() (gateConfig, bool) {

@@ -503,7 +503,7 @@ func (s *session) update(params json.RawMessage) {
 	if started {
 		s.changed(changeStatus, true)
 		if s.cycled != nil {
-			go s.cycled()
+			s.cycled()
 		}
 	}
 	if ended && s.idled != nil {

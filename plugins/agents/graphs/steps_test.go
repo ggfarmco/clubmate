@@ -717,6 +717,28 @@ func TestRestartMarksOpenStepInterrupted(t *testing.T) {
 	assert.Equal(t, "Tests error · interrupted", live.Reason)
 }
 
+type savedRuns []string
+
+func (s *savedRuns) Save(_ context.Context, r *Run) error {
+	*s = append(*s, r.Status+" · "+r.Reason)
+	return nil
+}
+
+func (s *savedRuns) Remove(context.Context, *Run) error { return nil }
+
+func TestRestartStopsAndSavesAGateRunLeftWithNothingOpen(t *testing.T) {
+	a, _, _, r := stepApp(t)
+	saved := &savedRuns{}
+	a.store = saved
+	live := a.runs[r.ID]
+	live.Gate = true
+	live.Moves[0].Open = false
+
+	a.recoverSteps(t.Context())
+
+	assert.Equal(t, []string{statusStopped + " · " + reasonGateDeadEnd}, []string(*saved))
+}
+
 func TestRestartDeliversOwedEdgesAfterReady(t *testing.T) {
 	a, core, _, r := stepApp(t)
 	live := a.runs[r.ID]

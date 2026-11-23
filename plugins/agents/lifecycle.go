@@ -192,6 +192,7 @@ func (a *app) deleteSession(ctx context.Context, s *session, remote bool) error 
 	delete(a.dropped, rec.ID)
 	a.mu.Unlock()
 	a.forgetJournaled(rec.ID)
+	a.baseCache.forget(rec.ID)
 	a.notes.mark(s, changeDeleted, true)
 	a.forgetSession(ctx, rec.Workspace, rec.ID)
 	a.kick(rec.Workspace)

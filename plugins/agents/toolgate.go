@@ -57,6 +57,8 @@ func toolMatch(tool, how, text string) (gateConfig, error) {
 	}
 	how = cmp.Or(how, toolHowDefault(tool))
 	switch how {
+	case toolgate.HowContains:
+		text = strings.TrimSpace(text)
 	case toolgate.HowStarts, toolgate.HowCommand:
 		if tool != toolgate.Bash {
 			return gateConfig{}, errGateBashOnly

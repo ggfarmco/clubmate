@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -79,6 +80,35 @@ func TestGateHistoryIsReadFromStorageOnceUntilItChanges(t *testing.T) {
 	assert.Empty(t, read())
 	mu.Lock()
 	assert.Equal(t, 2, gets)
+	mu.Unlock()
+}
+
+func TestUnreadableGateGraphIsReadOncePerStamp(t *testing.T) {
+	var mu sync.Mutex
+	gets := 0
+	locked := t.TempDir()
+	graph := filepath.Join(locked, ".clubmate", "graphs", "locked.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(graph), 0o755))
+	require.NoError(t, os.WriteFile(graph, []byte("{}"), 0))
+	gates, err := json.Marshal([]gateConfig{{ID: "gt_1", Repo: t.TempDir(), Point: gatePointTurn, Graph: "no-such-graph"}, {ID: "gt_2", Repo: locked, Point: gatePointTurn, Graph: "locked"}})
+	require.NoError(t, err)
+	h := scriptedHost(t, func(method, key string) any {
+		mu.Lock()
+		defer mu.Unlock()
+		if method == "storage.get" && key == gatesKey {
+			gets++
+			return map[string]any{"found": true, "value": json.RawMessage(gates)}
+		}
+		return nil
+	})
+	a := &app{host: h, graphs: graphs.New(graphs.Deps{Host: h})}
+
+	assert.Equal(t, "no-such-graph", a.heldFactsOf("gt_1").graph)
+	assert.Equal(t, "no-such-graph", a.heldFactsOf("gt_1").graph)
+	a.heldFactsOf("gt_2")
+	a.heldFactsOf("gt_2")
+	mu.Lock()
+	assert.Equal(t, 3, gets)
 	mu.Unlock()
 }
 

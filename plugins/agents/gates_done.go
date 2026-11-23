@@ -363,7 +363,11 @@ func (a *app) heldIdle(rec record) bool {
 }
 
 func (a *app) turnHeld(rec record) bool {
-	return rec.heldWaits() || a.heldIdle(rec)
+	if !rec.heldWaits() {
+		return a.heldIdle(rec)
+	}
+	s := a.session(rec.ID)
+	return s == nil || !s.working()
 }
 
 func heldQuestion(h heldTurn) string {
@@ -385,7 +389,7 @@ type heldRoundView struct {
 }
 
 func (a *app) heldRound(rec record) *heldRoundView {
-	if !a.turnHeld(rec) || rec.Held.Unread {
+	if !a.turnHeld(rec) || rec.Held.Unread || !a.heldShown(rec.Held) {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)

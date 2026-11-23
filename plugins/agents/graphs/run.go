@@ -64,6 +64,7 @@ type Run struct {
 	GateDir   string      `json:"gateDir,omitempty"`
 	GatePin   string      `json:"gatePin,omitempty"`
 	GateOther string      `json:"gateOther,omitempty"`
+	GateRound int         `json:"gateRound,omitempty"`
 }
 
 type Start struct {

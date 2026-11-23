@@ -76,6 +76,8 @@ type hookState struct {
 	hookOwed   bool
 	cycled     func()
 	bgCalls    []*bgCall
+	dropping   int
+	followOwed bool
 	held       map[string][]string
 	ran        func(endedCall)
 	toolGated  func() bool
@@ -394,11 +396,15 @@ func (a *app) unhooked(primary string) int {
 	defer cancel()
 	n := 0
 	for _, s := range a.allSessions() {
-		if p, err := a.hookPrimary(ctx, s.snapshot().Worktree); err == nil && p == primary && a.needsHook(ctx, s) {
+		if p, err := a.hookPrimary(ctx, s.snapshot().Worktree); err == nil && p == primary && a.needsHook(ctx, s) && a.hooksLater(s) {
 			n++
 		}
 	}
 	return n
+}
+
+func (a *app) hooksLater(s *session) bool {
+	return a.resumes(s.snapshot().ID) && s.canResume()
 }
 
 func (a *app) rehookSession(s *session) {

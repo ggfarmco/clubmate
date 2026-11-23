@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/testutil"
+	"clubmate/plugins/agents/api"
 )
 
 const gateWhere = `{"nodes":[{"id":"lint","prompt":"Lint. {{input}}","start":true},{"id":"where","run":"pwd"},{"id":"review","prompt":"Review. {{input}}","outcomes":["approved","changes"]}],"edges":[{"from":"lint","to":"where"},{"from":"where","to":"review"}]}`
@@ -19,6 +20,8 @@ const gateWhere = `{"nodes":[{"id":"lint","prompt":"Lint. {{input}}","start":tru
 const gateSlowFix = `{"nodes":[{"id":"review","prompt":"Review. {{input}}","start":true,"outcomes":["approved","changes"]},{"id":"slow","run":"sleep 30"}],"edges":[{"from":"review","to":"slow","on":"outcome","outcome":"changes"}]}`
 
 const gateChecked = `{"nodes":[{"id":"lint","prompt":"Lint. {{input}}","start":true},{"id":"check","run":"cat VERSION b.go"},{"id":"review","prompt":"Review. {{input}}","outcomes":["approved","changes"]}],"edges":[{"from":"lint","to":"check"},{"from":"check","to":"review"}]}`
+
+const gateSlowStep = `{"nodes":[{"id":"lint","prompt":"Lint. {{input}}","start":true},{"id":"slow","run":"sleep 30"},{"id":"review","prompt":"Review. {{input}}","outcomes":["approved","changes"]}],"edges":[{"from":"lint","to":"slow"},{"from":"slow","to":"review"}]}`
 
 const gatePipeline = `{"nodes":[{"id":"simplify","prompt":"Simplify. {{input}}","start":true,"model":"sonnet"},{"id":"review","prompt":"Review. {{input}}","model":"fable","outcomes":["approved","changes"]}],"edges":[{"from":"simplify","to":"review"}]}`
 
@@ -48,9 +51,9 @@ func startGateEnv(t *testing.T, env []string, name, graph string) gateSetup {
 	return startGateReview(t, env, name, graph, release, map[string]any{"match": "Clubmate land review", "wait": release})
 }
 
-func startGateReview(t *testing.T, env []string, name, graph, release string, review map[string]any) gateSetup {
+func startGateReview(t *testing.T, env []string, name, graph, release string, review map[string]any, dirs ...string) gateSetup {
 	t.Helper()
-	f := startEnv(t, env, map[string]any{"prompt": []map[string]any{review}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	f := startEnv(t, env, map[string]any{"prompt": []map[string]any{review}}, append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json")}, dirs...)...)
 	repo := newRepo(t)
 	args := map[string]any{"repo": repo}
 	if name != "" {
@@ -191,6 +194,20 @@ func TestSummaryInGateHistory(t *testing.T) {
 	require.NoError(t, g.f.run(t, g.workspace, "agents.gate-verdicts", map[string]any{"id": g.gate}, &h))
 	require.Len(t, h.Verdicts, 1)
 	assert.Equal(t, "Groups the inbox by workspace.", h.Verdicts[0].Summary)
+}
+
+func TestStopOnALandingCardIsLoggedStopped(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	req, _ := g.cardAtCap(t)
+
+	g.answer(t, req, "leave")
+
+	var h gateHistory
+	testutil.Eventually(t, func() bool {
+		return g.f.run(t, g.workspace, "agents.gate-verdicts", map[string]any{"id": g.gate}, &h) == nil && len(h.Verdicts) == 2
+	}, wait)
+	assert.Equal(t, [2]string{"stopped", "user"}, [2]string{h.Verdicts[0].Outcome, h.Verdicts[0].By})
 }
 
 func TestMovedTipVoidsVerdict(t *testing.T) {
@@ -729,6 +746,18 @@ func TestStoppedRunTellsLander(t *testing.T) {
 	assert.Len(t, runs, 2)
 }
 
+func TestStoppedRunClosesItsNodes(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.ErrorContains(t, g.land(t), "review pending")
+	reviewer := g.reviewer(t)
+	g.f.waitStatus(t, g.workspace, reviewer.ID, "running")
+
+	require.NoError(t, g.f.run(t, g.workspace, "agents.graph-stop", map[string]any{"id": reviewer.GateFor.Run}, nil))
+
+	g.f.waitStatus(t, g.workspace, reviewer.ID, "closed")
+}
+
 func TestLandDoneStopsGateRun(t *testing.T) {
 	t.Parallel()
 	g := startGate(t)
@@ -876,6 +905,26 @@ func TestGateTreeFollowsRounds(t *testing.T) {
 	trees := g.gateTrees(t)
 	require.Len(t, trees, 1)
 	assert.Equal(t, review.GateFor.Tree, git(t, trees[0], "rev-parse", "HEAD^{tree}"))
+}
+
+func TestGateStepKeepsTheLanderRunningAndOpen(t *testing.T) {
+	t.Parallel()
+	env := append(allowHome(t, "Bash(sleep 30)"), "CLUBMATE_AGENTS_CLOSE_AFTER=300ms")
+	g := startGateReview(t, env, "slow", gateSlowStep, "", map[string]any{"match": "Clubmate land review"},
+		testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"),
+		testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"))
+	require.ErrorContains(t, g.land(t), "review pending")
+	run := g.reviewer(t).GateFor.Run
+	testutil.Eventually(t, func() bool { return g.stepStatus(t, run, "slow") == "running" }, wait)
+
+	g.f.prompt(t, g.workspace, g.lander, "go")
+
+	turns := g.f.waitTurns(t, g.lander, func(turns []api.Turn) bool { return len(turns) > 0 && turns[0].Status == "done" })
+	assert.False(t, turns[0].Finished)
+	testutil.Never(t, func() bool {
+		lander := g.f.session(t, g.workspace, g.lander)
+		return lander.Status == "closed" || lander.ChildStatus != "running" || g.runStatus(t, run) != "running"
+	}, quiet)
 }
 
 func TestTwoLandingsThroughOneGateUseTheirOwnTrees(t *testing.T) {

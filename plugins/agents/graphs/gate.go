@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	outApproved      = "approved"
-	outChanges       = "changes"
-	errGateUndecided = "%s can't decide a landing: no node reports approved and changes"
+	outApproved       = "approved"
+	outChanges        = "changes"
+	errGateUndecided  = "%s can't decide a landing: no node reports approved and changes"
+	reasonGateDeadEnd = "the round ended before it reached the verdict node"
 )
 
 var (
@@ -137,7 +138,7 @@ func (e *Engine) PromptGate(ctx context.Context, run, verdictText, otherText str
 		a.mu.Unlock()
 		return errGateNotRunning
 	}
-	r.Input, r.GateOther = verdictText, otherText
+	r.Input, r.GateOther, r.GateRound = verdictText, otherText, len(r.Moves)
 	var starts []promptArgs
 	for _, n := range r.Nodes {
 		if !n.Start || n.Session == "" {
@@ -215,14 +216,19 @@ func (e *Engine) StopGate(ctx context.Context, run string) error {
 }
 
 func (e *Engine) GateRunning(ctx context.Context, run string) bool {
+	running, _ := e.GateRunState(ctx, run)
+	return running
+}
+
+func (e *Engine) GateRunState(ctx context.Context, run string) (bool, error) {
 	a := e.a
-	if a.waitReady(ctx) != nil {
-		return false
+	if err := a.waitReady(ctx); err != nil {
+		return false, err
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	r := a.runs[run]
-	return r != nil && r.Gate && r.Status == statusRunning
+	return r != nil && r.Gate && r.Status == statusRunning, nil
 }
 
 func (e *Engine) GateStepsIdle(ctx context.Context, run string) bool {
@@ -270,6 +276,42 @@ func (a *app) stop(r *Run, reason string, now time.Time) {
 		workspace, id := r.Workspace, r.ID
 		a.spawn(func() { a.gateEnded(workspace, id) })
 	}
+}
+
+func (r *Run) gateDeadEnd() bool {
+	if !r.Gate || r.Status != statusRunning || r.Spec == nil || len(r.Held) > 0 || r.GateRound > len(r.Moves) {
+		return false
+	}
+	return !slices.ContainsFunc(r.Moves[r.GateRound:], func(m Move) bool {
+		n := r.Spec.node(m.Node)
+		return m.Open || n == nil || n.decides()
+	})
+}
+
+func (r *Run) gateOutcomeDue() bool {
+	if r.Spec == nil || r.GateRound > len(r.Moves) {
+		return false
+	}
+	return slices.ContainsFunc(r.Moves[r.GateRound:], func(m Move) bool {
+		n := r.Spec.node(m.Node)
+		return !m.Open && n != nil && !n.step() && r.Spec.hasEdge(m.Node, onOutcome) && r.moveOutcome(m) == ""
+	})
+}
+
+func (a *app) recheckDeadEnd(ctx context.Context, run string) {
+	a.mu.Lock()
+	r := a.runs[run]
+	if r == nil || !r.gateDeadEnd() {
+		a.mu.Unlock()
+		return
+	}
+	a.stop(r, reasonGateDeadEnd, a.now())
+	a.touch(r.Workspace)
+	logError(a.store.Save(ctx, r))
+	stopped := cloneRun(r)
+	a.mu.Unlock()
+	a.finish(ctx, stopped)
+	a.flush(ctx)
 }
 
 func (r *Run) verdictSession() string {

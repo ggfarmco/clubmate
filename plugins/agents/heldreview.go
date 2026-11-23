@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -464,9 +465,9 @@ func (a *app) heldAskOf(ctx context.Context, g *gateConfig) heldAsk {
 	return out
 }
 
-func (a *app) heldAskRead(ctx context.Context, g *gateConfig) (heldAsk, bool) {
+func (a *app) heldAskRead(ctx context.Context, g *gateConfig) (heldAsk, error) {
 	if g == nil {
-		return heldAsk{}, false
+		return heldAsk{}, nil
 	}
 	out := heldAsk{graph: g.Graph, name: doneGateName(g.Wrote), repo: filepath.Base(g.Repo), rounds: g.Rounds}
 	if g.Point == gatePointTool {
@@ -474,10 +475,10 @@ func (a *app) heldAskRead(ctx context.Context, g *gateConfig) (heldAsk, bool) {
 	}
 	info, err := a.graphs.GateGraphInfo(ctx, g.Repo, g.Graph)
 	if err != nil {
-		return out, false
+		return out, err
 	}
 	out.graph = cmp.Or(info.Title, info.Name, g.Graph)
-	return out, true
+	return out, nil
 }
 
 type heldFacts struct {
@@ -515,8 +516,8 @@ func (a *app) heldFactsOf(gateID string) heldAsk {
 		return heldAsk{}
 	}
 	stamp := a.graphs.GateGraphStamp(g.Repo, g.Graph)
-	facts, read := a.heldAskRead(ctx, g)
-	if !read {
+	facts, err := a.heldAskRead(ctx, g)
+	if _, unread := errors.AsType[*fs.PathError](err); unread && stamp != "" {
 		return facts
 	}
 	a.heldFacts.mu.Lock()
@@ -547,7 +548,36 @@ func (s *session) dropCarriedGate(gateID string) {
 	}
 }
 
+type gatePauses struct {
+	mu  sync.Mutex
+	gen uint64
+	at  map[string]uint64
+}
+
+func (p *gatePauses) mark() uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.gen
+}
+
+func (p *gatePauses) note(gateID string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.gen++
+	if p.at == nil {
+		p.at = map[string]uint64{}
+	}
+	p.at[gateID] = p.gen
+}
+
+func (p *gatePauses) since(gateID string, mark uint64) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return gateID != "" && p.at[gateID] > mark
+}
+
 func (a *app) dropCarriedGates(gateID string) {
+	a.pauses.note(gateID)
 	for _, s := range a.allSessions() {
 		s.dropCarriedGate(gateID)
 	}
@@ -653,6 +683,9 @@ func (a *app) trustedHolds(gateID string) {
 
 func (a *app) resumeHolds() {
 	ctx := context.Background()
+	for run, workspaceID := range a.unheldRuns() {
+		a.endHoldRun(workspaceID, heldTurn{Run: run}, true, false)
+	}
 	for _, s := range a.allSessions() {
 		a.resetStale(s, time.Now())
 		queued := false
@@ -679,6 +712,26 @@ func (a *app) resumeHolds() {
 		}
 		a.tellFindings(s, false)
 	}
+}
+
+func (a *app) unheldRuns() map[string]string {
+	a.gateMu.Lock()
+	defer a.gateMu.Unlock()
+	out := map[string]string{}
+	for _, s := range a.allSessions() {
+		rec := s.snapshot()
+		gf := rec.GateFor
+		if gf == nil || gf.Run == "" || rec.closed() || (gf.Point != gatePointTurn && gf.Point != gatePointTool) {
+			continue
+		}
+		if lander := a.session(gf.Lander); lander != nil {
+			if h := holdOfNode(lander, *gf).get(); h != nil && h.Run == gf.Run {
+				continue
+			}
+		}
+		out[gf.Run] = rec.Workspace
+	}
+	return out
 }
 
 func (s *session) settling() bool {

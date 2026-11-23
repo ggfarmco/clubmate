@@ -399,7 +399,7 @@ func TestStopClosesTheSessionsOtherCards(t *testing.T) {
 	}, wait)
 	var rec map[string]any
 	require.NoError(t, json.Unmarshal(raw, &rec))
-	rec["landReviews"] = []map[string]any{{"into": "main", "source": "feat", "repo": repo, "request": "lg_0123456789abcdef", "reqOld": "a", "reqTree": "b", "since": time.Now().UTC()}}
+	rec["landReviews"] = []map[string]any{{"into": "main", "source": "feat", "repo": repo, "gate": "gt_land", "rounds": 2, "request": "lg_0123456789abcdef", "reqOld": "a", "reqTree": "b", "since": time.Now().UTC()}}
 	rec["updatedAt"] = time.Now().Add(time.Hour).UTC()
 	raw, err := json.Marshal(rec)
 	require.NoError(t, err)
@@ -414,6 +414,12 @@ func TestStopClosesTheSessionsOtherCards(t *testing.T) {
 		return slices.Contains(got, cards[0]) && slices.Contains(got, cards[1]) && slices.Contains(got, "lg_0123456789abcdef")
 	})
 	assert.Empty(t, f.session(t, workspace, session).Pending)
+	var history []gateVerdictRow
+	testutil.Eventually(t, func() bool {
+		raw, found, err := f.h.KV.Get(t.Context(), "agents", "land-history/gt_land")
+		return err == nil && found && json.Unmarshal(raw, &history) == nil && len(history) == 1
+	}, wait)
+	assert.Equal(t, []any{"stopped", "user", session, "main", "feat", 2}, []any{history[0].Outcome, history[0].By, history[0].Lander, history[0].Into, history[0].Source, history[0].Round})
 }
 
 func TestCardResolveNamesItsRequest(t *testing.T) {

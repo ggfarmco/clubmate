@@ -104,3 +104,26 @@ func TestMovePluginKeepsExistingTarget(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, left)
 }
+
+func TestKVFailReadsUnderAPrefixUntilHealed(t *testing.T) {
+	s := openKV(t)
+	require.NoError(t, s.Set(t.Context(), "a", "run/1", json.RawMessage(`1`)))
+	require.NoError(t, s.Set(t.Context(), "a", "gate", json.RawMessage(`2`)))
+	heal := s.FailReads("a", "run/")
+
+	_, _, err := s.Get(t.Context(), "a", "run/1")
+	require.ErrorIs(t, err, kv.ErrReadFault)
+	_, err = s.List(t.Context(), "a", "")
+	require.ErrorIs(t, err, kv.ErrReadFault)
+	_, found, err := s.Get(t.Context(), "a", "gate")
+	require.NoError(t, err)
+	assert.True(t, found)
+	_, found, err = s.Get(t.Context(), "b", "run/1")
+	require.NoError(t, err)
+	assert.False(t, found)
+
+	heal()
+	keys, err := s.List(t.Context(), "a", "run/")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"run/1"}, keys)
+}

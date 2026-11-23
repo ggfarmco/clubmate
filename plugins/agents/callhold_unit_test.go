@@ -152,6 +152,158 @@ func TestCompletedCallIsNotJudgedWhileNoToolGateExists(t *testing.T) {
 	assert.NotNil(t, s.endedCallLocked("", acp.UpdateToolCallUpdate, "", done))
 }
 
+func TestUngatedCallDropsItsMark(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mark := filepath.Join(dir, toolHookMarks, "c1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(mark), 0o700))
+	require.NoError(t, os.WriteFile(mark, nil, 0o600))
+	s := newSession(record{ID: "agt_1"}, newEventLog(filepath.Join(t.TempDir(), "s.jsonl")), true, func(string, bool) {})
+	s.toolGated = func() bool { return false }
+	s.hookDir = dir
+
+	c := s.endedCallLocked("", acp.UpdateToolCallUpdate, "", json.RawMessage(`{"toolCallId":"c1","status":"completed"}`))
+	require.NotNil(t, c)
+	(&app{}).judgeCall(s, *c)
+
+	assert.NoFileExists(t, mark)
+}
+
+func owedSession(t *testing.T) (*session, gateMessage) {
+	t.Helper()
+	msg := gateMessage{Call: "c1", Tail: "again"}
+	rec := record{ID: "s", Calls: []*callHold{{Hold: &heldTurn{Gate: "g", Last: gateChanges}, Sent: "c1", Message: &msg}}}
+	return newSession(rec, newEventLog(filepath.Join(t.TempDir(), "s.jsonl")), true, func(string, bool) {}), msg
+}
+
+func queuedCalls(s *session) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []string
+	for _, q := range s.queue {
+		if q.Message != nil {
+			out = append(out, q.Message.Call)
+		}
+	}
+	return out
+}
+
+func TestUnqueuedGateMessageIsQueuedAgain(t *testing.T) {
+	t.Parallel()
+	s, _ := owedSession(t)
+	s.running = true
+	a := &app{}
+	require.True(t, a.tellFindings(s, false))
+	s.mu.Lock()
+	s.unqueueMessageLocked("")
+	s.mu.Unlock()
+	require.Empty(t, queuedCalls(s))
+
+	a.tellFindings(s, false)
+
+	assert.Equal(t, []string{"c1"}, queuedCalls(s))
+}
+
+func TestCancelDuringAFailedAttachKeepsTheFindingsOwed(t *testing.T) {
+	t.Parallel()
+	s, msg := owedSession(t)
+	s.mu.Lock()
+	s.sending = &queuedPrompt{Text: msg.text(), Message: &msg}
+	_, epoch := s.beginTurnLocked()
+	s.cancelRequested = true
+
+	stale := s.attachFailedLocked(epoch)
+
+	got := *s.rec.Calls[0]
+	s.mu.Unlock()
+	assert.False(t, stale)
+	assert.Empty(t, queuedCalls(s))
+	assert.Equal(t, "c1", got.Sent)
+	assert.False(t, got.Told)
+	assert.True(t, s.tellOnce("c1"))
+}
+
+func TestRefusalWhileTheSameKeyMessageIsSendingDoesNotSendItTwice(t *testing.T) {
+	t.Parallel()
+	h := scriptedHost(t, func(string, string) any { return nil })
+	a := &app{host: h, stateDir: t.TempDir(), registry: newRegistry()}
+	sent := gateMessage{Call: "a1", Groups: []gateFindings{{Head: "A", Findings: []string{"finding A"}}}}
+	rec := record{ID: "s", Calls: []*callHold{
+		{Hold: &heldTurn{Gate: "g", Last: gateChanges, Findings: []string{"finding A"}}, Call: "b1", Sent: "a1", Message: &sent},
+		{Hold: &heldTurn{Gate: "h", Last: gateChanges, Findings: []string{"finding B"}}, Call: "b1"},
+	}}
+	s := newSession(rec, newEventLog(filepath.Join(t.TempDir(), "s.jsonl")), true, func(string, bool) {})
+	s.sending = &queuedPrompt{Text: sent.text(), Message: &sent}
+	c := &heldCall{id: "b1", request: "r1", taken: true, reply: make(chan callAnswer, 1), hits: []toolgate.Hit{{Rule: toolgate.Rule{ID: "g"}}}, decided: map[string]*callHold{"g": {Hold: &heldTurn{Gate: "g", Last: gateChanges, Findings: []string{"finding B"}}}}}
+	s.calls = []*heldCall{c}
+
+	a.refuseCall(s, c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	require.Len(t, s.gateMsgs["b1"].Groups, 1)
+	assert.Equal(t, []string{"finding B"}, s.gateMsgs["b1"].Groups[0].Findings)
+	assert.Equal(t, "a1", s.sending.Message.Call)
+	assert.Equal(t, []string{"a1", "b1"}, []string{s.rec.Calls[0].Sent, s.rec.Calls[1].Sent})
+	assert.False(t, s.rec.Calls[0].Told)
+}
+
+func TestRefusalMergesTheUnsentMessageOfTheSameKeyOnce(t *testing.T) {
+	t.Parallel()
+	h := scriptedHost(t, func(string, string) any { return nil })
+	a := &app{host: h, stateDir: t.TempDir(), registry: newRegistry()}
+	unsent := gateMessage{Call: "a1", Groups: []gateFindings{{Head: "A", Findings: []string{"finding A"}}}}
+	rec := record{ID: "s", Calls: []*callHold{{Hold: &heldTurn{Gate: "g", Last: gateChanges, Findings: []string{"finding A"}}, Call: "b1", Sent: "a1", Message: &unsent}}}
+	s := newSession(rec, newEventLog(filepath.Join(t.TempDir(), "s.jsonl")), true, func(string, bool) {})
+	s.gateMsgs = map[string]gateMessage{"a1": unsent}
+	c := &heldCall{id: "b1", request: "r1", taken: true, reply: make(chan callAnswer, 1), hits: []toolgate.Hit{{Rule: toolgate.Rule{ID: "g"}}}, decided: map[string]*callHold{"g": {Hold: &heldTurn{Gate: "g", Last: gateChanges, Findings: []string{"finding B"}}}}}
+	s.calls = []*heldCall{c}
+
+	a.refuseCall(s, c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	assert.NotContains(t, s.gateMsgs, "a1")
+	require.Len(t, s.gateMsgs["b1"].Groups, 2)
+	assert.Equal(t, []string{"finding A"}, s.gateMsgs["b1"].Groups[0].Findings)
+}
+
+func TestGateTakenOffItsCallsLastMarkClearsTheMark(t *testing.T) {
+	t.Parallel()
+	s := newSession(record{ID: "s"}, newEventLog(filepath.Join(t.TempDir(), "s.jsonl")), true, func(string, bool) {})
+	c := &heldCall{id: "c", taken: true, waiting: []string{"g", "h"}, reply: make(chan callAnswer, 1)}
+	for _, g := range []string{"g", "h"} {
+		c.hits = append(c.hits, toolgate.Hit{Rule: toolgate.Rule{ID: g}})
+	}
+	s.calls = []*heldCall{c}
+	s.mu.Lock()
+	s.remarkLocked(c, []callMark{{Gate: "g"}})
+	s.mu.Unlock()
+
+	(&app{}).regateCalls(t.Context(), s, nil, "g", byGateDeleted)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	assert.Equal(t, []string{"h"}, c.waiting)
+	en := s.toolEntryLocked("", "c")
+	require.NotNil(t, en)
+	assert.JSONEq(t, `null`, string(en.Tool["gate"]))
+}
+
+func TestStopWithNothingHeldSavesNothing(t *testing.T) {
+	t.Parallel()
+	saves := 0
+	s := newSession(record{ID: "s", Status: statusDone}, newEventLog(filepath.Join(t.TempDir(), "s.jsonl")), true, func(_ string, save bool) {
+		if save {
+			saves++
+		}
+	})
+
+	(&app{}).endCalls(s, true)
+
+	assert.Zero(t, saves)
+}
+
 func gitRepo(t *testing.T) string {
 	t.Helper()
 	repo, err := filepath.EvalSymlinks(t.TempDir())

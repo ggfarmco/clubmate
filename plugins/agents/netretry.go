@@ -49,9 +49,29 @@ func (a *app) retryNetwork(s *session, err error) bool {
 
 func (a *app) fireNetRetry(s *session, reason string) {
 	w := &a.watchdog
+	id := s.snapshot().ID
 	w.mu.Lock()
-	delete(w.retryTimers, s.snapshot().ID)
+	delete(w.retryTimers, id)
+	w.retryAfter[id] = reason
 	w.mu.Unlock()
+	s.mu.Lock()
+	cycling := s.cycle
+	s.mu.Unlock()
+	if !cycling {
+		a.retryAfterCycle(s)
+	}
+}
+
+func (a *app) retryAfterCycle(s *session) {
+	w := &a.watchdog
+	id := s.snapshot().ID
+	w.mu.Lock()
+	reason, ok := w.retryAfter[id]
+	delete(w.retryAfter, id)
+	w.mu.Unlock()
+	if !ok {
+		return
+	}
 	select {
 	case <-a.quit:
 		return
@@ -65,6 +85,7 @@ func (a *app) resetNetRetry(id string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	delete(w.retries, id)
+	delete(w.retryAfter, id)
 	if t := w.retryTimers[id]; t != nil {
 		t.Stop()
 		delete(w.retryTimers, id)

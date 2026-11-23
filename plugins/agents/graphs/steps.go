@@ -511,6 +511,10 @@ func (a *app) recoverSteps(ctx context.Context) func(context.Context) {
 				}
 				owed = append(owed, r.owedSince(before, ownedCause{Outcome: onError})...)
 			}
+			if r.gateDeadEnd() {
+				a.stop(r, reasonGateDeadEnd, now)
+				closed = true
+			}
 			if r.Status != statusRunning {
 				stopped = append(stopped, cloneRun(r))
 			}
@@ -644,6 +648,8 @@ func (a *app) stepDone(ctx context.Context, runID, node string, move int, res st
 			a.stop(r, fmt.Sprintf(reasonEnd, node, outcome), now)
 		case outcome == onError && !r.Spec.hasEdge(node, onError):
 			a.stop(r, fmt.Sprintf(reasonStepError, n.label(), reason), now)
+		case r.gateDeadEnd():
+			a.stop(r, reasonGateDeadEnd, now)
 		}
 		if r.Status == statusRunning {
 			next = r.nextQueued(node)

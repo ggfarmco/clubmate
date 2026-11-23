@@ -5,23 +5,28 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
 )
 
 const (
-	landModeBranch = "branch"
-	landModeIndex  = "index"
-	landGateCmd    = "agents.land-gate"
-	landDoneCmd    = "agents.land-done"
-	landApproved   = "approved"
-	nothingToLand  = "%s adds nothing to %s; nothing landed"
-	baseGoneText   = "Base %s is gone, landed into %s."
-	baseIdleText   = "the branch's base %s is checked out in no worktree: check %s out in a worktree, or pass into to land somewhere else"
+	landModeBranch     = "branch"
+	landModeIndex      = "index"
+	landGateCmd        = "agents.land-gate"
+	landDoneCmd        = "agents.land-done"
+	landApproved       = "approved"
+	nothingToLand      = "%s adds nothing to %s; nothing landed"
+	baseGoneText       = "Base %s is gone, landed into %s."
+	baseIdleText       = "the branch's base %s is checked out in no worktree: check %s out in a worktree, or pass into to land somewhere else"
+	summaryDroppedText = "The commit-msg hook refused the message with the gate's summary (%s); landed without the summary."
+	summaryWidth       = 100
 )
 
 var (
@@ -37,7 +42,15 @@ var (
 	errLandHook      = errors.New("the repo's commit hook changed the committed tree")
 	errNoLandTarget  = errors.New("no worktree has the target branch checked out")
 	errLandIntoCase  = errors.New("into names a branch in a different case; pass its exact name")
+	paragraphBreak   = regexp.MustCompile(`\n[ \t]*\n`)
+	bulletPrefix     = regexp.MustCompile(`^([-*]|\d+[.)]) `)
 )
+
+type commitFailed struct{ err error }
+
+func (e commitFailed) Error() string { return e.err.Error() }
+
+func (e commitFailed) Unwrap() error { return e.err }
 
 type landGateCall struct {
 	Session  string `json:"session"`
@@ -86,10 +99,10 @@ func landCommand(ctx context.Context, a *app, c call) (any, error) {
 		return nil, err
 	}
 	if p.tree == "" {
-		return p.cleanup(ctx, a, c.h, c.workspaceID, landResult{Into: p.into, Source: p.source, Note: strings.TrimSpace(p.note + " " + fmt.Sprintf(nothingToLand, p.source, p.into))}), nil
+		return p.cleanup(ctx, a, c.h, c.workspaceID, landResult{Into: p.into, Source: p.source, Note: fmt.Sprintf(nothingToLand, p.source, p.into)}), nil
 	}
 	gate := landGateCall{Session: c.caller, Target: p.target.Path, Worktree: p.own.Path, Into: p.into, Source: p.source, Head: p.head, Old: p.old, Tree: p.tree}
-	message := c.args.Message
+	var summary string
 	if c.agent {
 		var reply landGateReply
 		if err := c.h.RunCommand(ctx, landGateCmd, c.workspaceID, gate, &reply); err != nil {
@@ -98,11 +111,9 @@ func landCommand(ctx context.Context, a *app, c call) (any, error) {
 		if reply.State != landApproved {
 			return nil, errors.New(reply.Text)
 		}
-		if summary := strings.TrimSpace(reply.Summary); summary != "" {
-			message += "\n\n" + summary
-		}
+		summary = strings.TrimSpace(reply.Summary)
 	}
-	commit, err := p.commit(ctx, message)
+	commit, note, err := p.commitWithSummary(ctx, c.args.Message, summary)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +121,7 @@ func landCommand(ctx context.Context, a *app, c call) (any, error) {
 		gate.Commit = commit
 		logError("record landing", c.h.RunCommand(ctx, landDoneCmd, c.workspaceID, gate, nil))
 	}
-	return p.cleanup(ctx, a, c.h, c.workspaceID, landResult{Commit: commit, Into: p.into, Source: p.source, Note: p.note}), nil
+	return p.cleanup(ctx, a, c.h, c.workspaceID, landResult{Commit: commit, Into: p.into, Source: p.source, Note: strings.TrimSpace(p.note + " " + note)}), nil
 }
 
 func planLand(ctx context.Context, a *app, c call) (*landPlan, error) {
@@ -208,7 +219,11 @@ func (a *app) defaultInto(ctx context.Context, h *pluginsdk.Host, f *folder, own
 }
 
 func intoWithoutBase(ctx context.Context, f *folder, base, def string) (string, string, error) {
-	if hasRef(ctx, f.Trees[0].Path, headsPrefix+base) {
+	exists, err := refExists(ctx, f.Trees[0].Path, headsPrefix+base)
+	if err != nil {
+		return "", "", err
+	}
+	if exists {
 		return "", "", fmt.Errorf(baseIdleText, base, base)
 	}
 	return def, fmt.Sprintf(baseGoneText, base, def), nil
@@ -253,7 +268,7 @@ func (p *landPlan) commit(ctx context.Context, message string) (string, error) {
 		if p.source != "" {
 			p.undo(ctx)
 		}
-		return "", err
+		return "", commitFailed{err}
 	}
 	commit, err := revParse(ctx, dir, currentHead)
 	if err != nil {
@@ -267,6 +282,113 @@ func (p *landPlan) commit(ctx context.Context, message string) (string, error) {
 		return "", p.uncommit(ctx, commit, tree)
 	}
 	return commit, nil
+}
+
+func (p *landPlan) commitWithSummary(ctx context.Context, message, summary string) (string, string, error) {
+	if summary == "" {
+		commit, err := p.commit(ctx, message)
+		return commit, "", err
+	}
+	full, err := withSummary(ctx, p.target.Path, message, summary)
+	if err != nil {
+		return "", "", err
+	}
+	commit, err := p.commit(ctx, full)
+	failed, ok := errors.AsType[commitFailed](err)
+	if !ok || ctx.Err() != nil || !msgHookRefuses(ctx, p.target.Path, full) {
+		return commit, "", err
+	}
+	commit, err = p.commit(ctx, message)
+	if errors.Is(err, errLandMoved) || errors.Is(err, errLandStaged) || errors.Is(err, errLandTree) {
+		return "", "", failed
+	}
+	if err != nil {
+		return "", "", err
+	}
+	return commit, fmt.Sprintf(summaryDroppedText, firstLine(failed.Error())), nil
+}
+
+func msgHookRefuses(ctx context.Context, dir, message string) bool {
+	var hookErr error
+	err := withMessageFile(message, func(path string) error {
+		_, hookErr = mutate(ctx, dir, "hook", "run", "--ignore-missing", "commit-msg", "--", path)
+		return nil
+	})
+	return err == nil && hookErr != nil && ctx.Err() == nil
+}
+
+func withMessageFile(message string, fn func(path string) error) error {
+	file, err := os.CreateTemp("", "clubmate-land-*.txt")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(file.Name())
+	_, err = file.WriteString(message + "\n")
+	if err = errors.Join(err, file.Close()); err != nil {
+		return err
+	}
+	return fn(file.Name())
+}
+
+func withSummary(ctx context.Context, dir, message, summary string) (string, error) {
+	message = strings.TrimSpace(strings.ReplaceAll(message, "\r\n", "\n"))
+	summary = wrapText(strings.ReplaceAll(summary, "\r\n", "\n"), summaryWidth)
+	trailers, err := hasTrailers(ctx, dir, message)
+	if err != nil {
+		return "", err
+	}
+	loc := paragraphBreak.FindAllStringIndex(message, -1)
+	if !trailers || len(loc) == 0 {
+		return message + "\n\n" + summary, nil
+	}
+	last := loc[len(loc)-1]
+	return message[:last[0]] + "\n\n" + summary + "\n\n" + message[last[1]:], nil
+}
+
+func hasTrailers(ctx context.Context, dir, message string) (bool, error) {
+	var found bool
+	err := withMessageFile(message, func(path string) error {
+		out, err := run(ctx, dir, "interpret-trailers", "--parse", "--no-divider", path)
+		found = strings.TrimSpace(string(out)) != ""
+		return err
+	})
+	return found, err
+}
+
+func wrapText(text string, width int) string {
+	var out []string
+	for line := range strings.SplitSeq(text, "\n") {
+		out = append(out, wrapLine(strings.TrimRight(line, " \t"), width)...)
+	}
+	return strings.Join(out, "\n")
+}
+
+func wrapLine(line string, width int) []string {
+	if utf8.RuneCountInString(line) <= width {
+		return []string{line}
+	}
+	body := strings.TrimLeft(line, " \t")
+	indent := line[:len(line)-len(body)]
+	hang := indent + strings.Repeat(" ", len(bulletPrefix.FindString(body)))
+	words := strings.Fields(body)
+	if len(words) == 0 {
+		return []string{""}
+	}
+	lines := []string{indent + words[0]}
+	for _, w := range words[1:] {
+		cur := &lines[len(lines)-1]
+		if utf8.RuneCountInString(*cur)+1+utf8.RuneCountInString(w) > width {
+			lines = append(lines, hang+w)
+			continue
+		}
+		*cur += " " + w
+	}
+	return lines
+}
+
+func firstLine(s string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
+	return line
 }
 
 func (p *landPlan) uncommit(ctx context.Context, commit, tree string) error {

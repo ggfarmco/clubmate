@@ -22,6 +22,7 @@ import (
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/gitrepo"
 	"clubmate/plugins/internal/landgate"
+	"clubmate/plugins/internal/toolgate"
 )
 
 const (
@@ -97,6 +98,7 @@ type turnOutcome struct {
 
 type donePlan struct {
 	seen    string
+	pauses  uint64
 	carry   string
 	from    *heldTurn
 	held    *heldTurn
@@ -113,8 +115,9 @@ type gateBase struct {
 var clearedBase = &gateBase{}
 
 func (a *app) planDone(s *session, cancelled bool) (plan donePlan) {
+	pauses := a.pauses.mark()
 	rec := a.afkRec(s.snapshot())
-	defer func() { plan.seen = rec.HeldGate }()
+	defer func() { plan.seen, plan.pauses = rec.HeldGate, pauses }()
 	prior := rec.Held
 	switch {
 	case cancelled && prior != nil:
@@ -155,7 +158,7 @@ func (a *app) planDone(s *session, cancelled bool) (plan donePlan) {
 	case !doneGated(gates, primary, rec):
 		return donePlan{base: clearedBase, release: releasedBy(prior, cmp.Or(paused, byGateChanged))}
 	case a.runningChildren(rec.ID) > 0:
-		return donePlan{release: releasedBy(prior, byChildren), carry: carriedGate(prior, rec.HeldGate)}
+		return donePlan{from: prior, release: releasedBy(prior, byChildren), carry: carriedGate(prior, rec.HeldGate)}
 	}
 	taken := time.Now().UTC()
 	tree, head, err := gitrepo.Snapshot(ctx, rec.Worktree)
@@ -228,6 +231,8 @@ func (a *app) unreadPlan(ctx context.Context, prior *heldTurn, rec record, read 
 		g = unreadGate(*read, rec, prior)
 	case prior != nil && inRepo:
 		g = &gateConfig{ID: prior.Gate}
+	case inRepo:
+		g = a.knownGate(rec)
 	}
 	if g == nil {
 		return donePlan{release: releasedBy(prior, byUnmatched)}
@@ -250,6 +255,30 @@ func (a *app) unreadPlan(ctx context.Context, prior *heldTurn, rec record, read 
 		h.ask(a.heldAskOf(ctx, g))
 	}
 	return donePlan{from: prior, held: h}
+}
+
+func (a *app) knownGate(rec record) *gateConfig {
+	if rec.HeldGate != "" {
+		return &gateConfig{ID: rec.HeldGate}
+	}
+	for _, c := range rec.Calls {
+		if c.Hold != nil && c.Hold.Gate != "" {
+			return &gateConfig{ID: c.Hold.Gate}
+		}
+	}
+	repo := sessionRepo(rec.Worktree)
+	if repo == "" || a.stateDir == "" {
+		return nil
+	}
+	raw, err := os.ReadFile(filepath.Join(toolHookPath(a.toolHooksRoot(), repo), toolHookRules))
+	if err != nil {
+		return nil
+	}
+	var rules []toolgate.Rule
+	if json.Unmarshal(raw, &rules) != nil || len(rules) == 0 {
+		return nil
+	}
+	return &gateConfig{ID: rules[0].ID}
 }
 
 func unreadGate(gates []gateConfig, rec record, prior *heldTurn) *gateConfig {
@@ -300,6 +329,9 @@ func sessionRepo(worktree string) string {
 	gitdir = absUnder(top, strings.TrimSpace(gitdir))
 	common, err := os.ReadFile(filepath.Join(gitdir, "commondir"))
 	if err != nil {
+		if checkout := moduleCheckout(gitdir); checkout != "" && checkout == gitrepo.Canonical(top) {
+			return checkout
+		}
 		return ""
 	}
 	back, err := os.ReadFile(filepath.Join(gitdir, "gitdir"))
@@ -308,9 +340,21 @@ func sessionRepo(worktree string) string {
 	}
 	dir := filepath.Clean(absUnder(gitdir, strings.TrimSpace(string(common))))
 	if filepath.Base(dir) == ".git" {
-		dir = filepath.Dir(dir)
+		return gitrepo.Canonical(filepath.Dir(dir))
+	}
+	if checkout := moduleCheckout(dir); checkout != "" {
+		return checkout
 	}
 	return gitrepo.Canonical(dir)
+}
+
+func moduleCheckout(gitdir string) string {
+	out, err := exec.Command("git", "config", "--file", filepath.Join(gitdir, "config"), "--get", "core.worktree").Output()
+	worktree := strings.TrimSpace(string(out))
+	if err != nil || worktree == "" {
+		return ""
+	}
+	return gitrepo.Canonical(filepath.Clean(absUnder(gitdir, worktree)))
 }
 
 func absUnder(dir, p string) string {
@@ -563,10 +607,15 @@ func (s *session) finishableLocked() bool {
 
 func (s *session) finishLocked(p donePlan) (bool, bool) {
 	s.ending = nil
+	gate := p.carry
+	if p.held != nil {
+		gate = p.held.Gate
+	}
+	paused := s.pauses != nil && s.pauses.since(gate, p.pauses)
 	switch {
-	case (p.held != nil || p.carry != "") && p.seen != s.rec.HeldGate:
+	case (p.held != nil || p.carry != "") && (p.seen != s.rec.HeldGate || paused):
 		return true, true
-	case p.held != nil && s.rec.Held != p.from:
+	case (p.held != nil || p.carry != "") && s.rec.Held != p.from:
 		return true, true
 	case p.held != nil:
 		s.rec.Held, s.rec.HeldGate = p.held, ""

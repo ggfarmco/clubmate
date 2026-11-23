@@ -8,9 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/pkg/pluginsdk"
 )
 
 const gatePipeline = `{"title":"Pipeline","nodes":[{"id":"simplify","prompt":"Simplify.","start":true,"model":"sonnet"},{"id":"review","prompt":"Review: {{input}}","model":"fable","outcomes":["approved","changes"]}],"edges":[{"from":"simplify","to":"review"}]}`
@@ -127,6 +130,66 @@ func TestGateRunEndsOnlyWhenStopped(t *testing.T) {
 	assert.True(t, running)
 	assert.False(t, f.e.GateRunning(t.Context(), run))
 	assert.Equal(t, []string{"ws1/" + run}, f.ended)
+}
+
+func TestGateRunStopsWhenItsRoundEndsBeforeTheVerdictNode(t *testing.T) {
+	f := newGateFixture(t)
+	f.write(t, "pipeline", `{"nodes":[{"id":"simplify","prompt":"Simplify.","start":true},{"id":"review","prompt":"Review: {{input}}","outcomes":["approved","changes"]}],"edges":[{"from":"simplify","to":"review","on":"error"}]}`)
+	run, _, err := f.start(t, f.pin(t))
+	require.NoError(t, err)
+
+	turnDone(t, f.a, "agt_g1", 1)
+
+	assert.False(t, f.e.GateRunning(t.Context(), run))
+	assert.Equal(t, []string{"ws1/" + run}, f.ended)
+}
+
+func TestGateRoundWaitsForAnOutcomeThatComesAfterTheTurnEnd(t *testing.T) {
+	f := newGateFixture(t)
+	f.write(t, "pipeline", `{"nodes":[{"id":"simplify","prompt":"Simplify.","start":true,"outcomes":["ready"]},{"id":"review","prompt":"Review: {{input}}","outcomes":["approved","changes"]}],"edges":[{"from":"simplify","to":"review","on":"outcome","outcome":"ready"}]}`)
+	var rechecks []func()
+	f.a.later = func(_ time.Duration, fn func()) { rechecks = append(rechecks, fn) }
+	run, _, err := f.start(t, f.pin(t))
+	require.NoError(t, err)
+
+	turnDone(t, f.a, "agt_g1", 1)
+	waiting := f.e.GateRunning(t.Context(), run)
+	f.a.busEvent(t.Context(), nil, "", pluginsdk.Event{Source: triggersSource, Topic: eventPrefix + f.a.runs[run].outcomeEvent("simplify"), Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_g1","outcome":"ready"}`)})
+	require.Len(t, rechecks, 1)
+	rechecks[0]()
+
+	assert.True(t, waiting)
+	assert.True(t, f.e.GateRunning(t.Context(), run))
+	assert.NotEmpty(t, prompts(t, f.core, "agt_g2"))
+	assert.Empty(t, f.ended)
+}
+
+func TestGateRoundStopsWhenNoOutcomeComesAfterTheTurnEnd(t *testing.T) {
+	f := newGateFixture(t)
+	f.write(t, "pipeline", `{"nodes":[{"id":"simplify","prompt":"Simplify.","start":true,"outcomes":["ready"]},{"id":"review","prompt":"Review: {{input}}","outcomes":["approved","changes"]}],"edges":[{"from":"simplify","to":"review","on":"outcome","outcome":"ready"}]}`)
+	var rechecks []func()
+	f.a.later = func(_ time.Duration, fn func()) { rechecks = append(rechecks, fn) }
+	run, _, err := f.start(t, f.pin(t))
+	require.NoError(t, err)
+
+	turnDone(t, f.a, "agt_g1", 1)
+	require.Len(t, rechecks, 1)
+	rechecks[0]()
+
+	assert.False(t, f.e.GateRunning(t.Context(), run))
+	assert.Equal(t, []string{"ws1/" + run}, f.ended)
+}
+
+func TestGateRunStateIsAnErrorWhileTheEngineIsNotReady(t *testing.T) {
+	t.Parallel()
+	e := &Engine{a: newApp()}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	running, err := e.GateRunState(ctx, "gr_1")
+
+	assert.False(t, running)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func stripRun(nodes []GateNode) []GateNode {

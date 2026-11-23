@@ -159,6 +159,7 @@ const (
 	docsPresentedTopic = "docs.presented"
 	docsReadyTopic     = "docs.ready"
 	codeNotFound       = -32004
+	maxDocMisses       = 5
 )
 
 type presentedDoc struct {
@@ -175,23 +176,24 @@ type docsPresented struct {
 
 func (a *app) docPresented(mode string, p docsPresented) {
 	s := a.session(p.Session)
-	if s == nil || p.Path == "" || s.snapshot().Workspace != p.Workspace {
+	if s == nil || p.Path == "" {
 		return
 	}
 	s.mu.Lock()
-	deleted := s.deleted
-	if !deleted {
+	key := replayKey(mode, p.Path)
+	replayed, ok := s.replayTurns[key]
+	delete(s.replayTurns, key)
+	shown := !s.deleted && s.rec.Workspace == p.Workspace
+	if shown {
 		s.loadLocked()
 		turn := s.turn
-		key := replayKey(mode, p.Path)
-		if t, ok := s.replayTurns[key]; ok {
-			delete(s.replayTurns, key)
-			turn = min(t, turn)
+		if ok {
+			turn = min(replayed, turn)
 		}
 		s.recordTurnLocked(turn, actorClubmate, kindPresented, presentedDoc{Path: p.Path, Title: p.Title})
 	}
 	s.mu.Unlock()
-	if !deleted {
+	if shown {
 		s.changed(changeUpdate, false)
 	}
 }
@@ -407,6 +409,7 @@ type gatedDoc struct {
 	Title     string    `json:"title,omitempty"`
 	Turn      int       `json:"turn,omitempty"`
 	At        time.Time `json:"at,omitzero"`
+	Missed    int       `json:"missed,omitempty"`
 }
 
 type docGateArgs struct {
@@ -444,7 +447,7 @@ func (a *app) docGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if !turnGated(gates) || !mayHoldDone(ctx, gates, rec) {
 		return docGateResult{}, nil
 	}
-	return docGateResult{Queued: s.queueDoc(gatedDoc{Workspace: rec.Workspace, For: cmp.Or(args.For, args.Session), Path: args.Path, Mode: args.Mode, Title: args.Title})}, nil
+	return docGateResult{Queued: s.queueDoc(gatedDoc{Workspace: rec.Workspace, For: cmp.Or(args.For, args.Session), Path: args.Path, Mode: args.Mode, Title: args.Title}, a.parentAnswers(s))}, nil
 }
 
 func mayHoldDone(ctx context.Context, gates []gateConfig, rec record) bool {
@@ -461,9 +464,10 @@ func mayHoldDone(ctx context.Context, gates []gateConfig, rec record) bool {
 	return doneHoldable(rec) && unreadGate(gates, rec, nil) != nil
 }
 
-func (s *session) queueDoc(doc gatedDoc) bool {
+func (s *session) queueDoc(doc gatedDoc, toParent bool) bool {
 	s.mu.Lock()
-	queued := turnRunning(s.rec) && !s.asksUserLocked()
+	s.loadLocked()
+	queued := turnRunning(s.rec) && !s.asksUserLocked(toParent)
 	if queued {
 		doc.At = time.Now().UTC()
 		if doc.For == s.rec.ID {
@@ -479,7 +483,10 @@ func (s *session) queueDoc(doc gatedDoc) bool {
 	return queued
 }
 
-func (s *session) asksUserLocked() bool {
+func (s *session) asksUserLocked(toParent bool) bool {
+	if s.rec.Held != nil || toParent && s.onlyQuestionsLocked() {
+		return false
+	}
 	for _, p := range s.perms {
 		if p.elicit != nil {
 			return true
@@ -488,15 +495,25 @@ func (s *session) asksUserLocked() bool {
 	return false
 }
 
+func (a *app) parentAnswers(s *session) bool {
+	rec := s.snapshot()
+	if rec.ParentSession == "" || rec.isAside() {
+		return false
+	}
+	parent := a.session(rec.ParentSession)
+	return parent != nil && !parent.snapshot().closed()
+}
+
 func turnRunning(rec record) bool {
 	return !rec.closed() && (rec.Status == statusRunning || rec.Status == statusWaiting)
 }
 
 func (a *app) settleGatedDocs(s *session) {
+	toParent := a.parentAnswers(s)
 	s.mu.Lock()
 	docs, closed := s.rec.GatedDocs, s.rec.closed()
 	s.replayAgain = s.replayingDocs
-	if len(docs) == 0 || s.replayingDocs || !closed && !s.asksUserLocked() && (turnRunning(s.rec) || s.rec.LimitWait != nil) {
+	if len(docs) == 0 || s.replayingDocs || !closed && !s.asksUserLocked(toParent) && (turnRunning(s.rec) || s.rec.LimitWait != nil) {
 		s.mu.Unlock()
 		return
 	}
@@ -510,13 +527,19 @@ func (a *app) settleGatedDocs(s *session) {
 			s.changed(changeUpdate, true)
 			return
 		}
-		settled := a.replayDocs(docs)
+		settled, missed := a.replayDocs(docs)
 		s.mu.Lock()
 		again := s.replayAgain
 		s.replayingDocs, s.replayAgain = false, false
-		s.rec.GatedDocs = slices.DeleteFunc(slices.Clone(s.rec.GatedDocs), func(d gatedDoc) bool { return slices.Contains(settled, d) })
+		left := slices.DeleteFunc(slices.Clone(s.rec.GatedDocs), func(d gatedDoc) bool { return slices.Contains(settled, d) })
+		for i, d := range left {
+			if slices.Contains(missed, d) {
+				left[i].Missed++
+			}
+		}
+		s.rec.GatedDocs = left
 		s.mu.Unlock()
-		if len(settled) > 0 {
+		if len(settled) > 0 || len(missed) > 0 {
 			s.changed(changeUpdate, true)
 		}
 		if again {
@@ -525,8 +548,7 @@ func (a *app) settleGatedDocs(s *session) {
 	}()
 }
 
-func (a *app) replayDocs(docs []gatedDoc) []gatedDoc {
-	var settled []gatedDoc
+func (a *app) replayDocs(docs []gatedDoc) (settled, missed []gatedDoc) {
 	for _, d := range docs {
 		args := map[string]any{"path": d.Path, "session": d.For, "gated": false}
 		id := "docs.open"
@@ -544,13 +566,17 @@ func (a *app) replayDocs(docs []gatedDoc) []gatedDoc {
 		if err != nil {
 			s.dropReplay(d)
 		}
-		if docsDown(err) {
+		if docsMissing(err) && d.Missed+1 < maxDocMisses {
+			missed = append(missed, d)
+			continue
+		}
+		if docsDown(err) && !docsMissing(err) {
 			continue
 		}
 		logError("show a doc after its turn", err)
 		settled = append(settled, d)
 	}
-	return settled
+	return settled, missed
 }
 
 func (a *app) runDocs(ctx context.Context, id, workspaceID string, args map[string]any) error {
@@ -593,6 +619,11 @@ func docsDown(err error) bool {
 	}
 	reason := contract.ReasonIn(rpcErr.Data)
 	return rpcErr.Code == contract.CodePluginUnavailable && reason != contract.ReasonUnknown || rpcErr.Code == codeNotFound && reason != contract.ReasonStale
+}
+
+func docsMissing(err error) bool {
+	rpcErr, ok := errors.AsType[*jsonrpc2.Error](err)
+	return ok && rpcErr.Code == codeNotFound && contract.ReasonIn(rpcErr.Data) == ""
 }
 
 func (a *app) settleAllGatedDocs() {

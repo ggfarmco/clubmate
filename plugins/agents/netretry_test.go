@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,4 +42,27 @@ func TestNetworkErrorRetriedInOrchestration(t *testing.T) {
 			assert.Len(t, f.promptsTo(t, kidID, ""), tt.prompts)
 		})
 	}
+}
+
+func TestNetworkRetryWaitsForTheFollowUpCycleToEnd(t *testing.T) {
+	t.Parallel()
+	end := filepath.Join(t.TempDir(), "end")
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_NET_RETRY_AFTER=300ms"}, map[string]any{
+		"prompt":    []map[string]any{{"match": "build it", "fail": noResponse, "errorKind": "server_error"}},
+		"afterFail": true,
+		"after": []map[string]any{
+			{"match": "build it", "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "still building"}}},
+			{"match": "build it", "await": end},
+			{"match": "build it", "update": map[string]any{"sessionUpdate": "usage_update", "used": 1, "size": 10, "cost": map[string]any{"amount": 1, "currency": "USD"}}},
+		},
+	})
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{"title": "Kid", "prompt": "build it"}).Session
+	kidID := f.agentID(t, workspace, kid)
+	testutil.Never(t, func() bool { return len(f.promptsTo(t, kidID, "")) > 1 }, quiet)
+
+	write(t, end, "")
+
+	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, kidID, "Your turn ended with an error")) == 1 }, wait)
 }

@@ -179,6 +179,26 @@ func TestLandFallsBackWhenBaseDeleted(t *testing.T) {
 	assert.Contains(t, res.Note, "Base A is gone, landed into main.")
 }
 
+func TestNothingToLandSaysNothingOfAGoneBase(t *testing.T) {
+	repo := committedRepo(t)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	a, b := filepath.Join(dir, "A"), filepath.Join(dir, "B")
+	git(t, repo, "worktree", "add", "-q", "-b", "A", a)
+	git(t, repo, "worktree", "add", "-q", "-b", "B", b, "A")
+	git(t, repo, "worktree", "remove", a)
+	git(t, repo, "branch", "-D", "A")
+	h, id := open(t, repo)
+	recordBase(t, h, repo, "B", "A")
+
+	var res landed
+	require.NoError(t, runCommand(t, h, id, "git.land", map[string]string{"path": b, "message": "feat: b"}, &res))
+
+	assert.Equal(t, "main", res.Into)
+	assert.Empty(t, res.Commit)
+	assert.Equal(t, "B adds nothing to main; nothing landed", res.Note)
+}
+
 func TestConfigBaseImportedOnce(t *testing.T) {
 	for name, want := range map[string]string{"first start": "A", "imported before": "main"} {
 		t.Run(name, func(t *testing.T) {

@@ -201,7 +201,7 @@ func (a *app) canSpawnLocked(parent string) error {
 	if p := a.session(parent); p == nil || p.snapshot().closed() {
 		return errClosed
 	}
-	if a.runningChildren(parent) >= maxChildren {
+	if a.limitChildren(parent) >= maxChildren {
 		return errChildLimit
 	}
 	return nil

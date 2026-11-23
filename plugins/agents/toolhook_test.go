@@ -224,7 +224,7 @@ func TestHookedFollowsTheLastRealAttach(t *testing.T) {
 	g := f.addPushGate(t, workspace, repo)
 	session := f.newSession(t, workspace)
 	f.prompt(t, workspace, session, "one")
-	f.waitRecord(t, workspace, session, "hooked", func(r record) bool { return r.Hooked && r.Suspended })
+	f.waitRecord(t, workspace, session, "hooked", func(r record) bool { return r.Hooked && r.Suspended && r.Status == "done" })
 
 	require.NoError(t, f.run(t, workspace, "agents.gate-delete", map[string]any{"id": g.ID}, nil))
 	f.prompt(t, workspace, session, "two")
@@ -578,4 +578,39 @@ func TestPromptListsOnlyCommandsNotFollowedUp(t *testing.T) {
 	got := f.finishedPrompts(t)[0]
 	assert.Contains(t, got, "make test-b")
 	assert.NotContains(t, got, "make test-a")
+}
+
+func TestSecondOfTwoOverlappingCommandsGetsItsOwnPrompt(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	relA, relB := filepath.Join(dir, "alpha-release"), filepath.Join(dir, "bravo-release")
+	waitA, waitB := "while [ ! -e "+relA+" ]; do sleep 0.05; done", "while [ ! -e "+relB+" ]; do sleep 0.05; done"
+	outA, outB := filepath.Join(dir, "a1.output"), filepath.Join(dir, "b1.output")
+	write(t, outA, "alpha output\n")
+	write(t, outB, "bravo output\n")
+	prompt := append(bgSteps("WATCH", "bgA", waitA, "a1", outA), bgSteps("WATCH", "bgB", waitB, "b1", outB)...)
+	prompt = append(prompt, map[string]any{"match": "WATCH", "shell": waitB})
+	after := append(followSteps("WATCH", relA, "alpha handled", 0),
+		map[string]any{"match": "WATCH", "run": waitB},
+		map[string]any{"match": "WATCH", "sleep": 1500},
+		map[string]any{"match": "WATCH", "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "bravo handled"}}},
+		map[string]any{"match": "WATCH", "update": map[string]any{"sessionUpdate": "usage_update", "used": 1, "size": 10, "cost": map[string]any{"amount": 1, "currency": "USD"}}},
+	)
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_HOOK_POLL=100ms"}, map[string]any{"resume": true, "prompt": prompt, "after": after})
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	owner := f.newSession(t, workspace)
+	f.prompt(t, workspace, owner, "WATCH")
+	f.waitCall(t, "prompt_end", func(fakeCall) bool { return true })
+	f.addPushGate(t, workspace, repo)
+	f.waitRecord(t, workspace, owner, "labelled", func(r record) bool { return r.Ungated != nil })
+	write(t, relA, "")
+	testutil.Eventually(t, func() bool { return f.transcriptHas(t, workspace, owner, "alpha handled") }, wait)
+
+	write(t, relB, "")
+
+	testutil.Eventually(t, func() bool { return len(f.finishedPrompts(t)) == 1 }, wait)
+	got := f.finishedPrompts(t)[0]
+	assert.Contains(t, got, "bravo-release")
+	assert.NotContains(t, got, "alpha-release")
 }

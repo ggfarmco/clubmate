@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,6 +113,37 @@ func TestBatchHookPrintsFindingsOnce(t *testing.T) {
 	assert.Empty(t, batch(`{"tool_calls":[{"tool_use_id":"toolu_1"}]}`))
 	assert.Empty(t, batch(`not json`))
 	assert.FileExists(t, filepath.Join(dir, "findings", "toolu_3"))
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("closed pipe") }
+
+func TestBatchHookClaimsFindingsOnlyAfterPrintingThem(t *testing.T) {
+	t.Parallel()
+	dir := hookDir(t, "")
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "findings"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "findings", "toolu_1"), []byte("fix x"), 0o600))
+	stdin := `{"tool_calls":[{"tool_use_id":"toolu_1"}]}`
+
+	run([]string{"batch", dir}, strings.NewReader(stdin), failingWriter{})
+
+	assert.FileExists(t, filepath.Join(dir, "findings", "toolu_1"))
+	assert.NoFileExists(t, filepath.Join(dir, "told", "toolu_1"))
+	var out bytes.Buffer
+	run([]string{"batch", dir}, strings.NewReader(stdin), &out)
+	assert.Contains(t, out.String(), "fix x")
+	assert.FileExists(t, filepath.Join(dir, "told", "toolu_1"))
+	assert.NoFileExists(t, filepath.Join(dir, "findings", "toolu_1"))
+}
+
+func TestBatchHookLeavesNoToldFileForFindingsThePluginClaimedFirst(t *testing.T) {
+	t.Parallel()
+	dir := hookDir(t, "")
+
+	claim(dir, "toolu_1")
+
+	assert.NoFileExists(t, filepath.Join(dir, "told", "toolu_1"))
 }
 
 func TestBatchHookCapsItsText(t *testing.T) {

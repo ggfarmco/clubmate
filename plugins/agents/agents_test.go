@@ -977,6 +977,23 @@ func (f *fixture) restartPlugin(t *testing.T, workspace string) {
 	}, wait)
 }
 
+func (f *fixture) editStoredRecord(t *testing.T, workspace, session string, edit func(map[string]any)) {
+	t.Helper()
+	require.NoError(t, f.h.Sup.SetEnabled(t.Context(), "agents", false))
+	key := "session/" + workspace + "/" + session
+	raw, found, err := f.h.KV.Get(t.Context(), "agents", key)
+	require.NoError(t, err)
+	require.True(t, found)
+	var rec map[string]any
+	require.NoError(t, json.Unmarshal(raw, &rec))
+	edit(rec)
+	raw, err = json.Marshal(rec)
+	require.NoError(t, err)
+	require.NoError(t, f.h.KV.Set(t.Context(), "agents", key, raw))
+	require.NoError(t, f.h.Sup.SetEnabled(t.Context(), "agents", true))
+	testutil.Eventually(t, func() bool { return f.run(t, workspace, "agents.sessions", map[string]any{}, nil) == nil }, restartWait)
+}
+
 func TestClosedSessionOffersReopen(t *testing.T) {
 	t.Parallel()
 	f := start(t, map[string]any{"resume": true})

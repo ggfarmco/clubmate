@@ -35,10 +35,11 @@ type watchdog struct {
 
 	retries     map[string]int
 	retryTimers map[string]*time.Timer
+	retryAfter  map[string]string
 }
 
 func newWatchdog() watchdog {
-	return watchdog{last: map[string]string{}, seen: map[string]string{}, pending: map[string]map[string]string{}, waits: map[string][]*waitReg{}, handing: map[string]bool{}, timers: map[string]*time.Timer{}, delay: envDelay(wakeDelayEnv, wakeDelay), retries: map[string]int{}, retryTimers: map[string]*time.Timer{}}
+	return watchdog{last: map[string]string{}, seen: map[string]string{}, pending: map[string]map[string]string{}, waits: map[string][]*waitReg{}, handing: map[string]bool{}, timers: map[string]*time.Timer{}, delay: envDelay(wakeDelayEnv, wakeDelay), retries: map[string]int{}, retryTimers: map[string]*time.Timer{}, retryAfter: map[string]string{}}
 }
 
 func (a *app) continueCutOff(cut map[*session]string) {

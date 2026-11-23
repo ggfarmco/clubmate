@@ -37,6 +37,7 @@ type script struct {
 	Commands              []acp.AvailableCommand    `json:"commands"`
 	Prompt                []step                    `json:"prompt"`
 	After                 []step                    `json:"after"`
+	AfterFail             bool                      `json:"afterFail"`
 }
 
 type step struct {
@@ -214,6 +215,9 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		defer a.turns.Add(-1)
 		if err := a.run(ctx, prompt, a.script.Prompt); err != nil {
 			a.record("prompt_error", err.Error())
+			if a.script.AfterFail {
+				go a.run(context.Background(), prompt, a.script.After)
+			}
 			return nil, err
 		}
 		go a.run(context.Background(), prompt, a.script.After)

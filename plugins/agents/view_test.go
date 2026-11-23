@@ -883,7 +883,7 @@ func TestChildStatusesAggregateActiveDescendants(t *testing.T) {
 		{ID: "agt_rd", Status: statusRunning, GateFor: &gateFor{Lander: "agt_v", Old: "a", Tree: "b", Done: true}},
 	}
 
-	assert.Equal(t, map[string]string{"agt_p": statusWaiting, "agt_c": statusRunning, "agt_o": statusRunning, "agt_l": statusRunning}, childStatuses(recs))
+	assert.Equal(t, map[string]string{"agt_p": statusWaiting, "agt_c": statusRunning, "agt_o": statusRunning, "agt_l": statusRunning}, childStatuses(recs, nil))
 }
 
 func TestCloseBusyAsksWhileATurnRuns(t *testing.T) {
@@ -1185,7 +1185,7 @@ func TestChildAskingParentShowsAsAskingParent(t *testing.T) {
 	assert.Equal(t, "arrow.up.circle", item.Icon)
 	assert.Equal(t, "asking parent", item.Detail)
 	assert.False(t, matchesFilter(sessionRow{Rec: kid}, filterNeeds))
-	assert.Equal(t, statusRunning, childStatuses([]record{parent, kid})["agt_p"])
+	assert.Equal(t, statusRunning, childStatuses([]record{parent, kid}, nil)["agt_p"])
 }
 
 func TestThoughtCarriesItsDuration(t *testing.T) {

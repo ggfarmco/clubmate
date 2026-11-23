@@ -15,6 +15,8 @@ import (
 
 type callIDKey struct{}
 
+type answeredKey struct{}
+
 const (
 	writeTimeout       = 30 * time.Second
 	codeMethodNotFound = -32601
@@ -51,6 +53,11 @@ type response struct {
 	err    error
 }
 
+type pendingCall struct {
+	ch       chan response
+	answered func()
+}
+
 type Conn struct {
 	r       io.Reader
 	w       io.Writer
@@ -61,7 +68,7 @@ type Conn struct {
 
 	mu      sync.Mutex
 	nextID  int64
-	pending map[string]chan response
+	pending map[string]pendingCall
 	queue   []message
 	ended   bool
 	wake    chan struct{}
@@ -73,7 +80,7 @@ type Conn struct {
 
 func NewConn(r io.Reader, w io.Writer, h Handler, badLine func([]byte)) *Conn {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Conn{r: r, w: w, handler: h, badLine: badLine, pending: map[string]chan response{}, wake: make(chan struct{}, 1), ctx: ctx, cancel: cancel, done: make(chan struct{})}
+	return &Conn{r: r, w: w, handler: h, badLine: badLine, pending: map[string]pendingCall{}, wake: make(chan struct{}, 1), ctx: ctx, cancel: cancel, done: make(chan struct{})}
 }
 
 func (c *Conn) Start() {
@@ -94,7 +101,8 @@ func (c *Conn) Call(ctx context.Context, method string, params, result any) erro
 	c.nextID++
 	id := strconv.FormatInt(c.nextID, 10)
 	ch := make(chan response, 1)
-	c.pending[id] = ch
+	answered, _ := ctx.Value(answeredKey{}).(func())
+	c.pending[id] = pendingCall{ch: ch, answered: answered}
 	c.mu.Unlock()
 	if seen, ok := ctx.Value(callIDKey{}).(func(json.RawMessage)); ok {
 		seen(json.RawMessage(id))
@@ -120,6 +128,10 @@ func (c *Conn) Call(ctx context.Context, method string, params, result any) erro
 
 func WithCallID(ctx context.Context, seen func(id json.RawMessage)) context.Context {
 	return context.WithValue(ctx, callIDKey{}, seen)
+}
+
+func WithAnswered(ctx context.Context, answered func()) context.Context {
+	return context.WithValue(ctx, answeredKey{}, answered)
 }
 
 func (c *Conn) Notify(method string, params any) error {
@@ -189,10 +201,10 @@ func (c *Conn) dispatch() {
 		if len(c.queue) == 0 {
 			if c.ended {
 				pending := c.pending
-				c.pending = map[string]chan response{}
+				c.pending = map[string]pendingCall{}
 				c.mu.Unlock()
-				for _, ch := range pending {
-					ch <- response{err: ErrClosed}
+				for _, call := range pending {
+					call.ch <- response{err: ErrClosed}
 				}
 				c.cancel()
 				close(c.done)
@@ -215,17 +227,20 @@ func (c *Conn) deliver(m message) {
 	case m.Method == "":
 		id := idKey(m.ID)
 		c.mu.Lock()
-		ch, ok := c.pending[id]
+		call, ok := c.pending[id]
 		delete(c.pending, id)
 		c.mu.Unlock()
 		if !ok {
 			return
 		}
+		if call.answered != nil {
+			call.answered()
+		}
 		if m.Error != nil {
-			ch <- response{err: m.Error}
+			call.ch <- response{err: m.Error}
 			return
 		}
-		ch <- response{result: m.Result}
+		call.ch <- response{result: m.Result}
 	case len(m.ID) == 0:
 		c.handler.Notify(m.Method, m.Params)
 	default:

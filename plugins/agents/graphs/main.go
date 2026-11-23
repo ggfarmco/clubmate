@@ -96,6 +96,8 @@ type app struct {
 	stateDir     string
 	startErr     error
 	pruneAfter   time.Duration
+	outcomeWait  time.Duration
+	later        func(d time.Duration, f func())
 }
 
 type draft struct {
@@ -130,6 +132,8 @@ func newApp() *app {
 	a.choose = a.storeSelected
 	a.revealTurn = a.revealSession
 	a.grace = 5 * time.Second
+	a.outcomeWait = 30 * time.Second
+	a.later = func(d time.Duration, f func()) { time.AfterFunc(d, f) }
 	a.procStart = proc.StartTime
 	a.proc = shellRunner{grace: a.grace}
 	a.pending = map[string]pendingStep{}
@@ -570,6 +574,7 @@ func (a *app) countTurn(ctx context.Context, p api.Turn, source string) {
 	a.mu.Lock()
 	var spent []*Run
 	var owed []delivery
+	var due []string
 	type closed struct {
 		run  string
 		move int
@@ -602,13 +607,22 @@ func (a *app) countTurn(ctx context.Context, p api.Turn, source string) {
 		}
 		owed = append(owed, r.owedSince(before, ownedCause{Reply: p.Reply})...)
 		a.touch(r.Workspace)
-		if r.Turns >= r.MaxTurns {
+		switch {
+		case r.Turns >= r.MaxTurns:
 			a.stop(r, fmt.Sprintf(reasonBudget, r.MaxTurns), a.now())
+			spent = append(spent, cloneRun(r))
+		case r.gateDeadEnd() && r.gateOutcomeDue():
+			due = append(due, r.ID)
+		case r.gateDeadEnd():
+			a.stop(r, reasonGateDeadEnd, a.now())
 			spent = append(spent, cloneRun(r))
 		}
 		logError(a.store.Save(ctx, r))
 	}
 	a.mu.Unlock()
+	for _, id := range due {
+		a.later(a.outcomeWait, func() { a.recheckDeadEnd(context.Background(), id) })
+	}
 	for _, c := range ended {
 		a.queueSummary(c.run, c.move, agentSummaryPrompt, a.turnInput(p.Workspace, p.Session, p.Turn))
 	}

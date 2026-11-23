@@ -132,37 +132,48 @@ func tell(args []string, stdin io.Reader, stdout io.Writer) {
 	if err != nil || len(args) != 1 || json.Unmarshal(raw, &b) != nil {
 		return
 	}
-	var texts []string
+	var texts, ids []string
 	first := ""
 	for _, c := range b.Calls {
-		if text, ok := claim(args[0], c.ID); ok && !slices.Contains(texts, text) {
-			texts = append(texts, text)
-			first = cmp.Or(first, c.ID)
+		if text, ok := read(args[0], c.ID); ok {
+			ids = append(ids, c.ID)
+			if !slices.Contains(texts, text) {
+				texts = append(texts, text)
+				first = cmp.Or(first, c.ID)
+			}
 		}
 	}
 	if len(texts) == 0 {
 		return
 	}
 	out, err := json.Marshal(batchOutput{Hook: batchContext{Event: batchEvent, Context: capped(args[0], first, strings.Join(texts, "\n\n"))}})
-	if err == nil {
-		_, _ = stdout.Write(out)
+	if err != nil {
+		return
+	}
+	if _, err := stdout.Write(out); err != nil {
+		return
+	}
+	for _, id := range ids {
+		claim(args[0], id)
 	}
 }
 
-func claim(dir, id string) (string, bool) {
+func read(dir, id string) (string, bool) {
 	if !toolgate.SafeID(id) {
 		return "", false
 	}
-	from := filepath.Join(dir, toolgate.FindingsDir, id)
-	data, err := os.ReadFile(from)
+	data, err := os.ReadFile(filepath.Join(dir, toolgate.FindingsDir, id))
 	if err != nil || len(data) == 0 {
 		return "", false
 	}
-	told := filepath.Join(dir, toolgate.ToldDir)
-	if os.MkdirAll(told, 0o700) != nil || os.Rename(from, filepath.Join(told, id)) != nil {
-		return "", false
-	}
 	return string(data), true
+}
+
+func claim(dir, id string) {
+	told := filepath.Join(dir, toolgate.ToldDir)
+	if os.MkdirAll(told, 0o700) == nil {
+		_ = os.Rename(filepath.Join(dir, toolgate.FindingsDir, id), filepath.Join(told, id))
+	}
 }
 
 func capped(dir, id, text string) string {

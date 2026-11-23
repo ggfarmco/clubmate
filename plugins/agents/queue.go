@@ -137,6 +137,10 @@ func (s *session) recordSentLocked(p promptPayload) {
 	if q := s.sending; q != nil {
 		p.Sent, p.Queued = q.ID, q.Parts
 		s.sending = nil
+		if q.Message != nil {
+			s.rec.Calls = toldCalls(s.rec.Calls, q.Message.Call, true)
+			delete(s.telling, q.Message.Call)
+		}
 	}
 	s.recordLocked(promptActor(p.From), kindPrompt, p)
 }

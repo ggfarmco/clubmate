@@ -51,19 +51,25 @@ func TestHeldRoundLineNamesEachRound(t *testing.T) {
 
 func TestTurnHeldOnlyWhileTheAgentIsNotWorking(t *testing.T) {
 	t.Parallel()
-	a := &app{}
 	cases := []struct {
-		name string
-		held *heldTurn
-		want bool
+		name    string
+		held    *heldTurn
+		working bool
+		want    bool
 	}{
-		{"under review", &heldTurn{Round: 1}, true},
-		{"card waits", &heldTurn{Last: gateChanges, Request: "lg_1"}, true},
-		{"fixing the findings", &heldTurn{Last: gateChanges}, false},
-		{"not held", nil, false},
+		{"under review", &heldTurn{Round: 1}, false, true},
+		{"card waits", &heldTurn{Last: gateChanges, Request: "lg_1"}, false, true},
+		{"fixing the findings", &heldTurn{Last: gateChanges}, false, false},
+		{"not held", nil, false, false},
+		{"under review in a follow-up cycle", &heldTurn{Round: 1}, true, false},
+		{"card waits in a follow-up cycle", &heldTurn{Last: gateChanges, Request: "lg_1"}, true, false},
 	}
 	for _, c := range cases {
-		assert.Equal(t, c.want, a.turnHeld(record{ID: "agt_1", Status: statusRunning, Held: c.held}), c.name)
+		rec := record{ID: "agt_1", Status: statusRunning, Held: c.held}
+		s := &session{rec: rec}
+		s.cycle = c.working
+		a := &app{registry: registry{sessions: map[string]*session{rec.ID: s}}}
+		assert.Equal(t, c.want, a.turnHeld(rec), c.name)
 	}
 }
 
@@ -88,4 +94,13 @@ func TestDoneSentenceAndMatchNameWhoseTurn(t *testing.T) {
 			assert.Equal(t, c.fact, doneMatchWords(c.sessions, donePlansAndSpecs), c.sessions)
 		}
 	}
+}
+
+func TestHeldRoundIsNilForAGateThatIsGone(t *testing.T) {
+	rec := record{ID: "agt_1", Status: statusRunning, Held: &heldTurn{Gate: "g_gone", Round: 1}}
+	a := &app{registry: registry{sessions: map[string]*session{rec.ID: {rec: rec}}}}
+	live := map[string]bool{"g_other": true}
+	a.liveGates.Store(&live)
+
+	assert.Nil(t, a.heldRound(rec))
 }

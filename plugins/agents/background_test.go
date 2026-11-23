@@ -65,3 +65,35 @@ func TestSessionBackground(t *testing.T) {
 		})
 	}
 }
+
+func TestLiveCommandsMatchEachShellOnce(t *testing.T) {
+	t.Parallel()
+	shell := func(pid int) proc.Process { return proc.Process{PID: pid, PPID: 1, Comm: "zsh"} }
+	argv := map[int][]string{
+		2: {"/bin/zsh", "-c", "-l", "source snap.sh && eval 'sleep 50' < /dev/null"},
+		3: {"/bin/zsh", "-c", "-l", "eval 'make test' < /dev/null"},
+		4: {"/bin/zsh", "-c", "-l", `eval 'gh run watch '"'"'x'"'"'' < /dev/null`},
+		5: {"bash", "-c", "make test"},
+	}
+	commands := []bgCommand{
+		{task: "short", text: plainCommand("sleep 5")},
+		{task: "long", text: plainCommand("sleep 50")},
+		{task: "test-new", text: plainCommand("make test")},
+		{task: "test-old", text: plainCommand("make test")},
+		{task: "watch", text: plainCommand("gh run watch 'x'")},
+	}
+
+	live := liveCommands(1, "", true, []proc.Process{shell(2), shell(3), shell(4), {PID: 5, PPID: 3, Comm: "bash"}}, func(pid int) []string { return argv[pid] }, commands)
+
+	assert.Equal(t, map[string]bool{"long": true, "test-new": true, "watch": true}, live)
+}
+
+func TestDropKeepsATaskTrackedWhileItRan(t *testing.T) {
+	t.Parallel()
+	s := &session{}
+	s.background = map[string]bool{"ended": true, "live": true, "new": true}
+
+	s.dropDeadLocked([]string{"ended", "live"}, map[string]bool{"live": true})
+
+	assert.Equal(t, map[string]bool{"live": true, "new": true}, s.background)
+}

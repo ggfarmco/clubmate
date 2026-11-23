@@ -17,6 +17,7 @@ import (
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/gitrepo"
 	"clubmate/plugins/internal/landgate"
+	"clubmate/plugins/internal/toolgate"
 )
 
 func TestDoneGateMatchesSessionKind(t *testing.T) {
@@ -74,6 +75,14 @@ func TestLandGateAddTakesAnEmptyDoneMatch(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{gatePointLand, gateIntoAny}, []string{g.Point, g.Into})
+}
+
+func TestContainsTextWithEndSpacesIsTheSameMatch(t *testing.T) {
+	t.Parallel()
+	g, err := gateMatchOf(gateAddArgs{Point: gatePointTool, Tool: "Bash", How: "contains", Text: " deploy "})
+
+	require.NoError(t, err)
+	assert.True(t, sameTool(g, gateConfig{Tool: "Bash", How: "contains", Text: "deploy"}))
 }
 
 func TestDoneGateWroteMatchesThroughSymlink(t *testing.T) {
@@ -264,6 +273,65 @@ func TestUnreadHoldOnlyUnderAGateOfTheSessionsRepo(t *testing.T) {
 	require.NotNil(t, h)
 	assert.Equal(t, "mysub", h.ReadRepo)
 	assert.Nil(t, a.unreadPlan(t.Context(), nil, record{ID: "d", Worktree: t.TempDir()}, &gates, false, bad).held)
+}
+
+func TestUnreadHoldWithNoGatesEverRead(t *testing.T) {
+	t.Parallel()
+	repo := unitRepo(t)
+	a := &app{stateDir: t.TempDir()}
+	down := errors.New("storage down")
+	gateOf := func(rec record) string {
+		if h := a.unreadPlan(t.Context(), nil, rec, a.lastGatesRead(), false, down).held; h != nil {
+			return h.Gate
+		}
+		return ""
+	}
+	dir := toolHookPath(a.toolHooksRoot(), repo)
+
+	require.NoError(t, writeToolHook(dir, "bin", []toolgate.Rule{}))
+	assert.Empty(t, gateOf(record{ID: "a", Worktree: repo}))
+	assert.Equal(t, "gt_carried", gateOf(record{ID: "a", Worktree: repo, HeldGate: "gt_carried"}))
+	require.NoError(t, writeToolHook(dir, "bin", []toolgate.Rule{{ID: "gt_tool", Tool: "Bash"}}))
+	assert.Equal(t, "gt_tool", gateOf(record{ID: "a", Worktree: repo}))
+}
+
+func TestUnreadHoldInASubmoduleIsUnderItsOwnRepo(t *testing.T) {
+	t.Parallel()
+	super, module := unitRepo(t), unitRepo(t)
+	out, err := exec.Command("git", "-C", super, "-c", "protocol.file.allow=always", "submodule", "add", "-q", module, "sub").CombinedOutput()
+	require.NoError(t, err, string(out))
+	sub := filepath.Join(super, "sub")
+	gates := []gateConfig{
+		{ID: "gt_super", Repo: super, Point: gatePointTurn, Sessions: doneSessionsDefault},
+		{ID: "gt_sub", Repo: sub, Point: gatePointTurn, Sessions: doneSessionsDefault},
+	}
+
+	h := (&app{}).unreadPlan(t.Context(), nil, record{ID: "a", Worktree: sub}, &gates, true, errors.New("bad")).held
+
+	require.NotNil(t, h)
+	assert.Equal(t, []string{"gt_sub", "sub"}, []string{h.Gate, h.ReadRepo})
+}
+
+func TestPlanForAGatePausedSinceIsPlannedAgain(t *testing.T) {
+	t.Parallel()
+	for name, plan := range map[string]donePlan{"new hold": {held: &heldTurn{Gate: "gt_1"}}, "carry": {carry: "gt_1"}} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			a := &app{}
+			s := newSession(record{ID: "s", Status: statusRunning}, nil, false, func(string, bool) {})
+			s.pauses = &a.pauses
+			plan.pauses = a.pauses.mark()
+
+			a.dropCarriedGates("gt_2")
+			assert.False(t, a.pauses.since("gt_1", plan.pauses))
+			a.dropCarriedGates("gt_1")
+			_, stale := s.finishLocked(plan)
+
+			assert.True(t, stale)
+			assert.Nil(t, s.rec.Held)
+			assert.Empty(t, s.rec.HeldGate)
+		})
+	}
 }
 
 func TestOnlyAnErrorKeepsTheGateOfAHoldingTurn(t *testing.T) {

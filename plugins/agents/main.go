@@ -87,6 +87,8 @@ type app struct {
 	gateMu         sync.Mutex
 	gatePrep       map[string]bool
 	gateTreeRun    func(ctx context.Context, workspaceID string, args map[string]any, out any) error
+	gateStart      func(ctx context.Context, gr graphs.GateRun) (string, string, error)
+	gateRuns       sync.Map
 	docsRun        func(ctx context.Context, id, workspaceID string, args map[string]any) error
 	gateLogMu      sync.Mutex
 	historyMu      sync.Mutex
@@ -95,6 +97,7 @@ type app struct {
 	journaled      map[string][sha256.Size]byte
 	liveGates      atomic.Pointer[map[string]bool]
 	heldFacts      heldFacts
+	pauses         gatePauses
 	lastGates      atomic.Pointer[[]gateConfig]
 	lastGatesSaved atomic.Bool
 	lastGatesMu    sync.Mutex
@@ -212,8 +215,12 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 					fmt.Fprintln(os.Stderr, "agents: read spilled queue:", err)
 				}
 			}
+			stored := slices.Clone(queue)
 			queue, unsent = restoredQueue(a.stateDir, rec.ID, queue)
 			s.restoreQueue(queue)
+			if s.settleDelivered(stored, queue) {
+				a.notes.mark(s, changeStatus, true)
+			}
 		}
 		if stale {
 			a.notes.mark(s, changeStatus, true)
@@ -228,6 +235,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.sweepInputs()
 	go a.texts.warm(a.stateDir, recs)
 	go a.reconcileLimitWaits()
+	go a.seedGateRuns()
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
 	if err != nil {
 		return err
@@ -416,6 +424,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		a.kick(rec.Workspace)
 	})
 	s.holdOf = heldCopies(rec)
+	s.pauses = &a.pauses
 	s.cards = rec.openCards()
 	a.trustNeeds.seed(rec)
 	s.trustOf = strings.Join(waitsForTrust(rec), ",")
@@ -430,7 +439,26 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		return a.holdCall(ctx, s, p, request, req)
 	}
 	s.withdrawCall = func(request string) bool { return a.withdrawCall(s, request) }
-	s.cycled = func() { a.cycleStarted(s) }
+	s.cycled = func() {
+		s.mu.Lock()
+		s.dropping++
+		s.mu.Unlock()
+		go func() {
+			a.dropEnded(s)
+			s.mu.Lock()
+			s.dropping--
+			owed := s.dropping == 0 && s.followOwed
+			if owed {
+				s.followOwed = false
+				s.followedUpLocked()
+			}
+			s.mu.Unlock()
+			a.cycleStarted(s)
+			if owed {
+				a.settleBackground(s)
+			}
+		}()
+	}
 	s.ran = func(c endedCall) { a.judgeCall(s, c) }
 	s.toolGated = func() bool {
 		last := a.lastGates.Load()
@@ -489,7 +517,7 @@ func (a *app) list(workspaceID string) []record {
 
 func (a *app) infos(workspaceID string) []sessionInfo {
 	recs := a.list(workspaceID)
-	children := childStatuses(recs)
+	children := childStatuses(recs, a.gateRunOpen)
 	kids := kidsOf(recs)
 	nest := reviewNests(recs)
 	tree := a.spendTree()

@@ -126,7 +126,7 @@ func TestSidebarInboxMirrorsSessionsOnTop(t *testing.T) {
 			recs = append(recs, info.record)
 		}
 	}
-	children := childStatuses(recs)
+	children := childStatuses(recs, nil)
 	var rows []sessionRow
 	for _, rec := range recs {
 		row := sessionRow{Rec: rec, Children: children[rec.ID]}

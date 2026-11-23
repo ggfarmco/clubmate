@@ -66,8 +66,16 @@ func inertAt(ctx context.Context, repo string) (boundGit, error) {
 }
 
 func hasRef(ctx context.Context, dir, ref string) bool {
-	_, err := gitrepo.Run(ctx, dir, "rev-parse", "-q", "--verify", ref+"^{commit}")
-	return err == nil
+	exists, _ := refExists(ctx, dir, ref)
+	return exists
+}
+
+func refExists(ctx context.Context, dir, ref string) (bool, error) {
+	out, err := gitrepo.Run(ctx, dir, "rev-parse", "-q", "--verify", ref+"^{commit}")
+	if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() == 1 {
+		return false, nil
+	}
+	return err == nil, gitError(out, err)
 }
 
 func validBranch(ctx context.Context, dir, branch string) error {
