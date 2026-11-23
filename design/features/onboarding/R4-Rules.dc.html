@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r4 · Rules, changes against r3</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/46bb52f625dfd05699b9013ec702ba87">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+
+</style>
+</helmet>
+<div class="doc" style="width: 2080px; height: 2000px; padding: 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · onboarding · round 1</div>
+<h1>3 · Rules · changes against r3</h1>
+<p class="lead" style="max-width: 1240px">Only what round 4 changes. R3-Rules stands everywhere else. Tags: <span class="tag a">(a)</span> token or renderer · <span class="tag b">(b)</span> new SDUI node or prop · <span class="tag c">(c)</span> plugin content · <span class="tag p0">(d)</span> new plugin or core logic.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Picks</h2>
+<table><thead><tr><th style="width: 160px">Question</th><th style="width: 380px">Pick</th><th>Note</th></tr></thead><tbody><tr><td><b>Positioning</b></td><td>r4 B · "Your workshop, set up your way." (user pick; the designer proposed A)</td><td class="muted">Replaces r3 A (garage). Same idea, same rules: no vendor in a headline, the Welcome line or the About line.</td></tr><tr><td><b>Pictures</b></td><td>Real screenshots only</td><td class="muted">Hero and README use the Mate dark shots from the test build; nothing drawn.</td></tr><tr><td><b>Everything else</b></td><td>As R3-Rules</td><td class="muted">r1 A for Welcome (Open folder… and Home), first run, first agent and pairing; editor r2 B; both editors off = hide.</td></tr></tbody></table>
+</div>
+<div style="display: grid; grid-template-columns: 1100px minmax(0, 1fr); gap: 48px; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Texts, new or changed</h2>
+<table><thead><tr><th style="width: 130px">Where</th><th style="width: 170px">Slot</th><th>Text</th><th style="width: 70px">Tag</th></tr></thead><tbody><tr><td>Welcome</td><td class="muted">line</td><td class="mono" style="font-size: 12.5px">Your workshop, set up your way.  (was: Your garage. Agents welcome.)</td><td><span class="tag a">(a)</span></td></tr><tr><td>Hero</td><td class="muted">headline</td><td class="mono" style="font-size: 12.5px">Your workshop, / set up your way.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">line</td><td class="mono" style="font-size: 12.5px">Agents work with your backlog, your wiki, your schedules, your side threads and the processes you build.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">small print</td><td class="mono" style="font-size: 12.5px">macOS 27 · agents over ACP, Claude Code today</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">image alt</td><td class="mono" style="font-size: 12.5px">Clubmate Home: the Morning brief session, Needs you, the review loop and an aside</td><td><span class="tag ">repo</span></td></tr><tr><td>README</td><td class="muted">lead</td><td class="mono" style="font-size: 12.5px">Your workshop on the Mac, set up your way. Agents work there with your backlog, your wiki, your schedules, your side threads and your processes, on every project and in Home.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">section</td><td class="mono" style="font-size: 12.5px">What's in the workshop  (was: What's in the garage)</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">Cron and Triggers</td><td class="mono" style="font-size: 12.5px">Agents that start on a schedule, or when something happens. This one briefs you every morning at 08:00.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">Your own processes</td><td class="mono" style="font-size: 12.5px">Agent graphs like coder → reviewer loops, land gates before anything lands, and triggers that wire them together.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">other rows</td><td class="mono" style="font-size: 12.5px">As r3: Agents, Backlog, Side threads, Wiki, Your phone</td><td><span class="tag ">repo</span></td></tr><tr><td>GitHub</td><td class="muted">About (104)</td><td class="mono" style="font-size: 12.5px">Your workshop on the Mac, set up your way. Agents work with your backlog, wiki, schedules and processes.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">topics</td><td class="mono" style="font-size: 12.5px">unchanged from r3</td><td><span class="tag ">repo</span></td></tr></tbody></table>
+<h2 style="margin-top: 24px">Files</h2>
+<table><thead><tr><th style="width: 300px">File</th><th>What</th></tr></thead><tbody><tr><td class="mono" style="font-size: 12.5px">.github/social-preview.png</td><td>1280×640 (export 2×: 2560×1280). Aside shot whole at 819×512, left 397, top 64; text column 64–349; one 64px margin.</td></tr><tr><td class="mono" style="font-size: 12.5px">.github/shots/agents.png</td><td>578×560 px from the agents shot at 0,80; shown at width 289</td></tr><tr><td class="mono" style="font-size: 12.5px">.github/shots/backlog.png</td><td>496×292 px from the backlog shot at 82,80; shown at width 248</td></tr><tr><td class="mono" style="font-size: 12.5px">.github/shots/cron.png</td><td>952×744 px from the cron shot at 580,96; shown at width 476</td></tr><tr><td class="mono" style="font-size: 12.5px">.github/shots/aside.png</td><td>990×516 px from the aside shot at 1570,1024; shown at width 495</td></tr><tr><td class="mono" style="font-size: 12.5px">.github/shots/wiki.png</td><td>1000×272 px from the wiki shot at 82,80; shown at width 500</td></tr><tr><td class="mono" style="font-size: 12.5px">.github/shots/triggers.png</td><td>1012×408 px from the triggers shot at 584,96; shown at width 506</td></tr></tbody></table>
+</div>
+<div style="display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 10px"><h2>Rules added</h2><ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px"><li>Pictures in the repo are real screenshots from a build, in Mate dark, at 2×. No drawn windows.</li><li>README pictures are crops at 1:1 (one app point per pixel), at most 506pt wide, so text stays readable at 880. The hero may scale; it is read as a picture.</li><li>The hero keeps one 64px margin on every side; nothing is cut, nothing touches.</li><li>Workshop is the only place-word. Agents are welcome, never named in a headline.</li></ul></div>
+<div style="display: flex; flex-direction: column; gap: 10px"><h2>Dropped</h2><ul class="muted" style="font-size: 14px; display: flex; flex-direction: column; gap: 4px"><li>Every "garage": r3 hero, README lead and section, About, Welcome line.</li><li>r3's drawn hero window (Home with cron, graph, aside) and every drawn mockup in the hero or README.</li><li>r2 and r3 README row texts for Cron and Your own processes.</li></ul></div>
+<div style="display: flex; flex-direction: column; gap: 10px"><h2>Fields</h2><p class="muted" style="font-size: 14px">No change. Round 4 is words and pictures only.</p></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Handoff</h2>
+<table><thead><tr><th style="width: 40px">#</th><th>Change</th><th style="width: 90px">Tag</th></tr></thead><tbody><tr><td class="n">1</td><td>Welcome line: "Your workshop, set up your way."</td><td><span class="tag a">(a)</span></td></tr><tr><td class="n">2</td><td>A demo Home fixture for screenshots (Morning brief cron at 08:00, review loop with Coder and Reviewer, four backlog tasks, wiki pages Release steps and Lisbon trip, the Push to phone trigger), so the shots can be retaken for each release.</td><td><span class="tag p0">(d)</span></td></tr><tr><td class="n">3</td><td>Repo: social-preview.png from the aside shot, at the measures above.</td><td><span class="tag ">repo</span></td></tr><tr><td class="n">4</td><td>Repo: six 2× crops under .github/shots/, README first screen and rows, About line.</td><td><span class="tag ">repo</span></td></tr><tr><td class="n">5</td><td>Still to shoot: a review-loop graph (for Your own processes, better than Triggers) and the Companion (for Your phone).</td><td><span class="tag ">repo</span></td></tr></tbody></table>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":2000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

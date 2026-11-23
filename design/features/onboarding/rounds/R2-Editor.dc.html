@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r2 · Editor, or none</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/46bb52f625dfd05699b9013ec702ba87">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+.sx{font-family:-apple-system,'SF Pro Text','Inter',system-ui,sans-serif;font-size:13px;line-height:18px;color:#1D1D1F;-webkit-font-smoothing:antialiased}
+.sx *{box-sizing:border-box}
+.sx .grp{background:#F4F4F5;border-radius:12px;border:1px solid #E6E6E8}
+.sx .r{display:flex;align-items:center;gap:12px;min-height:40px;padding:8px 14px}
+.sx .r .l{flex:1;min-width:0;display:flex;flex-direction:column}
+.sx .sub{font-size:11px;line-height:14px;color:#6E6E73}
+.sx .sbtn{height:24px;padding:0 12px;border-radius:7px;border:0;background:#E5E5EA;font:inherit;color:#1D1D1F}
+.sx h3{margin:0;font-size:13px;font-weight:600;padding:0 4px 6px;font-family:inherit;line-height:18px}
+.sx .sep{height:1px;background:#E2E2E4;margin:0 14px}
+</style>
+</helmet>
+<div class="doc" style="width: 2400px; height: 1960px; padding: 64px; display: flex; flex-direction: column; gap: 36px; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · onboarding · round 1</div>
+<h1>1 · Editor, or none</h1>
+<p class="lead" style="max-width: 1240px"><b>Pick: A · no editor until you need one.</b> No editor is the default answer, not a setting you have to find. The app starts as agents only; the first time you want to read a change, Clubmate shows it read-only in Agents and offers Neovim once, at the moment it would help.</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 6px"><span><span class="tag a">A · No editor until you need one · pick</span></span><p style="font-size: 14px">First run asks nothing and turns no editor on. No Code in the rail. The first Review changes or Full diff opens a read-only review in Agents, with a one-time offer to turn on Neovim. The question is asked when its answer is used.</p></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span><span class="tag b">B · Neovim, silently</span></span><p class="muted" style="font-size: 14px">Neovim on by default, nothing asked; "No editor" lives in Settings. Reviews with comments work on day one, but agent-only users carry a Code section they never open, and have to find out how to remove it.</p></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span><span class="tag c">C · Ask on Welcome</span></span><p class="muted" style="font-size: 14px">A three-way row on Welcome: Neovim · VS Code · No editor. Honest and explicit, but it is a question before any value, the thing r1 removed.</p></div>
+</div>
+<div style="display: grid; grid-template-columns: 1280px minmax(0, 1fr); gap: 48px; align-items: start">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px">
+<div class="muted" style="font-size: 14px">No editor · Review changes, first time. 1280, Mate dark. Rail without Code.</div>
+<div class="cm th-mate" style="width: 1280px; height: 800px; overflow: hidden; border-radius: 10px; box-shadow: 0 24px 60px rgba(20,24,20,.28)">
+<div class="win">
+<header class="tb"><div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div><button class="pill" aria-label="Workspace shop, branch agent/small-bug"><span>shop</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span>agent/small-bug</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button><span style="flex: 1"></span><button class="pill" aria-label="Notifications"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg></button><button class="pill" aria-label="Windows: 1"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button></header>
+<div class="body" style="grid-template-columns: 40px 248px minmax(0, 1fr)">
+<nav class="rail" aria-label="Sections"><button class="ri" aria-label="Terminals"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button><button class="ri on" aria-label="Agents"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button><button class="ri" aria-label="Backlog"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button><button class="ri" aria-label="Wiki"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h8.5a1 1 0 0 1 1 1v10H4a1 1 0 0 1-1-1Z"/><path d="M3 11.5a1 1 0 0 1 1-1h8.5M6 5.5h4"/></svg></button><button class="ri" aria-label="Processes"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button><button class="ri" aria-label="Cron"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button><button class="ri" aria-label="Triggers"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button></nav>
+<aside class="side" aria-label="Agent sessions">
+<div class="phead" style="gap: 2px; padding: 0 6px"><button class="btn sm gh"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>New<span class="kbd">⌘N</span></button><button class="btn sm gh"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg>New in worktree…</button></div>
+<div style="display: flex; gap: 4px; padding: 8px 8px 4px; flex: none"><button class="badge" style="border: 0; background: var(--prs); color: var(--fg)">All 2</button><button class="badge" style="border: 0">Running 1</button></div>
+<div style="display: flex; flex-direction: column; padding: 0 4px">
+<div class="sec"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span style="flex: 1">agent/small-bug</span><span>1</span></div>
+<div class="row sel" style="padding-left: 26px"><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="l">Find one small bug, fix it and run the tests</span><span class="d cap">done</span></div>
+<div class="sec"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span style="flex: 1">main</span><span>1</span></div>
+<div class="row" style="padding-left: 26px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Add stock reservation expiry</span><span class="d cap">turn 2</span></div>
+</div>
+<div style="flex: 1"></div>
+<div style="display: flex; flex-direction: column; padding: 4px 4px 6px; border-top: 1px solid var(--bd)">
+<div class="row mut"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><span class="l">Service</span><span class="d cap">0</span></div>
+<div class="row mut"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><span class="l">Gates</span><span class="d cap">0</span></div>
+<div class="row mut"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><span class="l">Graphs</span><span class="d cap">0</span></div>
+</div>
+</aside>
+<main class="main">
+<div style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px 0 12px; border-bottom: 1px solid var(--bd); flex: none; min-width: 0">
+<button class="btn sm gh" aria-label="Back to the session"><svg class="i s12" style="transform: rotate(180deg)" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg>Session</button>
+<h1 class="ttl" style="margin: 0">Review changes</h1>
+<span class="mut cap ell" style="flex: 0 1 auto">Find one small bug, fix it and run the tests · 2 files · <span class="ok-i">+9</span> <span class="er-i">−2</span> · against main</span>
+<span style="flex: 1"></span>
+<button class="btn sm">Ask for changes<span class="kbd">⌘⏎</span></button>
+<button class="btn sm gh">Back<span class="kbd">⎋</span></button>
+</div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; max-width: 900px">
+<div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 6px 0 10px; border: 1px dashed var(--bd2); border-radius: 6px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg><span class="ell" style="flex: 1">Read-only. To comment on lines and keep review notes, turn on Neovim.</span><button class="btn sm">Turn on Neovim…</button><button class="btn sm gh">Not now</button></div>
+<div class="sec" style="padding-left: 0">2 files · j/k next file · o fold</div>
+<div class="card" style="overflow: hidden">
+<div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-bottom: 1px solid var(--bd)"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5Z"/><path d="M9 1.5V5h3.5"/></svg><span class="ell" style="flex: 1">cart/total.go</span><span class="cap"><span class="ok-i">+1</span> <span class="er-i">−1</span></span></div>
+<div class="diff" style="padding: 4px 0; background: var(--bg)"><div class="dl hunk"><span></span><span></span><span>@@ -40,6 +40,6 @@ func Total(items []Item) Money</span></div><div class="dl "><span>40</span><span></span><span>func Total(items []Item) Money {</span></div><div class="dl "><span>41</span><span></span><span>    sum := Money(0)</span></div><div class="dl del"><span>42</span><span>−</span><span>    for _, it := range items[1:] {</span></div><div class="dl add"><span>42</span><span>+</span><span>    for _, it := range items {</span></div><div class="dl "><span>43</span><span></span><span>        sum += it.Price * Money(it.Qty)</span></div><div class="dl "><span>44</span><span></span><span>    }</span></div></div>
+</div>
+<div class="card" style="overflow: hidden">
+<div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-bottom: 1px solid var(--bd)"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5Z"/><path d="M9 1.5V5h3.5"/></svg><span class="ell" style="flex: 1">cart/total_test.go</span><span class="cap"><span class="ok-i">+8</span> <span class="er-i">−1</span></span></div>
+<div class="diff" style="padding: 4px 0; background: var(--bg)"><div class="dl hunk"><span></span><span></span><span>@@ -12,4 +12,12 @@ func TestTotal(t *testing.T)</span></div><div class="dl "><span>12</span><span></span><span>    got := Total(cart)</span></div><div class="dl del"><span>13</span><span>−</span><span>    if got != 1800 {</span></div><div class="dl add"><span>13</span><span>+</span><span>    if got != 2300 {</span></div><div class="dl add"><span>14</span><span>+</span><span>        t.Fatalf("Total = %d, want 2300", got)</span></div><div class="dl add"><span>15</span><span>+</span><span>    }</span></div><div class="dl add"><span>16</span><span>+</span><span></span></div><div class="dl add"><span>17</span><span>+</span><span>func TestTotalSingleItem(t *testing.T) {</span></div><div class="dl add"><span>18</span><span>+</span><span>    if got := Total([]Item{Price: 500, Qty: 1}); got != 500 {</span></div></div>
+</div>
+</div>
+<div style="padding: 0 24px 16px; flex: none">
+<div class="card" style="max-width: 820px; display: flex; flex-direction: column">
+<span class="mut" style="padding: 8px 12px 0; min-height: 44px">Ask for changes, @ a file or a line</span>
+<div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px 6px 6px"><button class="btn sm gh">Claude · Ask before edits<svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button><span style="flex: 1"></span><button class="btn sm pri dis" disabled>Send<span class="kbd">⌘⏎</span></button></div>
+</div>
+</div>
+</main>
+</div>
+<footer class="sb"><span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span><span>2 agents</span><span style="flex: 1"></span><span>j/k files · ⌘⏎ ask for changes · ⎋ back</span><span>⌘K commands</span></footer>
+</div>
+</div>
+</figure>
+<div style="display: flex; flex-direction: column; gap: 24px">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><div class="muted" style="font-size: 14px">Rail · no editor vs with Neovim</div><div style="display: flex; gap: 16px"><div class="cm th-mate" style="border-radius: 10px; padding: 10px 8px; width: 190px"><div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 4px 0"><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg><span class="l">Terminals</span></div><div class="row sel" style="height: 24px"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="l">Agents</span></div><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg><span class="l">Backlog</span></div><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h8.5a1 1 0 0 1 1 1v10H4a1 1 0 0 1-1-1Z"/><path d="M3 11.5a1 1 0 0 1 1-1h8.5M6 5.5h4"/></svg><span class="l">Wiki</span></div><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg><span class="l">Processes</span></div><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg><span class="l">Cron</span></div><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg><span class="l">Triggers</span></div></div></div><div class="cm th-mate" style="border-radius: 10px; padding: 10px 8px; width: 190px"><div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 4px 0"><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg><span class="l">Code</span></div><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg><span class="l">Terminals</span></div><div class="row sel" style="height: 24px"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="l">Agents</span></div><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg><span class="l">Backlog</span></div><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h8.5a1 1 0 0 1 1 1v10H4a1 1 0 0 1-1-1Z"/><path d="M3 11.5a1 1 0 0 1 1-1h8.5M6 5.5h4"/></svg><span class="l">Wiki</span></div><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg><span class="l">Processes</span></div><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg><span class="l">Cron</span></div><div class="row" style="height: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg><span class="l">Triggers</span></div></div></div></div></figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><div class="muted" style="font-size: 14px">Session header and edit card, no editor</div><div class="cm th-mate" style="border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; border: 1px solid var(--bd); border-radius: 6px"><span class="ttl ell" style="flex: 1">Find one small bug, fix it and run the tests</span><button class="btn sm">Review changes</button></div>
+<div class="card" style="overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px 0 10px; border-bottom: 1px solid var(--bd)"><span class="cap mut ell" style="flex: 1">cart/total.go</span><button class="btn sm gh">Full diff<span class="kbd">⌘D</span></button></div>
+<div class="diff" style="padding: 4px 0; background: var(--bg)"><div class="dl del"><span>42</span><span>−</span><span>    for _, it := range items[1:] {</span></div><div class="dl add"><span>42</span><span>+</span><span>    for _, it := range items {</span></div></div>
+</div>
+<span class="cap mut">No "Open in editor" on the edit card. Review changes (session header) and Full diff open the read-only review; Full diff scrolls it to that file.</span>
+</div></figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><div class="muted" style="font-size: 14px">Turn on Neovim… expands in place (not a sheet)</div><div class="cm th-mate" style="border-radius: 10px; padding: 16px">
+<section class="card" aria-label="Turn on Neovim" style="padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; gap: 8px"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg><span class="b">Turn on Neovim?</span></div>
+<span class="t2">Clubmate's built-in Neovim, with a Code section in the rail. This review reopens in diffview, where you can comment on lines.</span>
+<label style="display: flex; align-items: center; gap: 8px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/></svg><span>Also bring my <code>~/.config/nvim</code> keys and plugins</span><span class="kbd">I</span></label>
+<span class="cap mut" style="padding-left: 22px">Shown only when ~/.config/nvim exists. An agent does the import in a session you can watch.</span>
+<div class="abar"><button class="btn pri foc">Turn on<span class="kbd">⏎</span></button><button class="btn gh">Cancel<span class="kbd">⎋</span></button><span style="flex: 1"></span><span class="cap mut">VS Code instead: Settings › General › Editors</span></div>
+</section>
+</div></figure>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: 520px 520px 600px minmax(0, 1fr); gap: 40px; align-items: start">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><div class="muted" style="font-size: 14px">Settings › General › Editors · both off (new install)</div><div class="sx" style="width: 520px; background: #FFFFFF; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 16px 40px rgba(20,24,20,.16)">
+<header style="padding: 10px 14px 8px; border-bottom: 1px solid #E2E2E4; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; height: 16px"><div style="display: flex; gap: 8px"><i style="width: 12px; height: 12px; border-radius: 6px; display: block; background: #FF5F57"></i><i style="width: 12px; height: 12px; border-radius: 6px; display: block; background: #FEBC2E"></i><i style="width: 12px; height: 12px; border-radius: 6px; display: block; background: #28C840"></i></div><span style="flex: 1; text-align: center; margin-right: 52px; font-weight: 600">General</span></div>
+<nav aria-label="Settings sections" style="display: flex; justify-content: center; gap: 4px"><div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 62px; padding: 5px 0 4px; border-radius: 8px; background: #E9E9EB; color: #1D1D1F"><svg viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg><span style="font-size: 11px">General</span></div><div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 62px; padding: 5px 0 4px; border-radius: 8px; color: #6E6E73"><svg viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round"><path d="M3 5.5h3V4a1.5 1.5 0 0 1 3 0v1.5h3v3h-1.5a1.5 1.5 0 0 0 0 3H12v3H3Z"/></svg><span style="font-size: 11px">Plugins</span></div><div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 62px; padding: 5px 0 4px; border-radius: 8px; color: #6E6E73"><svg viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round"><rect x="4.5" y="1.5" width="7" height="13" rx="1.6"/><path d="M7 12.5h2"/></svg><span style="font-size: 11px">Remote</span></div></nav>
+</header>
+<div style="padding: 18px 24px 20px; display: flex; flex-direction: column; gap: 8px">
+<h3>Editors</h3>
+<div class="grp">
+<label class="r"><div class="l"><span>Neovim</span><span class="sub">Built in. Opens files, and reviews diffs with line comments.</span></div><span aria-hidden="true" style="width: 38px; height: 22px; border-radius: 11px; background: #E2E2E6; position: relative; flex: none"><span style="position: absolute; left: 2px; top: 2px; width: 18px; height: 18px; border-radius: 9px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25)"></span></span></label>
+
+<div class="sep"></div>
+<label class="r"><div class="l"><span>VS Code</span><span class="sub">Uses VS Code on this Mac and Microsoft's VS Code Server (about 600 MB, once).</span></div><span aria-hidden="true" style="width: 38px; height: 22px; border-radius: 11px; background: #E2E2E6; position: relative; flex: none"><span style="position: absolute; left: 2px; top: 2px; width: 18px; height: 18px; border-radius: 9px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25)"></span></span></label>
+</div>
+<span class="sub" style="padding: 0 4px">Both off: no Code section. Review changes opens a read-only diff in Agents.</span>
+</div>
+</div></figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><div class="muted" style="font-size: 14px">· Neovim on: the config import row appears</div><div class="sx" style="width: 520px; background: #FFFFFF; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 16px 40px rgba(20,24,20,.16)">
+<header style="padding: 10px 14px 8px; border-bottom: 1px solid #E2E2E4; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; height: 16px"><div style="display: flex; gap: 8px"><i style="width: 12px; height: 12px; border-radius: 6px; display: block; background: #FF5F57"></i><i style="width: 12px; height: 12px; border-radius: 6px; display: block; background: #FEBC2E"></i><i style="width: 12px; height: 12px; border-radius: 6px; display: block; background: #28C840"></i></div><span style="flex: 1; text-align: center; margin-right: 52px; font-weight: 600">General</span></div>
+<nav aria-label="Settings sections" style="display: flex; justify-content: center; gap: 4px"><div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 62px; padding: 5px 0 4px; border-radius: 8px; background: #E9E9EB; color: #1D1D1F"><svg viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg><span style="font-size: 11px">General</span></div><div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 62px; padding: 5px 0 4px; border-radius: 8px; color: #6E6E73"><svg viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round"><path d="M3 5.5h3V4a1.5 1.5 0 0 1 3 0v1.5h3v3h-1.5a1.5 1.5 0 0 0 0 3H12v3H3Z"/></svg><span style="font-size: 11px">Plugins</span></div><div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 62px; padding: 5px 0 4px; border-radius: 8px; color: #6E6E73"><svg viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round"><rect x="4.5" y="1.5" width="7" height="13" rx="1.6"/><path d="M7 12.5h2"/></svg><span style="font-size: 11px">Remote</span></div></nav>
+</header>
+<div style="padding: 18px 24px 20px; display: flex; flex-direction: column; gap: 8px">
+<h3>Editors</h3>
+<div class="grp">
+<label class="r"><div class="l"><span>Neovim</span><span class="sub">Built in. Opens files, and reviews diffs with line comments.</span></div><span aria-hidden="true" style="width: 38px; height: 22px; border-radius: 11px; background: #0A7AFF; position: relative; flex: none"><span style="position: absolute; right: 2px; top: 2px; width: 18px; height: 18px; border-radius: 9px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25)"></span></span></label>
+<div class="sep"></div><div class="r"><div class="l"><span>Neovim config</span><span class="sub">Your ~/.config/nvim keys and plugins, imported by an agent</span></div><button class="sbtn">Import…</button></div>
+<div class="sep"></div>
+<label class="r"><div class="l"><span>VS Code</span><span class="sub">Uses VS Code on this Mac and Microsoft's VS Code Server (about 600 MB, once).</span></div><span aria-hidden="true" style="width: 38px; height: 22px; border-radius: 11px; background: #E2E2E6; position: relative; flex: none"><span style="position: absolute; left: 2px; top: 2px; width: 18px; height: 18px; border-radius: 9px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25)"></span></span></label>
+</div>
+<span class="sub" style="padding: 0 4px">Neovim is on: Code is in the rail, Review changes opens diffview with comments.</span>
+</div>
+</div></figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><div class="muted" style="font-size: 14px">Palette, no editor</div><div class="cm th-mate" style="border-radius: 10px; padding: 16px; display: flex; justify-content: center">
+<div class="pop" style="width: 520px; padding: 6px; display: flex; flex-direction: column; gap: 4px">
+<div class="field foc" style="height: 30px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg><span>editor|</span></div>
+<div class="row sel" style="height: 26px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg><span class="l">Turn on Neovim</span><span class="d cap">Editors</span></div>
+<div class="row" style="height: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5c-1.5 0-2 .7-2 2v1.6c0 .9-.5 1.4-1.5 1.4 1 0 1.5.5 1.5 1.4v1.6c0 1.3.5 2 2 2M10 2.5c1.5 0 2 .7 2 2v1.6c0 .9.5 1.4 1.5 1.4-1 0-1.5.5-1.5 1.4v1.6c0 1.3-.5 2-2 2"/></svg><span class="l">Turn on VS Code…</span><span class="d cap">Editors</span></div>
+<div class="row" style="height: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg><span class="l">Open Settings › General › Editors</span><span class="d cap">Settings</span></div>
+</div>
+</div></figure>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h3>What changes against r1</h3>
+<ul class="muted" style="font-size: 14px; display: flex; flex-direction: column; gap: 4px">
+<li>r1 asked the editor on the first open of Code. With no editor there is no Code to open, so the question moves to the first review, where an editor actually earns its place.</li>
+<li>New installs: both editor plugins off. Existing installs keep what they have.</li>
+<li>Turning Neovim on adds Code to the rail and reopens the current review in diffview. Nothing else changes; agents never needed an editor.</li>
+<li><b>nvim import</b> only exists with Neovim: as the check in "Turn on Neovim?", then as the Neovim config row in Settings, then in the palette. With no editor it is nowhere.</li>
+<li>Read-only review keeps the keys of a list: j/k next file, o fold, ⌘⏎ ask for changes, ⎋ back to the session. Asking for changes is a message to the same session, so review still works without line comments.</li>
+</ul>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2400,"height":1960}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "title": "Onboarding · round 2",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 23 Nov. Your two notes on r1: some users need no editor; the promo should sell a personal workshop, not features. r1 stands except where r2 changes it.",
+    "Editor A · no editor until you need one: first run asks nothing, new installs start with both editors off (no Code in the rail). The first Review changes opens a read-only diff in Agents with a one-time row: turn on Neovim to comment on lines. nvim config import only appears where Neovim is turned on.",
+    "Positioning A · \"Your workshop. Claude Code is the crew.\" Hero = the Home workspace answering \"What waits for me today?\" across projects, backlog, cron and wiki; the phone holds the one thing that needs you. Worktrees, checkpoints and land gates move into the README.",
+    "About (106): \"Your personal workshop on the Mac: you and your Claude Code agents, on every project and on your own life.\""
+  ],
+  "boards": [
+    {"file": "R2-Editor.dc.html", "w": 2400, "title": "1 · Editor, or none", "caption": "A no editor until needed (pick); B Neovim on silently; C ask on Welcome. The app without an editor: read-only review in Agents, the one-time Neovim offer, Settings › General › Editors."},
+    {"file": "R2-Promo.dc.html", "w": 2160, "title": "2 · Positioning", "caption": "Three lines (A pick) and the new 1280×640 social preview / README hero built on Home."},
+    {"file": "R2-README.dc.html", "w": 2400, "title": "3 · README first screen", "caption": "Hero, pick line, Download, \"What's in the workshop\" as seven story rows, Home as the one picture; About and topics."},
+    {"file": "R2-Rules.dc.html", "w": 2080, "title": "4 · Rules, changes against r1", "caption": "Picks, new texts, the editor field (enabled, review, offer), rules added, what r1 loses, 13 tagged changes."}
+  ]
+}

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r3 · Rules, changes against r1 and r2</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/46bb52f625dfd05699b9013ec702ba87">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+
+</style>
+</helmet>
+<div class="doc" style="width: 2400px; height: 3000px; padding: 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · onboarding · round 1</div>
+<h1>4 · Rules · changes against r1 and r2</h1>
+<p class="lead" style="max-width: 1240px">The picks are settled. R1-Rules stands except where this board says otherwise; R2-Rules is replaced by it. Tags: <span class="tag a">(a)</span> token or renderer · <span class="tag b">(b)</span> new SDUI node or prop · <span class="tag c">(c)</span> plugin content · <span class="tag p0">(d)</span> new plugin or core logic.</p>
+</div>
+<div style="display: grid; grid-template-columns: 1280px minmax(0, 1fr); gap: 48px; align-items: start">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><div class="muted" style="font-size: 14px">Welcome, final · first start, all good · 1280, Mate dark</div><div class="cm th-mate" style="width: 1280px; height: 800px; overflow: hidden; border-radius: 10px; box-shadow: 0 24px 60px rgba(20,24,20,.28); display: grid; grid-template-rows: 38px minmax(0, 1fr)">
+<header class="tb"><div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div><span class="ttl">Clubmate</span><span style="flex: 1"></span><button class="pill" aria-label="Notifications"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg></button><button class="pill" aria-label="Windows: 0"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">0</span></button></header>
+<main style="position: relative; display: flex; justify-content: center; padding-top: 250px; background: var(--bg)">
+<div style="width: 520px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; flex-direction: column; gap: 2px"><span class="h">Clubmate</span><span class="mut">Your garage. Agents welcome.</span></div>
+<button class="btn pri foc" style="height: 36px; width: 100%; justify-content: flex-start; padding: 0 12px; gap: 10px; font-weight: 600"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1Z"/></svg><span style="flex: 1; text-align: left">Open folder…</span><span class="kbd">⌘O</span></button>
+<div class="row" style="height: 28px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5 8 2.5l5.5 5M4 6.5v7h3V10h2v3.5h3v-7"/></svg><span class="l">Home <span class="mut">· agents across all projects</span></span><span class="kbd">⇧⌘H</span></div>
+</div>
+<div class="cap mut" style="position: absolute; left: 0; right: 0; bottom: 18px; text-align: center">↑↓ choose · ⏎ open · ⇧⌘N new terminal · ⌘K commands</div>
+</main>
+</div></figure>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Picks</h2>
+<table>
+<thead><tr><th style="width: 120px">Question</th><th style="width: 260px">Pick</th><th>Note</th></tr></thead>
+<tbody><tr><td><b>Welcome</b></td><td>r1 A · One door</td><td class="muted">Open folder… and Home only. Clone repository… later.</td></tr><tr><td><b>First run</b></td><td>r1 A · Silent check, just in time</td><td class="muted">Unchanged, minus the editor step (see Editor).</td></tr><tr><td><b>First agent</b></td><td>r1 A · Three in-place hints</td><td class="muted">Unchanged.</td></tr><tr><td><b>Pairing</b></td><td>r1 A · After the first finished turn</td><td class="muted">Unchanged.</td></tr><tr><td><b>Editor</b></td><td>r2 B · Neovim silently</td><td class="muted">Every install. VS Code in Settings and the palette. nvim import stays Neovim's own question at the first plain open of Code. Both off: hide what needs an editor.</td></tr><tr><td><b>Positioning</b></td><td>r3 A · "Your garage. Agents welcome."</td><td class="muted">No vendor in headline or About; Claude Code named only where it is a fact.</td></tr><tr><td><b>README</b></td><td>r3 · garage rows</td><td class="muted">Agents, Backlog, Cron and Triggers, Side threads, Wiki, Your own processes, Your phone.</td></tr></tbody>
+</table>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: 1280px minmax(0, 1fr); gap: 48px; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Texts, new or changed</h2>
+<table>
+<thead><tr><th style="width: 180px">Where</th><th style="width: 190px">Slot</th><th>Text</th><th style="width: 70px">Tag</th></tr></thead>
+<tbody><tr><td>Welcome</td><td class="muted">line</td><td class="mono" style="font-size: 12.5px">Your garage. Agents welcome.  (was: Run Claude Code agents on your projects.)</td><td><span class="tag a">(a)</span></td></tr><tr><td>Welcome</td><td class="muted">rows</td><td class="mono" style="font-size: 12.5px">Open folder… ⌘O · Home · agents across all projects ⇧⌘H  (Clone repository… removed for now)</td><td><span class="tag a">(a)</span></td></tr><tr><td>Settings › General</td><td class="muted">group</td><td class="mono" style="font-size: 12.5px">Editors</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">Neovim</td><td class="mono" style="font-size: 12.5px">Neovim · Built in. Opens files, and reviews diffs with line comments.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">Neovim config</td><td class="mono" style="font-size: 12.5px">Neovim config · Bring your ~/.config/nvim keys and plugins in. An agent does it in a session you can watch. · Import…</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">VS Code</td><td class="mono" style="font-size: 12.5px">VS Code · Uses VS Code on this Mac and Microsoft's VS Code Server (about 600 MB, once).</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">caption, Neovim on</td><td class="mono" style="font-size: 12.5px">Review changes and Full diff open diffview in Neovim, where you comment on lines.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">caption, VS Code only</td><td class="mono" style="font-size: 12.5px">Review changes and Full diff open in VS Code.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">caption, both on</td><td class="mono" style="font-size: 12.5px">Both on: Review changes and Full diff open in Neovim (diffview).</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">caption, both off</td><td class="mono" style="font-size: 12.5px">Both off: no Code in the rail. Review changes, Full diff and Open in editor are hidden; edit cards keep their inline diff.</td><td><span class="tag c">(c)</span></td></tr><tr><td>Palette</td><td class="muted">commands</td><td class="mono" style="font-size: 12.5px">Turn on VS Code… · Turn off Neovim · Import ~/.config/nvim… · Open Settings › General › Editors</td><td><span class="tag c">(c)</span></td></tr><tr><td>Neovim (Code)</td><td class="muted">question, unchanged words</td><td class="mono" style="font-size: 12.5px">Bring your ~/.config/nvim keys and plugins into Clubmate? · 1. Import with an agent · 2. Not now</td><td><span class="tag c">(c)</span></td></tr><tr><td>Hero</td><td class="muted">headline · line</td><td class="mono" style="font-size: 12.5px">Your garage. / Agents welcome. · Set it up the way you like: your backlog, your wiki, your schedules, your processes.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">small print</td><td class="mono" style="font-size: 12.5px">for macOS 27 · agents over ACP, Claude Code today</td><td><span class="tag ">repo</span></td></tr><tr><td>README</td><td class="muted">lead</td><td class="mono" style="font-size: 12.5px">Your garage on the Mac. Agents welcome. Set it up the way you like; agents work there with your backlog, your wiki, your schedules and your processes, on every project and in Home.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">section</td><td class="mono" style="font-size: 12.5px">What's in the garage</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">Requirements</td><td class="mono" style="font-size: 12.5px">Claude Code: agents run on it today, so you need a Claude Code login and Node 22 or later</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">editor line</td><td class="mono" style="font-size: 12.5px">Neovim is built in and on; turn on VS Code, or turn both off, in Settings › General › Editors.</td><td><span class="tag ">repo</span></td></tr><tr><td>GitHub</td><td class="muted">About (102)</td><td class="mono" style="font-size: 12.5px">Your garage on the Mac, set up your way. Agents work with your backlog, wiki, schedules and processes.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">topics</td><td class="mono" style="font-size: 12.5px">ai-agents coding-agent agent-client-protocol claude-code macos swiftui local-first workflow-automation cron personal-knowledge-base</td><td><span class="tag ">repo</span></td></tr></tbody>
+</table>
+</div>
+<div style="display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Fields</h2>
+<pre class="mono panel" style="margin: 0; padding: 18px 20px; font-size: 12.5px; line-height: 19px; white-space: pre">editor       enabled    ["neovim"] on every new install
+                        existing installs: unchanged
+             review     diffview | vscode | hidden
+                        decided in Go from enabled; clients only render
+             openedFor  edit | review      (why Code is opening)
+
+firstRun     nvimImport unasked | imported | declined
+                        asked once, by Neovim, when Code opens with
+                        openedFor = edit, Neovim on, ~/.config/nvim exists
+             editor     (removed: first run asks nothing)
+
+unchanged    setup, companion, firstRun.hints  (R1-Rules)</pre>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2>Dropped</h2>
+<ul class="muted" style="font-size: 14px; display: flex; flex-direction: column; gap: 4px"><li>r1 4 · Clone repository… (later).</li><li>r1 10, 11 · editor choice as the Code pane's first state; nvim import as a check inside it.</li><li>r1 flow step 7 and its texts (Choose your editor …).</li><li>r2 Editor A, all of it: editor plugins off by default; read-only review view (b); whole-session diff (d); one-time offer row (b); "Turn on Neovim?" expansion; Ask for changes from the review; editor.review = readonly; offer field.</li><li>r1 and r2 positioning, heroes, README leads, About lines and topics.</li></ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2>Rules added</h2>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li>An editor is a setting, not a step: Neovim is on, VS Code and No editor are one switch away in Settings and the palette.</li>
+<li>Neovim asks about your config only when you came to edit, never when you came to review.</li>
+<li>With no editor, actions that need one are hidden, not disabled or rebuilt.</li>
+<li>No agent vendor in a headline, a Welcome line or the About line; Claude Code appears where it is a requirement.</li>
+</ul>
+</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Handoff</h2>
+<p class="muted" style="font-size: 14px">1 × (a) · 0 × (b) · 6 × (c) · 1 × (d) · plus the repo. On top of R1-Rules' handoff, minus the dropped items.</p>
+<table>
+<thead><tr><th style="width: 40px">#</th><th>Change</th><th style="width: 90px">Tag</th></tr></thead>
+<tbody><tr><td class="n">1</td><td>Welcome: drop the Clone repository… row (later); line becomes "Your garage. Agents welcome."</td><td><span class="tag a">(a)</span></td></tr><tr><td class="n">2</td><td>Neovim is on for every new install; first run asks nothing about an editor. r1 item 9 (no editor sheet at first start) stands; r1 items 10 and 11 are dropped.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">3</td><td>Settings › General › Editors: Neovim switch, Neovim config row (while Neovim is on and not imported), VS Code switch, one caption per state. SDUISettingsRows.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">4</td><td>Palette: Turn on VS Code…, Turn off Neovim, Import ~/.config/nvim…, Open Settings › General › Editors.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">5</td><td>Core passes why Code opens (openedFor = edit | review) to the editor plugin.</td><td><span class="tag p0">(d)</span></td></tr><tr><td class="n">6</td><td>editor-nvim: ask the import once, only when openedFor = edit; Not now leaves the Settings row and the palette command, never a second prompt.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">7</td><td>Agents plugin sends editor.review (diffview | vscode | hidden).</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">8</td><td>Both editors off: hide Review changes, Full diff and Open in editor; edit cards keep their inline diff. No Code in the rail (as today).</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">9</td><td>Repo: garage social-preview.png, README first screen, About, ten topics.</td><td><span class="tag ">repo</span></td></tr></tbody>
+</table>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2400,"height":3000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

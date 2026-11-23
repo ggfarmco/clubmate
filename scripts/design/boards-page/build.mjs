@@ -28,7 +28,7 @@ const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
 const cards = rendered.map((b) => {
   const zoom = Math.min(1, config.fit / b.w);
-  return `<section class="card"><h2>${esc(b.title)}</h2><p class="cap">${esc(b.caption)}</p><div class="frame" style="width:${Math.round(b.w * zoom)}px"><div style="zoom:${zoom.toFixed(4)};width:${b.w}px">${b.board}</div></div></section>`;
+  return `<section class="bp-card"><h2>${esc(b.title)}</h2><p class="cap">${esc(b.caption)}</p><div class="frame" style="width:${Math.round(b.w * zoom)}px"><div style="zoom:${zoom.toFixed(4)};width:${b.w}px">${b.board}</div></div></section>`;
 }).join('\n');
 
 const html = `<!doctype html>
@@ -44,9 +44,9 @@ body.page{margin:0;background:var(--pg);color:var(--pgfg);font-family:'IBM Plex 
 .page header.top{max-width:${config.fit + 48}px;margin:0 auto;padding:32px 24px 8px}
 .page header.top h1{font-size:28px;margin:0 0 8px}
 .page header.top p{color:var(--pgmut);margin:0 0 6px;line-height:1.5;max-width:900px}
-.page .card{max-width:${config.fit + 48}px;margin:24px auto;padding:0 24px}
-.page .card h2{font-size:18px;margin:0 0 4px}
-.page .card p.cap{color:var(--pgmut);margin:0 0 12px;font-size:14px}
+.page .bp-card{max-width:${config.fit + 48}px;margin:24px auto;padding:0 24px}
+.page .bp-card h2{font-size:18px;margin:0 0 4px}
+.page .bp-card p.cap{color:var(--pgmut);margin:0 0 12px;font-size:14px}
 .page .frame{overflow:hidden;border:1px solid var(--pgbd);border-radius:12px;max-width:100%}
 </style></head>
 <body class="page">

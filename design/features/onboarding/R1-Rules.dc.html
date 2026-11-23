@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · Rules, texts and handoff</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/46bb52f625dfd05699b9013ec702ba87">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+
+</style>
+</helmet>
+<div class="doc" style="width: 2080px; height: 4000px; padding: 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · onboarding · round 1</div>
+<h1>6 · Rules and handoff</h1>
+<p class="lead" style="max-width: 1240px">Picks, every new or changed string, the three fields the plugins decide, and the handoff list. Tags: <span class="tag a">(a)</span> token or renderer, client SwiftUI · <span class="tag b">(b)</span> new SDUI node or prop · <span class="tag c">(c)</span> plugin content, words and order · <span class="tag p0">(d)</span> new plugin or core logic.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Picks</h2>
+<table>
+<thead><tr><th style="width: 160px">Question</th><th>A</th><th>B</th><th>C</th><th style="width: 300px">Pick</th></tr></thead>
+<tbody><tr><td><b>1 · Welcome</b></td><td>One door: Open folder… is the only primary; Clone and Home are keyed rows.</td><td class="muted">Home as the lobby: a big Home tile beside Open folder….</td><td class="muted">Prompt first: type the task on Welcome, pick a folder, ⌘⏎.</td><td><b>A</b></td></tr><tr><td><b>2 · First run</b></td><td>Silent check, just in time: nothing before the first agent; failures speak in place; editor asked in Code.</td><td class="muted">Set up checklist on Welcome that collapses to one line.</td><td class="muted">One setup sheet: checks + editor + Continue.</td><td><b>A</b></td></tr><tr><td><b>3 · First agent</b></td><td>Three in-place hints: empty text, first-permission caption, phone row.</td><td class="muted">Sample session to read in the first project.</td><td class="muted">Three prompt chips in the empty state.</td><td><b>A</b></td></tr><tr><td><b>4 · Pairing</b></td><td>After the first finished turn: dashed row once, then a status bar item.</td><td class="muted">Notification when the Mac is about to sleep with an agent running.</td><td class="muted">A card in Home.</td><td><b>A (B as a later second moment)</b></td></tr><tr><td><b>5 · README</b></td><td>Screens first: social preview hero, one sentence, 3 steps, 2×2 features with shots.</td><td class="muted">A GIF from ⌘N to a landed diff.</td><td class="muted">Text only, long feature list.</td><td><b>A · leads: Agents, Review loops, Companion, Backlog and Wiki</b></td></tr></tbody>
+</table>
+</div>
+<div style="display: grid; grid-template-columns: 1180px minmax(0, 1fr); gap: 48px; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Every text</h2>
+<p class="muted" style="font-size: 14px">Sentence case everywhere but the Clubmate menu. One state, one set of words: the Welcome row and the Agents empty state say the same thing.</p>
+<table>
+<thead><tr><th style="width: 190px">Where</th><th style="width: 190px">Slot</th><th>Text</th><th style="width: 70px">Tag</th></tr></thead>
+<tbody><tr><td>Welcome</td><td class="muted">title</td><td class="mono" style="font-size: 12.5px">Clubmate</td><td><span class="tag a">(a)</span></td></tr><tr><td>Welcome</td><td class="muted">line</td><td class="mono" style="font-size: 12.5px">Run Claude Code agents on your projects.</td><td><span class="tag a">(a)</span></td></tr><tr><td>Welcome</td><td class="muted">primary tile</td><td class="mono" style="font-size: 12.5px">Open folder… ⌘O</td><td><span class="tag a">(a)</span></td></tr><tr><td>Welcome</td><td class="muted">row</td><td class="mono" style="font-size: 12.5px">Clone repository… ⌥⌘O</td><td><span class="tag p0">(d)</span></td></tr><tr><td>Welcome</td><td class="muted">row</td><td class="mono" style="font-size: 12.5px">Home · agents across all projects ⇧⌘H</td><td><span class="tag a">(a)</span></td></tr><tr><td>Welcome</td><td class="muted">keys</td><td class="mono" style="font-size: 12.5px">↑↓ choose · ⏎ open · ⇧⌘N new terminal · ⌘K commands</td><td><span class="tag a">(a)</span></td></tr><tr><td>Setup · node_missing</td><td class="muted">Welcome row / empty title</td><td class="mono" style="font-size: 12.5px">Node 22+ is required to run Claude</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">detail · action</td><td class="mono" style="font-size: 12.5px">Node not found · Install Node…</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">empty text</td><td class="mono" style="font-size: 12.5px">Claude runs through claude-agent-acp, which needs Node 22 or later.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">empty hint</td><td class="mono" style="font-size: 12.5px">Runs brew install node@22 in a terminal tab. Checked again when it finishes.</td><td><span class="tag c">(c)</span></td></tr><tr><td>Setup · node_old</td><td class="muted">detail · empty text</td><td class="mono" style="font-size: 12.5px">found 18.19 · Found Node 18.19 at /usr/local/bin/node. Claude runs through claude-agent-acp, which needs Node 22 or later.</td><td><span class="tag c">(c)</span></td></tr><tr><td>Setup · signed_out</td><td class="muted">Welcome row</td><td class="mono" style="font-size: 12.5px">Sign in to Claude to start agents · Sign in…</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">empty title · text</td><td class="mono" style="font-size: 12.5px">Sign in to Claude · Clubmate runs Claude Code on this Mac with your Claude login. This Mac isn't signed in yet.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">empty action · hint</td><td class="mono" style="font-size: 12.5px">Sign in… · Opens Claude's sign-in in your browser. Checked again when you come back.</td><td><span class="tag c">(c)</span></td></tr><tr><td>Setup · git_missing</td><td class="muted">title · action</td><td class="mono" style="font-size: 12.5px">git is needed for worktrees and checkpoints · Install…</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">empty text · hint</td><td class="mono" style="font-size: 12.5px">Agents still run, but turns aren't checkpointed and the wiki stays off. · Installs the Xcode Command Line Tools (xcode-select --install).</td><td><span class="tag c">(c)</span></td></tr><tr><td>Setup · checking</td><td class="muted">empty action, loading</td><td class="mono" style="font-size: 12.5px">Getting Claude ready…</td><td><span class="tag c">(c)</span></td></tr><tr><td>Setup · ok</td><td class="muted">empty hint, first run</td><td class="mono" style="font-size: 12.5px">Claude Code · Node 22.11 · git 2.47</td><td><span class="tag c">(c)</span></td></tr><tr><td>Agents empty</td><td class="muted">title (first run)</td><td class="mono" style="font-size: 12.5px">Start your first agent</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">text (first run)</td><td class="mono" style="font-size: 12.5px">Each agent can work in its own worktree, and every turn saves a git checkpoint you can go back to.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">action</td><td class="mono" style="font-size: 12.5px">New session ⌘N</td><td><span class="tag c">(c)</span></td></tr><tr><td>Composer</td><td class="muted">first session suggestion</td><td class="mono" style="font-size: 12.5px">Try "Find one small bug, fix it and run the tests" · ⇥ to use</td><td><span class="tag b">(b)</span></td></tr><tr><td>Permission</td><td class="muted">first-time note (H2)</td><td class="mono" style="font-size: 12.5px">The agent waits until you answer. Anything waiting also shows under Needs you and in notifications.</td><td><span class="tag b">(b)</span></td></tr><tr><td>Transcript</td><td class="muted">turn end</td><td class="mono" style="font-size: 12.5px">Turn 1 · checkpoint saved · 1 file changed</td><td><span class="tag c">(c)</span></td></tr><tr><td>Phone offer (H3)</td><td class="muted">row · actions</td><td class="mono" style="font-size: 12.5px">Answer Claude from your iPhone when you step away. · Pair iPhone… · Not now</td><td><span class="tag c">(c)</span></td></tr><tr><td>Status bar</td><td class="muted">unpaired, dismissed</td><td class="mono" style="font-size: 12.5px">Pair iPhone</td><td><span class="tag a">(a)</span></td></tr><tr><td>Palette</td><td class="muted">command</td><td class="mono" style="font-size: 12.5px">Pair iPhone or iPad…</td><td><span class="tag c">(c)</span></td></tr><tr><td>Clubmate menu</td><td class="muted">item, Title Case</td><td class="mono" style="font-size: 12.5px">Pair iPhone or iPad…</td><td><span class="tag c">(c)</span></td></tr><tr><td>Pairing sheet</td><td class="muted">title · text</td><td class="mono" style="font-size: 12.5px">Pair an iPhone or iPad · Open Clubmate on your iPhone or iPad, tap Scan code and point it at this code.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">route</td><td class="mono" style="font-size: 12.5px">Connects over Tailscale · &lt;host&gt; / Tailscale off on this Mac · the phone connects through the relay</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">install · close</td><td class="mono" style="font-size: 12.5px">No Companion yet? Get it on the App Store · iOS and iPadOS 27 · Done ⎋</td><td><span class="tag c">(c)</span></td></tr><tr><td>Editor (Code pane)</td><td class="muted">title · text</td><td class="mono" style="font-size: 12.5px">Choose your editor · Clubmate opens files, diffs and agent edits in it. You can switch later in Settings › Editor.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">Neovim</td><td class="mono" style="font-size: 12.5px">Comes with Clubmate and runs in the terminal. Nothing to set up.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">import check</td><td class="mono" style="font-size: 12.5px">Also bring my ~/.config/nvim keys and plugins (I) · An agent does the import in a session you can watch and review.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">VS Code</td><td class="mono" style="font-size: 12.5px">The VS Code on this Mac, in its own section. Downloads Microsoft's VS Code Server once (about 600 MB).</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">keys · button</td><td class="mono" style="font-size: 12.5px">↑↓ choose · I import config · ⏎ continue · esc keeps Neovim · Continue ⏎</td><td><span class="tag c">(c)</span></td></tr><tr><td>Settings › Editor</td><td class="muted">quiet row</td><td class="mono" style="font-size: 12.5px">Neovim config · Import ~/.config/nvim…</td><td><span class="tag c">(c)</span></td></tr><tr><td>Settings › General</td><td class="muted">quiet row, if denied</td><td class="mono" style="font-size: 12.5px">Notifications · Off · Open System Settings…</td><td><span class="tag c">(c)</span></td></tr><tr><td>Companion</td><td class="muted">title · text</td><td class="mono" style="font-size: 12.5px">Pair a Mac · On your Mac, open Clubmate Settings › Remote › Pair Device…, then scan the code.</td><td><span class="tag a">(a)</span></td></tr><tr><td></td><td class="muted">route · button</td><td class="mono" style="font-size: 12.5px">Works over Tailscale, or through the relay without it. · Scan code</td><td><span class="tag a">(a)</span></td></tr><tr><td></td><td class="muted">foot</td><td class="mono" style="font-size: 12.5px">No Clubmate on your Mac yet? github.com/[org]/clubmate</td><td><span class="tag a">(a)</span></td></tr><tr><td>GitHub</td><td class="muted">About (107)</td><td class="mono" style="font-size: 12.5px">Claude Code agents on your Mac: a worktree each, a git checkpoint every turn, and answers from your iPhone.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">topics</td><td class="mono" style="font-size: 12.5px">claude-code claude ai-agents coding-agent macos swiftui git-worktree agent-client-protocol neovim developer-tools</td><td><span class="tag ">repo</span></td></tr></tbody>
+</table>
+</div>
+<div style="display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Fields (decided in Go, rendered by clients)</h2>
+<pre class="mono panel" style="margin: 0; padding: 18px 20px; font-size: 12.5px; line-height: 19px; white-space: pre">setup        state   checking | ok | node_missing | node_old
+                     | signed_out | git_missing
+             found   { node: "22.11.0", git: "2.47.1" }
+             fix     { label: "Install Node…", run: "brew install node@22" }
+                     | { label, url }
+             order   node → sign-in → git, one at a time
+             when    launch, app activate, after fix.run exits
+
+companion    state   unpaired | offer | dismissed | paired
+             via     tailscale | relay
+             offer   once, after the first finished turn of the
+                     first session; never at first start
+
+firstRun     editor      unset | neovim | vscode
+             nvimImport  unasked | imported | declined
+             hints       emptyFirst, needsYou, phone   (each once)</pre>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2>Rules</h2>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li>Nothing runs between launch and the first agent that the user must click through.</li>
+<li>A check that passes says nothing, except one "ready" caption on the first Agents screen.</li>
+<li>A failing check shows where the user is (Welcome row, Agents empty), with one fix action, and clears by itself when the check passes.</li>
+<li>A question is asked where its answer is used: the editor in Code, notifications at the first session, the phone after the first turn.</li>
+<li>A skipped step never comes back as a modal. It leaves at most one quiet row: Settings › Editor, Settings › General, the status bar.</li>
+<li>At most three hints, each once per Mac, each a line inside something that exists.</li>
+<li>No new phone screen. The phone's first screen changes words only.</li>
+</ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2>Open questions</h2>
+<ul class="muted" style="font-size: 14px; display: flex; flex-direction: column; gap: 6px">
+<li>Can the agents plugin tell "signed out" before a session starts (credentials present), or only "unknown"? If only unknown, the signed_out state stays in the session, and nothing is shown before.</li>
+<li>Is a worktree the default for + New, or only New in worktree…? The README says "one worktree per agent"; the empty text is written to be true either way.</li>
+<li>Clone repository…: build now (d) or leave Welcome at two rows.</li>
+<li>Is there a domain for a universal link, so one QR code both installs and pairs?</li>
+</ul>
+</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Handoff</h2>
+<p class="muted" style="font-size: 14px">7 × (a) · 3 × (b) · 8 × (c) · 2 × (d), one of them optional · plus the repo.</p>
+<table>
+<thead><tr><th style="width: 40px">#</th><th>Change</th><th style="width: 90px">Tag</th></tr></thead>
+<tbody><tr><td class="n">1</td><td>Welcome: drop the New terminal tile. ⇧⌘N, File › New Terminal and the palette entry stay.</td><td><span class="tag a">(a)</span></td></tr><tr><td class="n">2</td><td>Welcome: Open folder… becomes the one primary (accent) tile, focused at launch; Home becomes a one-line row with a detail; bottom key caption.</td><td><span class="tag a">(a)</span></td></tr><tr><td class="n">3</td><td>Welcome: one line under the title, "Run Claude Code agents on your projects."</td><td><span class="tag a">(a)</span></td></tr><tr><td class="n">4</td><td>Welcome: Clone repository… ⌥⌘O, git clone into a picked folder, then open it. Optional.</td><td><span class="tag p0">(d)</span></td></tr><tr><td class="n">5</td><td>Welcome: setup row bound to setup.state (title, detail, one button); hidden when ok.</td><td><span class="tag a">(a)</span></td></tr><tr><td class="n">6</td><td>Agents plugin: setup checks (Node ≥ 22, Claude Code login present, git), preinstall claude-agent-acp in the background, re-check on app activate; emits setup. In the agents plugin, not a new plugin: it already owns claude-agent-acp.</td><td><span class="tag p0">(d)</span></td></tr><tr><td class="n">7</td><td>Agents empty: first-run title/text, "ready" in the code-hint slot, failing states swap the same empty node's content by setup.state.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">8</td><td>The first workspace opens on Agents; later ones on their last section.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">9</td><td>Remove the editor sheet from first start.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">10</td><td>Editor choice becomes the Code pane's first state (same content as the sheet); ⏎ and esc = Neovim.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">11</td><td>nvim import: leaves the nvim picker; becomes the check row in the editor choice (off by default) and, until imported, a Settings › Editor row.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">12</td><td>Composer: suggestion prop, ⇥ accepts, first session only.</td><td><span class="tag b">(b)</span></td></tr><tr><td class="n">13</td><td>Permission card: note prop (one caption line), first request only.</td><td><span class="tag b">(b)</span></td></tr><tr><td class="n">14</td><td>Notifications: request at the first session start, not at launch; denied → Settings › General row.</td><td><span class="tag a">(a)</span></td></tr><tr><td class="n">15</td><td>Transcript: turn-end line "Turn N · checkpoint saved · K files changed", if it is not shown today.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">16</td><td>Phone offer: Remote plugin sets companion.state = offer after the first finished turn; rendered with the in-place empty (dashed) row. Needs a second action ("Not now").</td><td><span class="tag b">(b)</span></td></tr><tr><td class="n">17</td><td>Status bar: "Pair iPhone" item when companion.state = dismissed; opens the pairing sheet.</td><td><span class="tag a">(a)</span></td></tr><tr><td class="n">18</td><td>Palette and Clubmate menu: Pair iPhone or iPad….</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">19</td><td>Pairing sheet: route line (Tailscale host or relay), App Store line, Done ⎋.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">20</td><td>Companion first screen: new text, button "Scan code", foot line. Fixes "Settings → Devices" (the Mac tab is Remote).</td><td><span class="tag a">(a)</span></td></tr><tr><td class="n">21</td><td>Repo: README.md, .github/social-preview.png and four 2× feature shots, About, topics.</td><td><span class="tag ">repo</span></td></tr></tbody>
+</table>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":4000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

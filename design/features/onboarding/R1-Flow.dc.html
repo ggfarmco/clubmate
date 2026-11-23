@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · First-run flow</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/46bb52f625dfd05699b9013ec702ba87">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+
+</style>
+</helmet>
+<div class="doc" style="width: 2160px; height: 2520px; padding: 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · onboarding · round 1</div>
+<h1>2 · First run</h1>
+<p class="lead" style="max-width: 1240px"><b>Pick: A · Silent check, just in time.</b> Nothing stands between launch and the first agent. Checks run in the background and speak only when something is missing, in place, with the fix; the editor is asked where it is used. B · a Set up checklist on Welcome reads well but is a list to read before doing anything. C · one setup sheet is the wizard we want to avoid.</p>
+</div>
+<table style="max-width: 1500px">
+<thead><tr><th style="width: 220px">Step</th><th style="width: 360px">When</th><th style="width: 260px">Skippable</th><th>Shown</th></tr></thead>
+<tbody>
+<tr><td><b>Environment check</b></td><td>At launch and whenever Clubmate becomes active</td><td>Not a step</td><td>Only when something fails: one Welcome row + the Agents empty state. Never a sheet.</td></tr>
+<tr><td><b>Editor</b></td><td>First time Code opens, or an "Open in editor"</td><td>Esc = Neovim</td><td>Inline in the Code pane, once. Later: Settings › Editor.</td></tr>
+<tr><td><b>nvim config import</b></td><td>Inside the editor choice, if <code>~/.config/nvim</code> exists</td><td>Off by default</td><td>A check row; later a quiet row in Settings › Editor until imported.</td></tr>
+<tr><td><b>First agent</b></td><td>First workspace opens on Agents</td><td>Nothing to skip</td><td>Empty state + one composer suggestion.</td></tr>
+<tr><td><b>Notifications</b></td><td>When the first session starts</td><td>macOS decides</td><td>System banner; if denied, a quiet row in Settings › General.</td></tr>
+<tr><td><b>Phone pairing</b></td><td>After the first finished turn</td><td>Not now</td><td>Dashed row once, then a status bar item.</td></tr>
+</tbody>
+</table>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px 40px; align-items: start">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 10px"><span class="mono" style="color: #2B6E39; font-size: 20px; font-weight: 600">1</span><h3>Launch · checks run quietly</h3></div>
+<div class="cm th-mate" style="height: 400px; border-radius: 10px; overflow: hidden; position: relative; padding: 0; ">
+<div style="padding: 22px 24px; display: flex; flex-direction: column; gap: 14px">
+<div class="cap mut">agents plugin · field <code>setup</code> · nothing on screen</div>
+<div class="props">
+<span class="k">state</span><div class="v"><span>ok</span><code class="mut">setup.state</code></div>
+<span class="k">Node</span><div class="v"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg><span>22.11.0</span><span class="mut cap">≥ 22</span></div>
+<span class="k">Claude Code</span><div class="v"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg><span>login found</span></div>
+<span class="k">git</span><div class="v"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg><span>2.47.1</span></div>
+<span class="k">claude-agent-acp</span><div class="v"><span style="width: 12px; height: 12px; border-radius: 6px; border: 1.5px solid var(--bd2); border-top-color: var(--ac); display: inline-block"></span><span>installing in the background</span></div>
+</div>
+<div class="hr"></div>
+<div class="cap mut" style="display: flex; flex-direction: column; gap: 4px">
+<span>Order when several fail: Node → sign-in → git. One shown at a time.</span>
+<span>Re-checked when Clubmate becomes active again, so a fix in a terminal clears the row by itself.</span>
+</div>
+</div>
+</div>
+<p class="muted" style="font-size: 14px; line-height: 20px">No step, no window. The agents plugin (it already owns claude-agent-acp) checks Node, the Claude Code login and git, and installs claude-agent-acp while you pick a folder. It sends one field, <code>setup</code>; the Mac and the phone only render it.</p>
+</figure><figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 10px"><span class="mono" style="color: #2B6E39; font-size: 20px; font-weight: 600">2</span><h3>Welcome · all good</h3></div>
+<div class="cm th-mate" style="height: 400px; border-radius: 10px; overflow: hidden; position: relative; padding: 0; ">
+<div style="width: 480px; margin: 0 auto; padding-top: 70px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 2px"><span class="h">Clubmate</span><span class="mut">Run Claude Code agents on your projects.</span></div>
+<button class="btn pri foc" style="height: 36px; width: 100%; justify-content: flex-start; padding: 0 12px; gap: 10px; font-weight: 600"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1Z"/></svg><span style="flex: 1; text-align: left">Open folder…</span><span class="kbd">⌘O</span></button>
+
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div class="row" style="height: 28px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v8M4.8 6.3 8 9.5l3.2-3.2M2.5 12v1.5h11V12"/></svg><span class="l">Clone repository…</span><span class="kbd">⌥⌘O</span></div>
+<div class="row" style="height: 28px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5 8 2.5l5.5 5M4 6.5v7h3V10h2v3.5h3v-7"/></svg><span class="l">Home <span class="mut">· agents across all projects</span></span><span class="kbd">⇧⌘H</span></div>
+</div>
+</div>
+</div>
+<p class="muted" style="font-size: 14px; line-height: 20px">All good = nothing. No checklist, no green ticks; the "Ready" line waits for the first Agents screen, where it means something.</p>
+</figure><figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 10px"><span class="mono" style="color: #2B6E39; font-size: 20px; font-weight: 600">3</span><h3>Welcome · something missing</h3></div>
+<div class="cm th-mate" style="height: 400px; border-radius: 10px; overflow: hidden; position: relative; padding: 0; ">
+<div style="width: 480px; margin: 0 auto; padding-top: 70px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 2px"><span class="h">Clubmate</span><span class="mut">Run Claude Code agents on your projects.</span></div>
+<button class="btn pri foc" style="height: 36px; width: 100%; justify-content: flex-start; padding: 0 12px; gap: 10px; font-weight: 600"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1Z"/></svg><span style="flex: 1; text-align: left">Open folder…</span><span class="kbd">⌘O</span></button>
+<div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 6px 0 10px; border: 1px solid var(--wa-bd); background: var(--wa-bg); border-radius: 6px"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="ell" style="flex: 1">Node 22+ is required to run Claude <span class="mut">· found 18.19</span></span><button class="btn sm">Install Node…</button></div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div class="row" style="height: 28px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v8M4.8 6.3 8 9.5l3.2-3.2M2.5 12v1.5h11V12"/></svg><span class="l">Clone repository…</span><span class="kbd">⌥⌘O</span></div>
+<div class="row" style="height: 28px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5 8 2.5l5.5 5M4 6.5v7h3V10h2v3.5h3v-7"/></svg><span class="l">Home <span class="mut">· agents across all projects</span></span><span class="kbd">⇧⌘H</span></div>
+</div>
+</div>
+</div>
+<p class="muted" style="font-size: 14px; line-height: 20px">One row under the tile, the same words as the Agents empty state. Install Node… runs <code>brew install node@22</code> in a terminal tab (or opens nodejs.org without Homebrew). Not a modal; Open folder… still works.</p>
+</figure><figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 10px"><span class="mono" style="color: #2B6E39; font-size: 20px; font-weight: 600">3b</span><h3>Same, signed out · Mate light 640</h3></div>
+<div class="cm th-matelight" style="height: 400px; border-radius: 10px; overflow: hidden; position: relative; padding: 0; width: 640px">
+<div style="display: grid; grid-template-rows: 38px minmax(0, 1fr); height: 100%">
+<header class="tb"><div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div><span class="ttl">Clubmate</span><span style="flex: 1"></span><button class="pill" aria-label="Notifications"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg></button></header>
+<main style="background: var(--bg); padding: 40px 0 0">
+<div style="width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 2px"><span class="h">Clubmate</span><span class="mut">Run Claude Code agents on your projects.</span></div>
+<button class="btn pri foc" style="height: 36px; width: 100%; justify-content: flex-start; padding: 0 12px; gap: 10px; font-weight: 600"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1Z"/></svg><span style="flex: 1; text-align: left">Open folder…</span><span class="kbd">⌘O</span></button>
+<div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 6px 0 10px; border: 1px solid var(--wa-bd); background: var(--wa-bg); border-radius: 6px"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="ell" style="flex: 1">Sign in to Claude to start agents</span><button class="btn sm">Sign in…</button></div>
+<div class="row" style="height: 28px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v8M4.8 6.3 8 9.5l3.2-3.2M2.5 12v1.5h11V12"/></svg><span class="l">Clone repository…</span><span class="kbd">⌥⌘O</span></div>
+<div class="row" style="height: 28px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5 8 2.5l5.5 5M4 6.5v7h3V10h2v3.5h3v-7"/></svg><span class="l">Home <span class="mut">· agents across all projects</span></span><span class="kbd">⇧⌘H</span></div>
+</div>
+</main>
+</div>
+</div>
+<p class="muted" style="font-size: 14px; line-height: 20px">Light differs only in the warning ink: it uses <code>wa-i</code> (#8A5810 on the cream, passes 4.5:1), never the warning fill colour as text.</p>
+</figure><figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 10px"><span class="mono" style="color: #2B6E39; font-size: 20px; font-weight: 600">4</span><h3>Open folder → Agents, first run</h3></div>
+<div class="cm th-mate" style="height: 400px; border-radius: 10px; overflow: hidden; position: relative; padding: 0; ">
+<div style="display: grid; grid-template-columns: 40px 190px minmax(0, 1fr); height: 100%">
+<nav class="rail" aria-label="Sections"><button class="ri" aria-label="Code"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button><button class="ri" aria-label="Terminals"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button><button class="ri on" aria-label="Agents"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button><button class="ri" aria-label="Backlog"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button><button class="ri" aria-label="Wiki"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h8.5a1 1 0 0 1 1 1v10H4a1 1 0 0 1-1-1Z"/><path d="M3 11.5a1 1 0 0 1 1-1h8.5M6 5.5h4"/></svg></button><button class="ri" aria-label="Processes"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button><button class="ri" aria-label="Cron"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button><button class="ri" aria-label="Triggers"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button></nav>
+<aside class="side"><div class="phead" style="gap: 2px; padding: 0 4px"><button class="btn sm gh"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>New</button><button class="btn sm gh"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg>New in worktree…</button></div><div class="row mut" style="margin: 8px 4px 0"><span class="l">None yet</span><span class="kbd">⌘N</span></div></aside>
+<main class="main" style="padding: 36px 28px"><div style="display: flex; flex-direction: column; gap: 8px; max-width: 520px">
+<span style="display: flex; align-items: center; gap: 8px"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="b">Start your first agent</span></span>
+<span class="t2">Each agent can work in its own worktree, and every turn saves a git checkpoint you can go back to.</span>
+<span><button class="btn pri sm"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>New session<span class="kbd">⌘N</span></button></span>
+<span class="cap mut">Claude Code · Node 22.11 · git 2.47</span>
+</div></main>
+</div>
+</div>
+<p class="muted" style="font-size: 14px; line-height: 20px">The first workspace opens on <b>Agents</b>, not Code. Empty node: icon, title, one text, one action, plus the existing code-hint slot as the one-line "all good": what Clubmate found.</p>
+</figure><figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 10px"><span class="mono" style="color: #2B6E39; font-size: 20px; font-weight: 600">5</span><h3>Agents · failing (signed out)</h3></div>
+<div class="cm th-mate" style="height: 400px; border-radius: 10px; overflow: hidden; position: relative; padding: 0; ">
+<div style="display: grid; grid-template-columns: 40px 190px minmax(0, 1fr); height: 100%">
+<nav class="rail" aria-label="Sections"><button class="ri" aria-label="Code"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button><button class="ri" aria-label="Terminals"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button><button class="ri on" aria-label="Agents"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button><button class="ri" aria-label="Backlog"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button><button class="ri" aria-label="Wiki"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h8.5a1 1 0 0 1 1 1v10H4a1 1 0 0 1-1-1Z"/><path d="M3 11.5a1 1 0 0 1 1-1h8.5M6 5.5h4"/></svg></button><button class="ri" aria-label="Processes"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button><button class="ri" aria-label="Cron"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button><button class="ri" aria-label="Triggers"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button></nav>
+<aside class="side"><div class="phead" style="gap: 2px; padding: 0 4px"><button class="btn sm gh"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>New</button><button class="btn sm gh"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg>New in worktree…</button></div><div class="row mut" style="margin: 8px 4px 0"><span class="l">None yet</span><span class="kbd">⌘N</span></div></aside>
+<main class="main" style="padding: 36px 28px"><div style="display: flex; flex-direction: column; gap: 8px; max-width: 520px">
+<span style="display: flex; align-items: center; gap: 8px"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="5.5" cy="10.5" r="3"/><path d="m7.6 8.4 6-6M11.3 4.7l1.6 1.6"/></svg><span class="b">Sign in to Claude</span></span>
+<span class="t2">Clubmate runs Claude Code on this Mac with your Claude login. This Mac isn't signed in yet.</span>
+<span><button class="btn pri sm">Sign in…<span class="kbd">⏎</span></button></span>
+<span class="cap mut">Opens Claude's sign-in in your browser. Checked again when you come back.</span>
+</div></main>
+</div>
+</div>
+<p class="muted" style="font-size: 14px; line-height: 20px">Same empty node, plugin content swapped by <code>setup.state</code>. Node missing: "Node 22+ is required to run Claude" · Install Node…. git missing: "git is needed for worktrees and checkpoints" · Install…, and New session stays enabled.</p>
+</figure><figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 10px"><span class="mono" style="color: #2B6E39; font-size: 20px; font-weight: 600">6</span><h3>First session · suggested prompt</h3></div>
+<div class="cm th-mate" style="height: 400px; border-radius: 10px; overflow: hidden; position: relative; padding: 0; ">
+<div style="display: flex; flex-direction: column; height: 100%">
+<div style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 12px 0 20px; border-bottom: 1px solid var(--bd)"><span class="ttl">New session</span><span class="mut cap">Claude · shop / main · Ask before edits</span></div>
+<div style="flex: 1"></div>
+<div style="padding: 0 20px 18px">
+<div class="card" style="display: flex; flex-direction: column; border-color: var(--ac-bd); box-shadow: 0 0 0 3px var(--ac-bg)">
+<div style="padding: 8px 12px 0; min-height: 52px; display: flex; gap: 6px; align-items: flex-start"><span style="width: 1.5px; height: 18px; background: var(--ac); margin-top: 1px"></span><span class="mut">Try "Find one small bug, fix it and run the tests"</span><span class="kbd" style="margin-left: auto">⇥ to use</span></div>
+<div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px 6px">
+<button class="btn sm gh">Claude · Ask before edits<svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="btn sm pri dis" disabled>Send<span class="kbd">⌘⏎</span></button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<p class="muted" style="font-size: 14px; line-height: 20px">One suggestion, in the composer, first session only. ⇥ takes it, typing replaces it. It is picked to show the product: a diff, a checkpoint and a permission request in the first minute. Starting this session is when macOS asks for notifications.</p>
+</figure><figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 10px"><span class="mono" style="color: #2B6E39; font-size: 20px; font-weight: 600">7</span><h3>Code, first open · editor, inline</h3></div>
+<div class="cm th-mate" style="height: 440px; border-radius: 10px; overflow: hidden; position: relative; padding: 0; ">
+<div style="display: grid; grid-template-columns: 40px minmax(0, 1fr); height: 100%">
+<nav class="rail" aria-label="Sections"><button class="ri on" aria-label="Code"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button><button class="ri" aria-label="Terminals"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button><button class="ri" aria-label="Agents"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button><button class="ri" aria-label="Backlog"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button><button class="ri" aria-label="Wiki"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h8.5a1 1 0 0 1 1 1v10H4a1 1 0 0 1-1-1Z"/><path d="M3 11.5a1 1 0 0 1 1-1h8.5M6 5.5h4"/></svg></button><button class="ri" aria-label="Processes"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button><button class="ri" aria-label="Cron"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button><button class="ri" aria-label="Triggers"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button></nav>
+<main class="main" style="padding: 28px 28px">
+<section class="card" aria-label="Choose your editor" style="max-width: 560px; padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; flex-direction: column; gap: 2px"><span class="h">Choose your editor</span><span class="t2">Clubmate opens files, diffs and agent edits in it. You can switch later in Settings › Editor.</span></div>
+<div style="border: 1px solid var(--ac-bd); background: var(--sel); border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; gap: 10px; align-items: flex-start"><svg class="i ac-i" style="margin-top: 3px" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg><div style="flex: 1; display: flex; flex-direction: column"><span class="b">Neovim</span><span class="t2">Comes with Clubmate and runs in the terminal. Nothing to set up.</span></div><span style="width: 12px; height: 12px; border-radius: 6px; border: 4px solid var(--ac); margin-top: 4px"></span></div>
+<label style="display: flex; align-items: center; gap: 8px; padding-left: 24px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/></svg><span>Also bring my <code>~/.config/nvim</code> keys and plugins</span><span class="kbd">I</span></label>
+<span class="cap mut" style="padding-left: 46px">An agent does the import in a session you can watch and review.</span>
+</div>
+<div style="border: 1px solid var(--bd); border-radius: 6px; padding: 8px 10px; display: flex; gap: 10px; align-items: flex-start"><svg class="i mut" style="margin-top: 3px" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5c-1.5 0-2 .7-2 2v1.6c0 .9-.5 1.4-1.5 1.4 1 0 1.5.5 1.5 1.4v1.6c0 1.3.5 2 2 2M10 2.5c1.5 0 2 .7 2 2v1.6c0 .9.5 1.4 1.5 1.4-1 0-1.5.5-1.5 1.4v1.6c0 1.3-.5 2-2 2"/></svg><div style="flex: 1; display: flex; flex-direction: column"><span class="b">VS Code</span><span class="t2">The VS Code on this Mac, in its own section. Downloads Microsoft's VS Code Server once (about 600 MB).</span></div><span style="width: 12px; height: 12px; border-radius: 6px; border: 1.5px solid var(--bd2); margin-top: 4px"></span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span class="cap mut" style="flex: 1">↑↓ choose · I import config · ⏎ continue · esc keeps Neovim</span><button class="btn pri sm foc">Continue<span class="kbd">⏎</span></button></div>
+</section>
+</main>
+</div>
+</div>
+<p class="muted" style="font-size: 14px; line-height: 20px">The editor sheet leaves first start. The same choice is the Code pane's first state, asked when you first open Code or "Open in editor". The nvim import joins it as a check (off by default, only when <code>~/.config/nvim</code> exists). Esc keeps Neovim.</p>
+</figure><figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 10px"><span class="mono" style="color: #2B6E39; font-size: 20px; font-weight: 600">8</span><h3>After the first turn · phone, then quiet</h3></div>
+<div class="cm th-mate" style="height: 440px; border-radius: 10px; overflow: hidden; position: relative; padding: 0; ">
+<div style="padding: 28px 24px; display: flex; flex-direction: column; gap: 12px">
+<div class="row mut" style="padding-left: 0"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.3-3.6"/></svg><span class="l">Turn 1 · checkpoint saved · 1 file changed</span></div>
+<div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 6px 0 10px; border: 1px dashed var(--bd2); border-radius: 6px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="1.5" width="7" height="13" rx="1.6"/><path d="M7 12.5h2"/></svg><span class="ell" style="flex: 1">Answer Claude from your iPhone when you step away.</span><button class="btn sm">Pair iPhone…</button><button class="btn sm gh">Not now</button></div>
+<div class="hr" style="margin: 14px 0 4px"></div>
+<span class="cap mut">After Not now: the row goes, and the status bar keeps a quiet item.</span>
+<div class="sb" style="height: 22px; border: 1px solid var(--bd); border-radius: 4px"><span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span><span>1 agent</span><span style="flex: 1"></span><span style="display: flex; align-items: center; gap: 6px"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="1.5" width="7" height="13" rx="1.6"/><path d="M7 12.5h2"/></svg>Pair iPhone</span><span>⌘K commands</span></div>
+<span class="cap mut" style="margin-top: 8px">Notifications: macOS asks once, when the first session starts (a banner, not a dialog). Denied → Settings › General shows "Notifications · Off · Open System Settings…". No second ask.</span>
+</div>
+</div>
+<p class="muted" style="font-size: 14px; line-height: 20px">The phone is offered once, after the first finished turn (see 4 · Pairing). Not now moves it to the status bar. Neither comes back as a modal.</p>
+</figure>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2160,"height":2520}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

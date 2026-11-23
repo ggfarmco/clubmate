@@ -1,0 +1,18 @@
+{
+  "title": "Onboarding · round 1",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 23 Nov. One pick per question (A), the other directions drawn small or named on each board.",
+    "Welcome A · one door: Open folder… is the only primary; Clone repository… ⌥⌘O and Home are keyed rows; New terminal tile goes, ⇧⌘N stays in a key caption.",
+    "First run A · silent check, just in time: Node, Claude login and git are checked in the background; a failure shows one row on Welcome and in Agents' empty state with a fix; the editor sheet moves to the first open of Code, with the nvim import as a checkbox.",
+    "First agent A · three in-place hints (empty text, first permission caption, phone row) + one suggested prompt. Pairing A · a dashed row after the first finished turn, then a status bar item. README A · screens first; 1280×640 social preview doubles as the hero."
+  ],
+  "boards": [
+    {"file": "R1-Welcome.dc.html", "w": 2048, "title": "1 · Welcome", "caption": "A one door (pick) at 1280; B Home as the lobby and C prompt first drawn small."},
+    {"file": "R1-Flow.dc.html", "w": 2160, "title": "2 · First run", "caption": "Steps in order: when, skippable, where shown; Node missing, signed out (also 640 light) and all good."},
+    {"file": "R1-First-Agent.dc.html", "w": 2048, "title": "3 · First agent", "caption": "The first minute: a diff, a checkpoint and the first permission with the Needs you hint; the three hints."},
+    {"file": "R1-Pairing.dc.html", "w": 2300, "title": "4 · Pairing", "caption": "Offer after the first finished turn, Not now → status bar item; the phone's first screen with new words."},
+    {"file": "R1-README.dc.html", "w": 2080, "title": "5 · GitHub repo", "caption": "README layout and source, hero = social preview 1280×640, About line, ten topics."},
+    {"file": "R1-Rules.dc.html", "w": 2080, "title": "6 · Rules and handoff", "caption": "Picks, every text, the plugin fields (setup, companion, firstRun), rules, open questions, 21 tagged changes."}
+  ]
+}

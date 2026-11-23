@@ -1,0 +1,15 @@
+{
+  "title": "Onboarding · round 4",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 23 Nov. Your notes on r3: workshop, not garage; pictures from the real app, not drawn.",
+    "Positioning A (designer's pick) · \"Your workshop. Agents welcome.\" B · \"Your workshop, set up your way.\" C · \"Your workshop, open all night.\"",
+    "Hero = the real Home › Agents shot with an aside (Morning brief from cron, Needs you, review loop, side thread), whole at 819×512, one 64px margin. README rows use 1:1 crops of the real shots so the text stays readable.",
+    "About (104): \"Your workshop on the Mac, set up your way. Agents work with your backlog, wiki, schedules and processes.\" Still to shoot: a review-loop graph and the Companion."
+  ],
+  "boards": [
+    {"file": "R4-Promo.dc.html", "w": 2160, "title": "1 · Positioning · workshop", "caption": "Three workshop lines (A pick) and the 1280×640 hero built on a real screenshot."},
+    {"file": "R4-README.dc.html", "w": 2400, "title": "2 · README", "caption": "Lead, \"What's in the workshop\" with real 1:1 crops, About, topics, the crop table and the README source."},
+    {"file": "R4-Rules.dc.html", "w": 2080, "title": "3 · Rules, changes against r3", "caption": "Picks, texts, files to export, rules added, 5 tagged changes."}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "title": "Onboarding · round 3",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 23 Nov. Your picks: r1 all A, Clone later, editor B (Neovim on silently). New positioning away from one agent vendor: a garage you set up your way.",
+    "Positioning A (designer's pick) · \"Your garage. Agents welcome.\" B · \"A workshop you set up yourself.\" C · \"Where your agents clock in.\" Hero = Home in the morning: a cron-started brief, a review loop graph, schedules and a trigger, backlog, a wiki page, an aside beside the session. Claude Code only in small print.",
+    "About (102): \"Your garage on the Mac, set up your way. Agents work with your backlog, wiki, schedules and processes.\"",
+    "Editor B: nothing asked at first run; VS Code in Settings › General › Editors and the palette; nvim import stays Neovim's question, but only when Code opens to edit (not for a review); both editors off hides Review changes, Full diff, Open in editor."
+  ],
+  "boards": [
+    {"file": "R3-Promo.dc.html", "w": 2160, "title": "1 · Positioning", "caption": "Three lines (A pick) and the 1280×640 social preview / README hero: Home in the morning."},
+    {"file": "R3-README.dc.html", "w": 2400, "title": "2 · README first screen", "caption": "\"What's in the garage\": Agents, Backlog, Cron and Triggers, Side threads, Wiki, Your own processes, Your phone; About and ten topics; README source."},
+    {"file": "R3-Editor.dc.html", "w": 2400, "title": "3 · Editor B", "caption": "Neovim on silently; Settings › General › Editors; the nvim import only when Code opens to edit; both editors off."},
+    {"file": "R3-Rules.dc.html", "w": 2400, "title": "4 · Rules, changes against r1 and r2", "caption": "Final Welcome, picks, texts, fields (editor.review, openedFor), what is dropped, 9 tagged changes."}
+  ]
+}

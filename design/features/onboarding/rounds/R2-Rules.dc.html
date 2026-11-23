@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r2 · Rules, changes against r1</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/46bb52f625dfd05699b9013ec702ba87">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+
+</style>
+</helmet>
+<div class="doc" style="width: 2080px; height: 2800px; padding: 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · onboarding · round 1</div>
+<h1>4 · Rules · changes against r1</h1>
+<p class="lead" style="max-width: 1240px">Only what round 2 changes. Everything in R1-Rules not named here stands. Tags as before: <span class="tag a">(a)</span> token or renderer · <span class="tag b">(b)</span> new SDUI node or prop · <span class="tag c">(c)</span> plugin content · <span class="tag p0">(d)</span> new plugin or core logic.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Picks</h2>
+<table>
+<thead><tr><th style="width: 160px">Question</th><th>A</th><th>B</th><th>C</th><th style="width: 70px">Pick</th><th style="width: 240px">Against r1</th></tr></thead>
+<tbody><tr><td><b>Editor question</b></td><td>No editor until you need one: nothing asked at first run, no Code in the rail; the first review is read-only in Agents with a one-time offer of Neovim.</td><td class="muted">Neovim on silently; No editor in Settings.</td><td class="muted">Ask on Welcome: Neovim · VS Code · No editor.</td><td><b>A</b></td><td class="muted">r1 2 · First run, step 7 (editor in the Code pane) is replaced.</td></tr><tr><td><b>No-editor review</b></td><td>Read-only review in the Agents pane: file diffs, j/k, Ask for changes to the same session.</td><td class="muted">Review changes offers to turn on Neovim and shows nothing until you do.</td><td class="muted">Hide Review changes and Full diff when there is no editor.</td><td><b>A</b></td><td class="muted">New.</td></tr><tr><td><b>nvim import</b></td><td>Only where Neovim is turned on: the check in "Turn on Neovim?", then Settings › General › Editors, then the palette.</td><td class="muted">A Home backlog task "Import your nvim config".</td><td class="muted">—</td><td><b>A</b></td><td class="muted">r1 put it in the editor choice in Code.</td></tr><tr><td><b>Positioning</b></td><td>"Your workshop. Claude Code is the crew."</td><td class="muted">"A workshop on your Mac for you and your Claude Code agents."</td><td class="muted">"Run your projects, and your days, with Claude Code."</td><td><b>A</b></td><td class="muted">r1 led with features.</td></tr><tr><td><b>README</b></td><td>Pick line, Download, seven story rows, Home as the one picture.</td><td class="muted">—</td><td class="muted">—</td><td><b>A</b></td><td class="muted">r1: four features with shots.</td></tr></tbody>
+</table>
+</div>
+<div style="display: grid; grid-template-columns: 1180px minmax(0, 1fr); gap: 48px; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Texts, new or changed</h2>
+<table>
+<thead><tr><th style="width: 190px">Where</th><th style="width: 170px">Slot</th><th>Text</th><th style="width: 70px">Tag</th></tr></thead>
+<tbody><tr><td>Review (no editor)</td><td class="muted">header</td><td class="mono" style="font-size: 12.5px">Review changes · &lt;session&gt; · 2 files · +9 −2 · against main</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">actions</td><td class="mono" style="font-size: 12.5px">Ask for changes ⌘⏎ · Back ⎋ · ‹ Session</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">list hint</td><td class="mono" style="font-size: 12.5px">2 files · j/k next file · o fold</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">composer</td><td class="mono" style="font-size: 12.5px">Ask for changes, @ a file or a line</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">offer (once)</td><td class="mono" style="font-size: 12.5px">Read-only. To comment on lines and keep review notes, turn on Neovim. · Turn on Neovim… · Not now</td><td><span class="tag c">(c)</span></td></tr><tr><td>Turn on Neovim?</td><td class="muted">title · text</td><td class="mono" style="font-size: 12.5px">Turn on Neovim? · Clubmate's built-in Neovim, with a Code section in the rail. This review reopens in diffview, where you can comment on lines.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">import check</td><td class="mono" style="font-size: 12.5px">Also bring my ~/.config/nvim keys and plugins (I) · Shown only when ~/.config/nvim exists. An agent does the import in a session you can watch.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">actions · aside</td><td class="mono" style="font-size: 12.5px">Turn on ⏎ · Cancel ⎋ · VS Code instead: Settings › General › Editors</td><td><span class="tag c">(c)</span></td></tr><tr><td>Settings › General</td><td class="muted">group</td><td class="mono" style="font-size: 12.5px">Editors</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">Neovim</td><td class="mono" style="font-size: 12.5px">Neovim · Built in. Opens files, and reviews diffs with line comments.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">VS Code</td><td class="mono" style="font-size: 12.5px">VS Code · Uses VS Code on this Mac and Microsoft's VS Code Server (about 600 MB, once).</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">caption, both off</td><td class="mono" style="font-size: 12.5px">Both off: no Code section. Review changes opens a read-only diff in Agents.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">caption, Neovim on</td><td class="mono" style="font-size: 12.5px">Neovim is on: Code is in the rail, Review changes opens diffview with comments.</td><td><span class="tag c">(c)</span></td></tr><tr><td></td><td class="muted">row, Neovim on</td><td class="mono" style="font-size: 12.5px">Neovim config · Your ~/.config/nvim keys and plugins, imported by an agent · Import…</td><td><span class="tag c">(c)</span></td></tr><tr><td>Palette</td><td class="muted">commands</td><td class="mono" style="font-size: 12.5px">Turn on Neovim · Turn on VS Code… · Open Settings › General › Editors · Import ~/.config/nvim… (Neovim on)</td><td><span class="tag c">(c)</span></td></tr><tr><td>Edit card</td><td class="muted">no editor</td><td class="mono" style="font-size: 12.5px">“Open in editor” is not shown; Full diff ⌘D opens the review at that file</td><td><span class="tag c">(c)</span></td></tr><tr><td>Hero</td><td class="muted">headline</td><td class="mono" style="font-size: 12.5px">Your workshop. / Claude Code is the crew.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">line</td><td class="mono" style="font-size: 12.5px">Every project and your own life on one Mac: tasks, notes the agents write, schedules, reviews.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">foot</td><td class="mono" style="font-size: 12.5px">macOS 27 · with your iPhone when you step away</td><td><span class="tag ">repo</span></td></tr><tr><td>README</td><td class="muted">lead</td><td class="mono" style="font-size: 12.5px">Your workshop. Claude Code is the crew. One place on your Mac where you and your agents work on every project, and on your own life.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">section</td><td class="mono" style="font-size: 12.5px">What's in the workshop: Home and your projects · A crew of agents · Backlog · Wiki · Schedules · Reviews · Your phone</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">Get started 2</td><td class="mono" style="font-size: 12.5px">Open a project folder (⌘O), or start in Home (⇧⌘H).</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">editor line</td><td class="mono" style="font-size: 12.5px">An editor is optional: Neovim is built in and VS Code works; turn either on when you want to read code with line comments.</td><td><span class="tag ">repo</span></td></tr><tr><td>GitHub</td><td class="muted">About (106)</td><td class="mono" style="font-size: 12.5px">Your personal workshop on the Mac: you and your Claude Code agents, on every project and on your own life.</td><td><span class="tag ">repo</span></td></tr><tr><td></td><td class="muted">topics</td><td class="mono" style="font-size: 12.5px">claude-code claude ai-agents coding-agent macos swiftui agent-client-protocol personal-workspace local-first developer-tools</td><td><span class="tag ">repo</span></td></tr><tr><td>Welcome (r1)</td><td class="muted">line, optional</td><td class="mono" style="font-size: 12.5px">Your workshop for every project. Claude Code is the crew.  (replaces “Run Claude Code agents on your projects.”)</td><td><span class="tag a">(a)</span></td></tr></tbody>
+</table>
+</div>
+<div style="display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Fields</h2>
+<pre class="mono panel" style="margin: 0; padding: 18px 20px; font-size: 12.5px; line-height: 19px; white-space: pre">editor       enabled   [] | ["neovim"] | ["vscode"] | both
+                       new installs: []   existing installs: unchanged
+             review    readonly | diffview | vscode
+                       derived once from enabled; clients never guess
+             offer     unseen | dismissed
+                       the read-only review's one-time Neovim row
+
+firstRun     editor    (removed: no first-run editor question)
+             nvimImport  unasked | imported | declined
+                         asked only when Neovim is turned on</pre>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2>Rules added</h2>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li>No editor is a full answer: every flow works without one, and nothing in the app reads as broken or missing.</li>
+<li>An editor is offered once, at the first review, the moment it adds something (line comments, notes). After Not now: Settings and the palette only.</li>
+<li>Actions that need an editor are hidden, not disabled, when there is none.</li>
+<li>Anything about Neovim's config appears only while Neovim is on.</li>
+<li>Promo copy names the place first (workshop, Home), the crew second, features last.</li>
+</ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2>Removed from r1</h2>
+<ul class="muted" style="font-size: 14px; display: flex; flex-direction: column; gap: 4px"><li>r1 Choose your editor in the Code pane (flow step 7), and its keys line.</li><li>r1 editor import check row inside the editor choice ("Also bring my ~/.config/nvim keys and plugins" stays, but moves to Turn on Neovim?).</li><li>r1 Settings › Editor row; it becomes Settings › General › Editors.</li><li>r1 About line and topics git-worktree, neovim.</li></ul>
+</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Handoff</h2>
+<p class="muted" style="font-size: 14px">1 × (a) · 2 × (b) · 7 × (c) · 2 × (d) · plus the repo.</p>
+<table>
+<thead><tr><th style="width: 40px">#</th><th>Change</th><th style="width: 90px">Tag</th></tr></thead>
+<tbody><tr><td class="n">1</td><td>New installs start with both editor plugins off; existing installs keep theirs.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">2</td><td>Drop the editor choice from first run entirely (r1 item 9 and 10 are replaced).</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">3</td><td>Core decides editor.review (readonly | diffview | vscode) from the enabled editor plugins and sends it; Review changes and Full diff route by it.</td><td><span class="tag p0">(d)</span></td></tr><tr><td class="n">4</td><td>Agents plugin: the session's whole diff against its base (git diff), for the read-only review.</td><td><span class="tag p0">(d)</span></td></tr><tr><td class="n">5</td><td>Read-only review view in the Agents pane: header pattern, file cards with existing diff nodes, j/k between files, o to fold.</td><td><span class="tag b">(b)</span></td></tr><tr><td class="n">6</td><td>Ask for changes from the review: a message to the same session, ⌘⏎.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">7</td><td>Hide "Open in editor" on edit cards when editor.enabled is empty.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">8</td><td>One-time offer row in the review (in-place dashed row with two actions, same node as r1's phone row).</td><td><span class="tag b">(b)</span></td></tr><tr><td class="n">9</td><td>"Turn on Neovim?" expands in place: enables editor-nvim, adds Code to the rail, reopens the review in diffview; optional nvim import check.</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">10</td><td>Settings › General › Editors group with the two plugin switches and the Neovim config row (SDUISettingsRows).</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">11</td><td>Palette: Turn on Neovim, Turn on VS Code…, Import ~/.config/nvim… (only with Neovim).</td><td><span class="tag c">(c)</span></td></tr><tr><td class="n">12</td><td>Welcome line, optional: "Your workshop for every project. Claude Code is the crew."</td><td><span class="tag a">(a)</span></td></tr><tr><td class="n">13</td><td>Repo: new social-preview.png (Home), README first screen, .github/home.png, About, topics.</td><td><span class="tag ">repo</span></td></tr></tbody>
+</table>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":2800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
