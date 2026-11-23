@@ -40,6 +40,18 @@ func (n *runNeeds) list(workspace string) []runNeed {
 	return slices.Clone(n.byWS[workspace])
 }
 
+func (n *runNeeds) workspaces() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	var out []string
+	for ws, needs := range n.byWS {
+		if len(needs) > 0 {
+			out = append(out, ws)
+		}
+	}
+	return out
+}
+
 func (n *runNeeds) byRun(workspace string) map[string]runNeed {
 	out := map[string]runNeed{}
 	for _, need := range n.list(workspace) {

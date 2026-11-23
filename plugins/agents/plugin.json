@@ -176,6 +176,14 @@
         "description": "Latest Claude subscription usage seen in agent replies: {account, accountEmail, windows: {five_hour, seven_day: {used, resetsAt, status}}, alert, updatedAt, sessions}. used is a percentage, resetsAt and updatedAt are unix seconds, status is allowed, allowed_warning or rejected; a window is missing until an agent reply reports it and gone once its resetsAt has passed. account is an opaque id of the Claude account the Mac is signed in to (empty when unknown); the windows start over when it changes. accountEmail is that account's email address as Claude Code stores it (empty when unknown), for clients to name the account. alert is the window to call out, rejected before allowed_warning and five_hour before seven_day: {window, status, used, resetsAt}, absent while both are allowed. sessions maps a session id to its estimated share of each window in percent (one decimal; a window the session has no share of, or whose share rounds to 0.0, is left out); it is in the command result only. agents.usage is published on the bus with everything but sessions whenever it changes."
       },
       {
+        "id": "agents.activity",
+        "title": "Workspace activity",
+        "hidden": true,
+        "scope": "app",
+        "readOnly": true,
+        "description": "Activity of every workspace that has agent sessions, as a map from workspace id to {needsYou?, running?, failed?, lastActiveAt?}. A count that is zero and an unknown lastActiveAt are left out; a workspace with no sessions is not in the map. needsYou counts the entries of agents.sessions with needsYou true (sessions and graph runs); running counts the session trees whose top row is in the running group; failed counts the sessions that stopped with an error and do not wait for a usage limit reset; lastActiveAt is the latest updatedAt of the workspace's sessions (RFC 3339, UTC). Service sessions do not count. The remote plugin adds it to each workspace of its workspaces list for the phone. Non-destructive."
+      },
+      {
         "id": "agents.afk-default",
         "title": "Default AFK mode",
         "hidden": true,

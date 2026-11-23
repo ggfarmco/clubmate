@@ -66,6 +66,7 @@ type fakeBackend struct {
 	uiEvents    []pluginsdk.UIEvent
 	views       []pluginsdk.SlotView
 	sessions    json.RawMessage
+	activity    json.RawMessage
 	workspaces  []pluginsdk.Workspace
 	addFails    int
 	adds        int
@@ -516,6 +517,30 @@ func TestWorkspacesMarkHome(t *testing.T) {
 	assert.JSONEq(t, `[{"id":"prj_1","name":"demo","folders":[],"roots":[]},{"id":"prj_h","name":"Home","folders":[],"roots":[],"home":true}]`, string(got.Result))
 }
 
+func TestWorkspacesCarryActivityFromAgents(t *testing.T) {
+	f := newFixture(t)
+	f.backend.workspaces = []pluginsdk.Workspace{{ID: "prj_1", Name: "shop"}, {ID: "prj_2", Name: "docs"}}
+	f.backend.activity = json.RawMessage(`{"prj_1":{"needsYou":2,"running":1,"lastActiveAt":"2026-11-23T08:38:00Z"}}`)
+	token := f.pair(t, "phone")
+
+	_, got := f.call(t, token, "workspaces", nil)
+
+	assert.JSONEq(t, `[{"id":"prj_1","name":"shop","folders":[],"roots":[],"activity":{"needsYou":2,"running":1,"lastActiveAt":"2026-11-23T08:38:00Z"}},{"id":"prj_2","name":"docs","folders":[],"roots":[]}]`, string(got.Result))
+	assert.Contains(t, f.backend.calls(), runCall{id: activityCommand})
+}
+
+func TestWorkspacesListWithoutActivityWhenAgentsFails(t *testing.T) {
+	f := newFixture(t)
+	f.backend.workspaces = []pluginsdk.Workspace{{ID: "prj_1", Name: "shop"}}
+	f.backend.activity = json.RawMessage(`{"prj_1":{"running":1}}`)
+	token := f.pair(t, "phone")
+	f.backend.runErr = errors.New("unknown command")
+
+	_, got := f.call(t, token, "workspaces", nil)
+
+	assert.JSONEq(t, `[{"id":"prj_1","name":"shop","folders":[],"roots":[]}]`, string(got.Result))
+}
+
 func TestEventsStreamLiveAllowlistedTopics(t *testing.T) {
 	f := newFixture(t)
 	res, r := f.openEvents(t, f.pair(t, "phone"), "")
@@ -939,6 +964,9 @@ func (b *fakeBackend) Run(ctx context.Context, id, workspace string, args json.R
 	}
 	if id == sessionsCommand && b.sessions != nil {
 		return b.sessions, nil
+	}
+	if id == activityCommand && b.activity != nil {
+		return b.activity, nil
 	}
 	return json.RawMessage(`{"ran":"` + id + `"}`), nil
 }

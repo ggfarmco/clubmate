@@ -25,6 +25,7 @@ const (
 	requestPermission  = "permission"
 	agentSessionPrefix = "agt_"
 	sessionsCommand    = "agents.sessions"
+	activityCommand    = "agents.activity"
 	notifyPostCommand  = "notify.post"
 	pushMaxAge         = time.Hour
 	relayAlertEvery    = time.Hour

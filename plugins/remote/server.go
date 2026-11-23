@@ -142,11 +142,12 @@ type helloResult struct {
 }
 
 type workspaceInfo struct {
-	ID      string             `json:"id"`
-	Name    string             `json:"name"`
-	Folders []pluginsdk.Folder `json:"folders"`
-	Roots   []string           `json:"roots"`
-	Home    bool               `json:"home,omitempty"`
+	ID       string             `json:"id"`
+	Name     string             `json:"name"`
+	Folders  []pluginsdk.Folder `json:"folders"`
+	Roots    []string           `json:"roots"`
+	Home     bool               `json:"home,omitempty"`
+	Activity json.RawMessage    `json:"activity,omitempty"`
 }
 
 type deviceCtxKey struct{}
@@ -391,15 +392,28 @@ func (s *server) workspaces(ctx context.Context) ([]workspaceInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	activity := s.activity(ctx)
 	out := make([]workspaceInfo, 0, len(workspaces))
 	for _, p := range workspaces {
 		folders := p.Folders
 		if folders == nil {
 			folders = []pluginsdk.Folder{}
 		}
-		out = append(out, workspaceInfo{ID: p.ID, Name: p.Name, Folders: folders, Roots: p.Roots(), Home: p.Home})
+		out = append(out, workspaceInfo{ID: p.ID, Name: p.Name, Folders: folders, Roots: p.Roots(), Home: p.Home, Activity: activity[p.ID]})
 	}
 	return out, nil
+}
+
+func (s *server) activity(ctx context.Context) map[string]json.RawMessage {
+	raw, err := s.backend.Run(ctx, activityCommand, "", nil)
+	if err != nil {
+		return nil
+	}
+	var out map[string]json.RawMessage
+	if json.Unmarshal(raw, &out) != nil {
+		return nil
+	}
+	return out
 }
 
 func (s *server) command(ctx context.Context, p commandRequest) (json.RawMessage, error) {

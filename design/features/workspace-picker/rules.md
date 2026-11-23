@@ -58,5 +58,5 @@ Shape: `workspaces: [{"name": "shop", "home": false, "activity": {"needsYou": 2,
 ## Handoff
 
 - (a) companion SwiftUI: `client/Companion/App/WorkspaceCapsule.swift` (ControlGroup row, Other Macs submenus, glyph and subtitle rules, VoiceOver labels); the subtitle text built from the field, not from sessions.
-- (c)/(d) plugin + core: the `activity` object per workspace in the list the phone gets (`hello`/workspaces), kept current on `agents.changed`; `mac.model` optional; `docs/agents.md` and `docs/remote.md` sections in the same commit.
+- (c)/(d) plugin + core: the `activity` object per workspace in the `workspaces` list the phone gets (pull only, `docs/remote.md` § Wire contract); the phone asks for `workspaces` again on `agents.changed` to keep it current; `mac.model` optional; `docs/agents.md` and `docs/remote.md` sections in the same commit.
 - Weak spots the user accepted: no colour inside the menu; past ~9 rows it scrolls, and the current workspace can sit below the fold (a `Menu` does not scroll to its checkmark).

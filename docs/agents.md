@@ -231,6 +231,17 @@ A session that needs you is never folded. In the Mac sidebar the worktree group,
 
 A question card whose fields are all AskUserQuestion's questions (`choice` or `multi`, each with its `<key>_custom` Other, none `required`) needs an answer before Send: a picked option, a ticked option, or text in an open Other row. Text in a closed Other row isn't sent, so it doesn't count. The plugin decides it and sends `needsAnswer` on the entry's `elicitation`; on the Mac the form's `needsAny` carries it. Any other form (`text`, `number` or `boolean` fields, an MCP form with its own `required`) sends as it did. Skip stays enabled on every card and means "none of these, go on"; on the Mac the footer says so next to it ("Skip answers “none of these” and ends the turn", "Skip ends the turn" when that doesn't fit). A single question a pick answers has no Send.
 
+## Workspace activity
+
+`agents.activity` (app scope, read-only) gives the activity of every workspace that has agent sessions: a map from workspace id to `{needsYou?, running?, failed?, lastActiveAt?}`. The phone's workspace picker shows it per workspace (`design/features/workspace-picker/rules.md`); the remote plugin adds it to its `workspaces` list ([remote § Wire contract](remote.md#wire-contract-v1)). The plugin decides each field here, once, and clients never count them again from sessions:
+
+- `needsYou`: the entries of `agents.sessions` with `needsYou` true (sessions and graph runs), the rule of [Needs you](#needs-you).
+- `running`: the session trees whose top row is in the `running` group (its own turn or a session under it runs; [Needs you](#needs-you) § Groups). A tree counts once, however many of its sessions run.
+- `failed`: the sessions that stopped with an error (`status: error`), except one that waits for a usage limit reset (group `paused`) and a hidden land gate reviewer. There is no "seen" state, so a failed session counts until it runs again or is closed.
+- `lastActiveAt`: the latest `updatedAt` of the workspace's sessions, closed ones too (RFC 3339, UTC).
+
+[Service sessions](#service-sessions) do not count in any field. A count that is zero is left out, and so is `lastActiveAt` when the workspace has no session.
+
 ## Session order
 
 Rows never move because something happened in a session (rules: `design/features/session-order/rules.md`). Inside a group, sessions go by start (`createdAt`), oldest first, the session id breaking ties; a new session goes last in its worktree group or under the session that started it, and children follow the same rule (graph run nodes and asides too). Activity (`updatedAt`) and state changes (running, waiting, done) never reorder anything; only a row's glyph, tint and detail change. Worktree groups: the workspace's home first, then the other worktrees by the start of their earliest session in that worktree, closed sessions included, so a group keeps its place when its first session closes. Closed (most recently updated first), Older (by the newest `updatedAt` in each tree, see [Older sessions](#older-sessions)), Service and the dock stay at the end; the "Needs you" filter keeps its oldest-need order (see [Needs you](#needs-you) § Oldest first); search results keep theirs. The Mac sidebar shows the newest 1000 sessions that are not older in this order, and every older tree through the Older group; the group keys come from every session.

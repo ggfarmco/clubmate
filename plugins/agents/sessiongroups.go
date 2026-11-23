@@ -43,11 +43,7 @@ func setGroups(infos []sessionInfo) {
 	}
 	kids := map[int][]int{}
 	for i, info := range infos {
-		parent := statusParent(info.record)
-		if info.Kind == kindRun {
-			parent = cmp.Or(parent, info.RowUnder)
-		}
-		if p, ok := index[parent]; ok && p != i {
+		if p, ok := index[groupParent(info)]; ok && p != i {
 			kids[p] = append(kids[p], i)
 		}
 	}
@@ -88,6 +84,14 @@ func setGroups(infos []sessionInfo) {
 		clear(visiting)
 		lift(i)
 	}
+}
+
+func groupParent(info sessionInfo) string {
+	parent := statusParent(info.record)
+	if info.Kind == kindRun {
+		parent = cmp.Or(parent, info.RowUnder)
+	}
+	return parent
 }
 
 func (info sessionInfo) limitPaused() bool {

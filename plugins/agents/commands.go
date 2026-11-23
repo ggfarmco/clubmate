@@ -49,6 +49,7 @@ var (
 		"agents.afk-default":    withArgs((*app).afkDefaultCommand),
 		"agents.model-arms":     withArgs((*app).armsCommand),
 		"agents.usage":          (*app).usageCommand,
+		"agents.activity":       (*app).activityCommand,
 		"agents.stop-root":      withArgs((*app).stopRootCommand),
 		"agents.wait":           withArgs((*app).waitCommand),
 		"agents.transcript":     withArgs((*app).transcriptCommand),
