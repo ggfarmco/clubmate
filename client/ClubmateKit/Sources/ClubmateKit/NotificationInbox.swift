@@ -196,7 +196,7 @@ public enum SystemNotifications {
     }
 
     public enum Step: Sendable, Equatable {
-        case request
+        case hold
         case deliver
         case off
     }
@@ -205,8 +205,12 @@ public enum SystemNotifications {
         switch status {
         case .allowed: .deliver
         case .denied: .off
-        case .notDetermined: asked ? .off : .request
+        case .notDetermined: asked ? .off : .hold
         }
+    }
+
+    public static func asks(_ status: Status, sessions: Int, asked: Bool) -> Bool {
+        status == .notDetermined && sessions > 0 && !asked
     }
 }
 

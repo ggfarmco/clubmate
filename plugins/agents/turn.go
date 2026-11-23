@@ -436,6 +436,9 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		a.notifyEnd(s, ended)
 	}
 	s.changed(changeStatus, true)
+	if err == nil && !cancelled && !closed {
+		a.firstTurnDone(s, turn)
+	}
 	if edited && rec.Night == "" {
 		a.checktime(rec)
 	}

@@ -76,6 +76,13 @@
         "description": "Turn companion access on and issue a one-time pairing code (5 minutes, replaces the previous one): {link, code, expiresAt, relay}. While the relay path is on (remote.set-tunnel) the link is version 2 and relay is true: it also carries the relay URL, this Mac's relay key and key id, and a pairing ticket (registered at the relay; good for one pair request until the code expires, is used or is cancelled), and it needs no Tailscale address. Otherwise it is version 1 and relay is false."
       },
       {
+        "id": "remote.offer",
+        "title": "Offer to pair a phone",
+        "hidden": true,
+        "scope": "app",
+        "description": "The agents plugin's call after the first finished turn of the first session: companion.state moves from unpaired to offer and stays there across a restart, so the Mac shows the offer row to pair a phone. No effect in any other state: a paired phone or an earlier Not now keeps its state. User only (an agent session cannot call it). Returns the status."
+      },
+      {
         "id": "remote.dismiss-offer",
         "title": "Not now (pair a phone)",
         "hidden": true,

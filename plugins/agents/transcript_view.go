@@ -79,6 +79,7 @@ type nodeKey struct {
 	pending    bool
 	from       string
 	review     string
+	note       bool
 }
 
 type builtNode struct {
@@ -119,13 +120,13 @@ type planUpdate struct {
 func transcript(sc screen) sdui.Node {
 	v := sc.View
 	sid := v.Session.ID
-	stops := stopReasons(v)
+	notes := turnNotes(v)
 	shas := map[int]string{}
 	for _, t := range v.Turns {
 		shas[t.Turn] = t.CheckpointSha
 	}
 	shown := gateUnderCalls(openItemsLast(v.Entries))
-	rows := windowRows(sc, shown, stops)
+	rows := windowRows(sc, shown, notes)
 	from := 0
 	if start := windowStart(rows, sc.WindowFirst); start < len(rows) {
 		from = rows[start].at
@@ -134,17 +135,19 @@ func transcript(sc screen) sdui.Node {
 	budget := nodeBudget
 	for i := len(shown) - 1; i >= from; i-- {
 		en := shown[i]
-		note := ""
+		var tail []sdui.Node
 		if lastOfTurn(shown, i) {
-			note = stopNote(stops[en.Turn])
+			if sc.OfferTurn > 0 && en.Turn == sc.OfferTurn {
+				tail = append(tail, offerRow(sid))
+			}
+			if note := notes[en.Turn]; note != "" {
+				tail = append(tail, sdui.MutedText(note))
+			}
 		}
 		b := entryNode(sc, en, shas[en.Turn])
 		b.shown = b.shown && !pending(sc, en) && !foldsIntoPlan(shown, i)
 		held := heldNodes(sc, en)
-		cost := 0
-		if note != "" {
-			cost++
-		}
+		cost := len(tail)
 		if b.shown {
 			cost += b.cost
 			for _, h := range held {
@@ -156,9 +159,7 @@ func transcript(sc screen) sdui.Node {
 			break
 		}
 		budget -= cost
-		if note != "" {
-			nodes = append(nodes, sdui.MutedText(note))
-		}
+		nodes = append(nodes, tail...)
 		if b.shown {
 			for _, h := range slices.Backward(held) {
 				nodes = append(nodes, h)
@@ -275,7 +276,7 @@ func lastOfTurn(shown []*entry, i int) bool {
 	return i == len(shown)-1 || shown[i+1].Turn != shown[i].Turn
 }
 
-func windowRows(sc screen, shown []*entry, stops map[int]string) []windowRow {
+func windowRows(sc screen, shown []*entry, notes map[int]string) []windowRow {
 	var rows []windowRow
 	run := false
 	for i, en := range shown {
@@ -285,7 +286,7 @@ func windowRows(sc screen, shown []*entry, stops map[int]string) []windowRow {
 			}
 			run = tool
 		}
-		if lastOfTurn(shown, i) && stopNote(stops[en.Turn]) != "" {
+		if lastOfTurn(shown, i) && notes[en.Turn] != "" {
 			run = false
 		}
 	}
@@ -411,12 +412,40 @@ func dockedPermission(sc screen) (sdui.Node, bool) {
 	return requestCard(sc)
 }
 
-func stopReasons(v transcriptView) map[int]string {
-	stops := map[int]string{}
-	for _, t := range v.Turns {
-		stops[t.Turn] = t.StopReason
+func turnNotes(v transcriptView) map[int]string {
+	files := map[int]map[string]bool{}
+	for _, en := range v.Entries {
+		if en.Kind != entryTool || en.Tool == nil {
+			continue
+		}
+		for _, path := range editedPaths(en.Tool) {
+			if files[en.Turn] == nil {
+				files[en.Turn] = map[string]bool{}
+			}
+			files[en.Turn][path] = true
+		}
 	}
-	return stops
+	notes := map[int]string{}
+	for _, t := range v.Turns {
+		if note := strings.Join(nonEmpty(turnEndLine(t, len(files[t.Turn])), stopNote(t.StopReason)), " · "); note != "" {
+			notes[t.Turn] = note
+		}
+	}
+	return notes
+}
+
+func turnEndLine(t turnInfo, files int) string {
+	if !t.Ended {
+		return ""
+	}
+	parts := []string{"Turn " + strconv.Itoa(t.Turn)}
+	if t.CheckpointSha != "" {
+		parts = append(parts, "checkpoint saved")
+	}
+	if files > 0 {
+		parts = append(parts, plural(files, "1 file changed", strconv.Itoa(files)+" files changed"))
+	}
+	return strings.Join(parts, " · ")
 }
 
 func stopNote(reason string) string {
@@ -460,7 +489,7 @@ func entryNode(sc screen, en *entry, sha string) builtNode {
 	if en.node == nil || en.Kind == entryTool && (sc.Expanded[en.ID] || markOf(en) != nil) || en.Kind == entryOpenItems || en.Kind == entryNotice {
 		return build()
 	}
-	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", editor: sc.EditorReview, pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en)}
+	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", editor: sc.EditorReview, pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en), note: permissionNote(sc.NeedsYou, sc.View.Session.ID, en) != ""}
 	return en.node.get(key, build)
 }
 
@@ -760,7 +789,7 @@ func commonEnds(a, b []string) (int, int) {
 func permissionCard(sc screen, en *entry) sdui.Node {
 	rec := sc.View.Session
 	c := permissionContentOf(rec, en, sc.Workspace)
-	p := sdui.PermissionCardProps{Text: c.Text, Title: c.Title, Command: c.Command, Caption: c.Caption, Options: c.Options}
+	p := sdui.PermissionCardProps{Text: c.Text, Title: c.Title, Command: c.Command, Caption: c.Caption, Options: c.Options, Note: permissionNote(sc.NeedsYou, rec.ID, en)}
 	switch {
 	case en.Outcome != nil && en.Outcome.Outcome == acp.OutcomeSelected:
 		p.Outcome = en.Outcome.OptionID
@@ -795,10 +824,11 @@ func permissionContentOf(rec record, en *entry, workspace string) *permissionCon
 	return c
 }
 
-func withPermissionContent(rec record, entries []*entry, workspace string) {
+func withPermissionContent(rec record, entries []*entry, workspace, needsYou string) {
 	for _, en := range entries {
 		if en.Kind == entryPermission {
 			en.Card = permissionContentOf(rec, en, workspace)
+			en.Card.Note = permissionNote(needsYou, rec.ID, en)
 		}
 	}
 }

@@ -151,12 +151,13 @@ func TestValidateAgentNodes(t *testing.T) {
 			Actions: []sdui.CardAction{{Action: "openLocation", Label: "Open in nvim", Value: map[string]any{"path": "/r/a.go", "line": 3}}, {Action: "showAll", Label: "Show all"}},
 		}),
 		"card":           sdui.Card("warning", "questionmark.bubble.fill", sdui.Text("Which store?")),
-		"permissionCard": sdui.PermissionCard("p", "permission-1", sdui.PermissionCardProps{Text: "Run go test?", Title: "Run a command?", Command: "go test ./...", Caption: "Claude says: Run the tests", Options: []sdui.PermissionOption{{ID: "allow", Label: "Allow once", Kind: "allow_once", Shortcut: "opt+1"}, {ID: "always", Label: "Always allow…", Kind: "allow_always", Shortcut: "opt+2", Rule: "Bash(go test:*)", Scope: "in shop on this Mac"}, {ID: "never", Label: "Always reject", Kind: "reject_always", Menu: true}}}),
+		"permissionCard": sdui.PermissionCard("p", "permission-1", sdui.PermissionCardProps{Text: "Run go test?", Title: "Run a command?", Command: "go test ./...", Caption: "Claude says: Run the tests", Options: []sdui.PermissionOption{{ID: "allow", Label: "Allow once", Kind: "allow_once", Shortcut: "opt+1"}, {ID: "always", Label: "Always allow…", Kind: "allow_always", Shortcut: "opt+2", Rule: "Bash(go test:*)", Scope: "in shop on this Mac"}, {ID: "never", Label: "Always reject", Kind: "reject_always", Menu: true}}, Note: "The agent waits until you answer."}),
+		"offer":          sdui.Offer("o", "Answer Claude from your iPhone when you step away.", "iphone", sdui.WithClientAction(sdui.Button("o/pair", "Pair iPhone…", ""), sdui.ClientPairDevice), sdui.WithAction(sdui.Button("o/no", "Not now", ""), "phoneNotNow")),
 		"composer": sdui.Composer("m", sdui.ComposerProps{
 			Placeholder: "Ask", Agent: "Claude", Modes: []sdui.Option{{Value: "default", Label: "Manual"}}, Mode: "default",
 			Pickers:  []sdui.Picker{{ID: "model", Help: "Model", Value: "opus", Options: []sdui.Option{{Value: "opus", Label: "Opus"}}}},
 			Commands: []sdui.Command{{Name: "review", Description: "Review"}}, Attach: []string{"file", "selection"}, Attachments: attachments, Running: true,
-			Draft: &sdui.ComposerDraft{Text: "> quote\n\ntext", Rev: 2},
+			Draft: &sdui.ComposerDraft{Text: "> quote\n\ntext", Rev: 2}, Suggestion: "Find one small bug",
 		}),
 		"choice": sdui.Choice("q", sdui.ChoiceProps{Style: "radio", Text: "Store", Pinned: true, AsideAction: "asideAsk", Options: []sdui.ChoiceOption{{Value: "Postgres", Label: "Postgres", On: true, Aside: &sdui.ChoiceAside{ID: "agt_1", State: "asks"}}}, Other: &sdui.ChoiceOther{ID: "q/o", Label: "Other…", On: true, Value: "too heavy"}}),
 		"menu":   sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "delete", Label: "Delete", Confirm: "Sure?"}}}}, ""),
@@ -185,6 +186,7 @@ func TestValidateAgentNodes(t *testing.T) {
 		"bad aside state":        sdui.Choice("q", sdui.ChoiceProps{Style: "radio", Options: []sdui.ChoiceOption{{Value: "a", Label: "A", Aside: &sdui.ChoiceAside{ID: "agt_1", State: "kept"}}}}),
 		"draft without rev":      {Type: "composer", ID: "m", Props: map[string]any{"draft": map[string]any{"text": "x"}}},
 		"duplicate attachment":   sdui.Composer("m", sdui.ComposerProps{Attachments: []sdui.Attachment{{ID: "a1", Kind: "file", Path: "a"}, {ID: "a1", Kind: "file", Path: "b"}}}),
+		"offer without action":   sdui.Offer("o", "x", ""),
 		"menu bad action":        sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "Bad Action", Label: "x"}}}}, ""),
 	}
 	for name, n := range invalid {

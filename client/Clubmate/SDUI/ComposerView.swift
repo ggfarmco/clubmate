@@ -61,6 +61,7 @@ struct ComposerNodeView: View {
     private var running: Bool { node.bool("running") == true }
     private var queues: Bool { running && node.bool("steers") != true }
     private var disabled: Bool { node.bool("disabled") == true }
+    private var suggestion: String? { node.string("suggestion").flatMap { $0.isEmpty ? nil : $0 } }
     private var pane: FocusedPane { .composer(running: running, queues: queues) }
 
     var body: some View {
@@ -76,6 +77,7 @@ struct ComposerNodeView: View {
         .reportsFocus(pane, focused, slot: focusSlot)
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
+        .onChange(of: disabled ? nil : suggestion, initial: true) { _, suggestion in model.prompt = suggestion }
         .onChange(of: node.composerDraft(), initial: true) { _, draft in
             guard let draft, model.apply(draft: draft.text, rev: draft.rev) else { return }
             undoManager?.removeAllActions()
@@ -140,9 +142,11 @@ struct ComposerNodeView: View {
                 }
                 .overlay(alignment: .topLeading) {
                     if model.text.isEmpty {
-                        Text(node.string("placeholder") ?? "")
+                        placeholder
                             .font(theme.ui)
                             .foregroundStyle(theme.muted)
+                            .lineLimit(1)
+                            .truncationMode(.label)
                             .padding(.horizontal, theme.spacing.m)
                             .allowsHitTesting(false)
                     }
@@ -154,6 +158,20 @@ struct ComposerNodeView: View {
         .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(focused ? theme.accent : theme.border, lineWidth: 1))
         .contentShape(Rectangle())
         .onTapGesture { if !disabled { focused = true } }
+    }
+
+    @ViewBuilder private var placeholder: some View {
+        if let suggestion, !disabled {
+            HStack(spacing: theme.spacing.s) {
+                Text("Try \"\(suggestion)\"")
+                    .layoutPriority(1)
+                Text("·")
+                KeyCapLabel(label: "⇥")
+                Text("to use")
+            }
+        } else {
+            Text(node.string("placeholder") ?? "")
+        }
     }
 
     private static let contextCombo = KeyCombo("cmd+i")

@@ -39,7 +39,7 @@ struct SDUIContext {
 enum SDUIKind: String {
     case stack, split, scroll, spacer, divider, tabs, list, tree, table, sparkline, progress, text, badge, icon, markdown, document, diffLines
     case button, textField, toggle, select, form, surface, header, empty, card
-    case transcript, message, plan, toolCard, permissionCard, composer, keys
+    case transcript, message, plan, toolCard, permissionCard, composer, keys, offer
 }
 
 struct SDUINodeView: View {
@@ -117,6 +117,7 @@ struct SDUINodeView: View {
         case .permissionCard: PermissionCardNode(node: node, context: context)
         case .composer: ComposerNode(node: node, context: context)
         case .keys: KeysNode(node: node, context: context)
+        case .offer: EmptyView()
         }
     }
 }

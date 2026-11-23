@@ -164,6 +164,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     func tally(_ workspace: String) async {
         guard let all = await sessions(workspace) else { return }
         agents[workspace] = AgentTally(all)
+        await askAtFirstSession(all)
     }
 
     private func sessions(_ workspace: String) async -> [AgentSession]? {
@@ -218,9 +219,19 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    private func askAtFirstSession(_ sessions: [AgentSession]) async {
+        guard !TestMode.current, !asked, !sessions.isEmpty else { return }
+        let center = UNUserNotificationCenter.current()
+        guard SystemNotifications.asks(await Self.status(center), sessions: sessions.count, asked: asked) else { return }
+        asked = true
+        let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+        systemOff = !granted
+    }
+
     private func checkAgents(_ workspace: String, session: String?) async {
         guard let all = await sessions(workspace) else { return }
         agents[workspace] = AgentTally(all)
+        await askAtFirstSession(all)
         withdraw(hub.handleResolved(workspace: workspace, session: session, sessions: all))
         let sessions = all.filter { session == nil || $0.id == session }
         let current = focus()
@@ -258,11 +269,8 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         case .off:
             systemOff = true
             return
-        case .request:
-            asked = true
-            let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
-            systemOff = !granted
-            guard granted else { return }
+        case .hold:
+            return
         case .deliver:
             systemOff = false
         }

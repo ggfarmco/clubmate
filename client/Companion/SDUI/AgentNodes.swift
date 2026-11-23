@@ -420,6 +420,9 @@ struct PermissionCardNode: View {
                             }
                         }
                     }
+                    if let note = node.string("note"), !note.isEmpty {
+                        PermissionNote(text: note)
+                    }
                 }
             }
         }
@@ -491,6 +494,9 @@ struct ComposerNode: View {
                 .buttonStyle(.plain)
                 .disabled(empty)
                 .accessibilityLabel(running && node.bool("steers") != true ? "Queue" : "Send")
+            }
+            if let suggestion = node.string("suggestion"), !suggestion.isEmpty, text.isEmpty {
+                SuggestedPrompt(text: suggestion) { text = suggestion }
             }
             if running, node.bool("steers") != true {
                 Text("Sends after the current turn")
@@ -576,5 +582,25 @@ struct ContextChipView: View {
         }
         .background(Color.surface2, in: .capsule)
         .accessibilityIdentifier("composer.chip.\(chip.kind)")
+    }
+}
+
+struct SuggestedPrompt: View {
+    let text: String
+    let use: () -> Void
+
+    var body: some View {
+        Button(action: use) {
+            Text("Try \"\(text)\"")
+                .font(.footnote)
+                .foregroundStyle(Color.captionInk)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .frame(minHeight: 44, alignment: .leading)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 4)
+        .accessibilityHint("Puts the prompt in the message")
     }
 }

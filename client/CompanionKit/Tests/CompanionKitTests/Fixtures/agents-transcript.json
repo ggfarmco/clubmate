@@ -309,7 +309,8 @@
             "kind": "reject_always",
             "menu": true
           }
-        ]
+        ],
+        "note": "The agent waits until you answer. Anything waiting also shows under Needs you and in notifications."
       },
       "at": "2026-10-30T09:41:00Z"
     }

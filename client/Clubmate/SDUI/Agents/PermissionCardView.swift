@@ -82,6 +82,18 @@ struct PermissionCardNodeView: View {
                     .testMenu("\(node.id ?? "permission").more", menu.map { LayoutMenuItem(title: $0.label) })
                 }
             }
+            if let note = node.string("note"), !note.isEmpty {
+                theme.toneBorder(theme.warning).frame(height: 1)
+                HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
+                    Image(systemName: "info.circle")
+                        .font(theme.glyph)
+                        .foregroundStyle(theme.muted)
+                    Text(note)
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
         .font(theme.ui)
         .padding(theme.gutter + theme.spacing.s)

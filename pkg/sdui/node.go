@@ -211,6 +211,7 @@ type PermissionCardProps struct {
 	Caption string
 	Options []PermissionOption
 	Outcome string
+	Note    string
 }
 
 type ConnectRepoRow struct {
@@ -291,6 +292,7 @@ type ComposerProps struct {
 	Disabled    bool
 	Context     string
 	Draft       *ComposerDraft
+	Suggestion  string
 }
 
 type ComposerDraft struct {
@@ -1065,7 +1067,7 @@ func Repos(id string, p ReposProps, actions ...Node) Node {
 
 func PermissionCard(id, request string, p PermissionCardProps) Node {
 	props := map[string]any{"request": request, "text": p.Text, "options": nonNil(p.Options)}
-	for _, kv := range [][2]string{{"title", p.Title}, {"command", p.Command}, {"caption", p.Caption}, {"outcome", p.Outcome}} {
+	for _, kv := range [][2]string{{"title", p.Title}, {"command", p.Command}, {"caption", p.Caption}, {"outcome", p.Outcome}, {"note", p.Note}} {
 		props = withOptional(props, kv[0], kv[1])
 	}
 	return Node{Type: "permissionCard", ID: id, Props: props}
@@ -1126,6 +1128,7 @@ func Composer(id string, p ComposerProps) Node {
 		props["disabled"] = true
 	}
 	props = withOptional(props, "context", p.Context)
+	props = withOptional(props, "suggestion", p.Suggestion)
 	if p.Draft != nil {
 		props["draft"] = *p.Draft
 	}
@@ -1221,7 +1224,15 @@ func WithFill(n Node) Node {
 	return withProp(n, "fill", true)
 }
 
-const ClientHideChat = "hideChat"
+const (
+	ClientHideChat   = "hideChat"
+	ClientPairDevice = "pairDevice"
+)
+
+func Offer(id, text, icon string, actions ...Node) Node {
+	props := withOptional(map[string]any{"text": text}, "icon", icon)
+	return Node{Type: "offer", ID: id, Props: props, Children: actions}
+}
 
 func WithClientAction(n Node, action string) Node {
 	return withProp(n, "clientAction", action)

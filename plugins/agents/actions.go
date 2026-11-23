@@ -89,7 +89,7 @@ var (
 	errUserAction    = errors.New("only the user presses this")
 )
 
-var userActions = []string{actSend, actAsidePick, actAsideAsk, actAsideQuote, actAsideFull, actAsideBeside, actAsideParent, actAsideNext, actAsideKeep, actAsideClose, actSendBackOpen, actSendBackDraft, actSendBackFrom, actSendBackSend, actSendBackCancel, actSendBackKey, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph}
+var userActions = []string{actSend, actAsidePick, actAsideAsk, actAsideQuote, actAsideFull, actAsideBeside, actAsideParent, actAsideNext, actAsideKeep, actAsideClose, actSendBackOpen, actSendBackDraft, actSendBackFrom, actSendBackSend, actSendBackCancel, actSendBackKey, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph, actPhoneNotNow}
 
 type textValue struct {
 	Text string `json:"text"`
@@ -224,6 +224,8 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		return a.contextAct(ev, sid)
 	}
 	switch ev.Action {
+	case actPhoneNotNow:
+		return a.phoneNotNow(ctx, ev.Caller)
 	case actSetupFix:
 		return a.runSetupFix(ctx, ev.WorkspaceID)
 	case actNew:

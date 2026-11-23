@@ -134,6 +134,13 @@ private struct GeneralSettings: View {
                         .disabled(settings.paneFontOverrideCount == 0)
                 }
             }
+            if app.notifications.systemOff {
+                Section {
+                    SettingsRow(title: "Notifications", detail: "Off") {
+                        Button("Open System Settings…") { app.notifications.openSystemSettings() }
+                    }
+                }
+            }
             if let state = app.editors.state {
                 EditorsSettings(state: state, plugins: plugins)
             }

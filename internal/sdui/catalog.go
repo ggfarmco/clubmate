@@ -75,7 +75,7 @@ var (
 	alignments    = []string{"leading", "center", "trailing"}
 	variants      = []string{"primary", "secondary", "ghost", "danger"}
 	insets        = []string{"bar", "foot"}
-	clientActions = []string{"hideChat"}
+	clientActions = []string{"hideChat", "pairDevice"}
 	toggleStyles  = []string{"switch", "checkbox"}
 	choiceStyles  = []string{"radio", "check"}
 
@@ -287,6 +287,11 @@ var (
 			children: childRule{min: 0, max: 3, only: []string{"button", "flow", "form", "stack"}, once: []string{"button", "flow", "form", "stack"}},
 		},
 
+		"offer": {
+			required: []string{"text"},
+			props:    map[string]propCheck{"text": isString, "icon": isString},
+			children: childRule{min: 1, max: 2, only: []string{"button"}},
+		},
 		"transcript": {props: map[string]propCheck{"center": isBool, "anchor": isString, "anchorRev": countNumber, "asideAction": actionCheck}, children: anyChildren},
 		"message": {
 			required: []string{"role", "text"},
@@ -340,7 +345,7 @@ var (
 			required: []string{"request", "text", "options"},
 			props: map[string]propCheck{
 				"request": isString, "text": isString, "title": isString, "command": isString, "caption": isString,
-				"options": listOf(permissionOptionCheck), "outcome": isString, "action": actionCheck,
+				"options": listOf(permissionOptionCheck), "outcome": isString, "note": isString, "action": actionCheck,
 			},
 			children:    noChildren,
 			interactive: true,
@@ -406,7 +411,7 @@ var (
 		"composer": {
 			props: map[string]propCheck{
 				"placeholder": isString, "hint": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString, "pickers": listOf(pickerCheck),
-				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachSources)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool, "docked": isBool, "disabled": isBool, "context": isString,
+				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachSources)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool, "docked": isBool, "disabled": isBool, "context": isString, "suggestion": isString,
 				"draft": objectCheck([]string{"text", "rev"}, map[string]propCheck{"text": isString, "rev": countNumber}),
 			},
 			children:    noChildren,

@@ -60,3 +60,21 @@ func TestAnInstallThatPairedBeforeTheStateExistedStaysDismissedAfterARestart(t *
 	assert.Equal(t, companionDismissed, e.status().Companion.State)
 	assert.Equal(t, strconv.Quote(companionDismissed), e.stored(companionKey))
 }
+
+func TestTheOfferStaysAcrossARestartAndNeverReopensAfterNotNow(t *testing.T) {
+	e := newRemoteEnv(t, noRelay, map[string]any{pushRelayModeKey: relayOff})
+
+	refused := e.c.Call(t.Context(), "command.run", map[string]any{"id": "remote.offer", "workspaceId": "", "caller": "agt_x"}, nil)
+	var offered status
+	require.NoError(t, e.run("remote.offer", nil, &offered))
+	e.restart()
+	kept := e.status()
+	require.NoError(t, e.run("remote.dismiss-offer", nil, nil))
+	var again status
+	require.NoError(t, e.run("remote.offer", nil, &again))
+
+	assert.Error(t, refused)
+	assert.Equal(t, companionOffer, offered.Companion.State)
+	assert.Equal(t, companionOffer, kept.Companion.State)
+	assert.Equal(t, companionDismissed, again.Companion.State)
+}

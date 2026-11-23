@@ -73,6 +73,10 @@ func (c *companionStore) move(ctx context.Context, to string, from ...string) (b
 	return true, nil
 }
 
+func (c *companionStore) offer(ctx context.Context) (bool, error) {
+	return c.move(ctx, companionOffer, companionUnpaired)
+}
+
 func (c *companionStore) dismiss(ctx context.Context) (bool, error) {
 	return c.move(ctx, companionDismissed, companionUnpaired, companionOffer)
 }

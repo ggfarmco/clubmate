@@ -1312,6 +1312,9 @@ struct PermissionCard: View {
                 }
                 .disabled(!answerable)
                 .opacity(enabled ? 1 : 0.5)
+                if let note = request.card?.note {
+                    PermissionNote(text: note)
+                }
                 if let failure {
                     Label(failure, systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
@@ -2224,5 +2227,19 @@ struct GateMessageBubble: View {
         .padding(.leading, 48)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("gateMessage")
+    }
+}
+
+struct PermissionNote: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider()
+            Label(text, systemImage: "info.circle")
+                .font(.footnote)
+                .foregroundStyle(Color.captionInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

@@ -490,7 +490,7 @@ func renderWindow(t *testing.T, v transcriptView, st *sessionUI) windowShot {
 	t.Helper()
 	sc := screen{View: v, Composer: "agt_1/composer/0"}
 	shown := openItemsLast(v.Entries)
-	rows := windowRows(sc, shown, stopReasons(v))
+	rows := windowRows(sc, shown, turnNotes(v))
 	first, landed := st.window.resolve(rows, st.anchor != "")
 	sc.WindowFirst = first
 	tree := mainView(sc)

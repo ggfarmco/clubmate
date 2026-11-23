@@ -81,6 +81,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let listOpen: Int
     public let inboxKey: String?
     public let older: Bool
+    public var suggestion: String?
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -188,7 +189,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, paused, pausedUntil, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns, rowDetail
         case limitShare, shareLabel, shareWords, shareDetail, listKey
         case hidden, rowUnder, gateRound, landing, ungated, turnHeld, heldRound
-        case aside, canAside, forkedFrom, composerDraft
+        case aside, canAside, forkedFrom, composerDraft, suggestion
         case listGroupKey, listGroupLabel, listFilters, listOpen, inboxKey, older
     }
 
@@ -281,6 +282,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             inboxKey: try optional(.inboxKey),
             older: try flag(.older)
         )
+        suggestion = try optional(.suggestion)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -354,6 +356,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         if canAside { try c.encode(canAside, forKey: .canAside) }
         try c.encodeIfPresent(forkedFrom, forKey: .forkedFrom)
         try c.encodeIfPresent(composerDraft, forKey: .composerDraft)
+        try c.encodeIfPresent(suggestion, forKey: .suggestion)
         try c.encodeIfPresent(listGroupKey, forKey: .listGroupKey)
         try c.encodeIfPresent(listGroupLabel, forKey: .listGroupLabel)
         try c.encodeIfPresent(listFilters, forKey: .listFilters)

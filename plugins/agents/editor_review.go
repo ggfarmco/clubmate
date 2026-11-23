@@ -40,7 +40,14 @@ func (a *app) pluginChanged(payload json.RawMessage) {
 	var p struct {
 		ID string `json:"id"`
 	}
-	if json.Unmarshal(payload, &p) != nil || !slices.Contains(editorPlugins, p.ID) {
+	if json.Unmarshal(payload, &p) != nil {
+		return
+	}
+	if p.ID == remotePlugin {
+		go a.loadCompanion(context.Background())
+		return
+	}
+	if !slices.Contains(editorPlugins, p.ID) {
 		return
 	}
 	go func() {

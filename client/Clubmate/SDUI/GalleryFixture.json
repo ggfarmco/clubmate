@@ -192,7 +192,7 @@
                 {"type": "button", "id": "gallery-repos-done/archive", "props": {"label": "Archive task…", "variant": "secondary", "action": "archive"}}
               ]}
             ]},
-            {"type": "permissionCard", "id": "gallery-permission", "props": {"request": "permission-1", "text": "Claude wants to run go test ./internal/notify/...", "title": "Run a command?", "command": "go test ./internal/notify/...", "caption": "Claude says: Run the notify tests", "options": [
+            {"type": "permissionCard", "id": "gallery-permission", "props": {"request": "permission-1", "text": "Claude wants to run go test ./internal/notify/...", "title": "Run a command?", "command": "go test ./internal/notify/...", "caption": "Claude says: Run the notify tests", "note": "The agent waits until you answer. Anything waiting also shows under Needs you and in notifications.", "options": [
               {"id": "allow-once", "label": "Allow once", "kind": "allow_once", "shortcut": "opt+1"},
               {"id": "allow-with-updates", "label": "Always allow…", "kind": "allow_always", "shortcut": "opt+2", "rule": "Bash(go test:*)", "scope": "in shop on this Mac", "workspace": "shop"},
               {"id": "reject", "label": "Reject", "kind": "reject_once", "shortcut": "opt+3"},
@@ -200,6 +200,11 @@
             ]}},
             {"type": "composer", "id": "gallery-composer", "props": {"placeholder": "Answer Claude…", "hint": "/ for commands, @ for files", "agent": "Claude", "mode": "default", "modes": [{"value": "default", "label": "Ask before edits"}], "attachments": [{"id": "ctx-review", "kind": "review", "path": "Review feat/chat-panel", "context": true, "removable": true}, {"id": "ctx-file", "kind": "file", "path": "plugins/agents/chat_panel.go", "context": true, "removable": true}, {"id": "ctx-page", "kind": "page", "path": "Roadmap page", "context": true, "removable": true}], "context": "Context"}},
             {"type": "composer", "id": "gallery-composer-context", "props": {"placeholder": "Message Claude…", "agent": "Claude", "context": "Context"}},
+            {"type": "composer", "id": "gallery-composer-first", "props": {"placeholder": "Message Claude…", "agent": "Claude", "suggestion": "Find one small bug, fix it and run the tests"}},
+            {"type": "offer", "id": "gallery-offer", "props": {"text": "Answer Claude from your iPhone when you step away.", "icon": "iphone"}, "children": [
+              {"type": "button", "id": "gallery-offer/pair", "props": {"label": "Pair iPhone…", "variant": "secondary", "clientAction": "pairDevice"}},
+              {"type": "button", "id": "gallery-offer/not-now", "props": {"label": "Not now", "variant": "ghost", "action": "phoneNotNow"}}
+            ]},
             {"type": "composer", "id": "gallery-composer-off", "props": {"placeholder": "Reviewer runs as part of Review loop", "agent": "Claude", "mode": "default", "modes": [{"value": "default", "label": "Ask before edits"}], "disabled": true}}
           ]
         },

@@ -66,6 +66,7 @@ public final class ComposerModel {
     }
     public var commands: [ComposerCommand] = []
     public var running = false
+    public var prompt: String?
     public var caret: Int?
     public private(set) var highlighted = 0
     public private(set) var draftRev = 0
@@ -104,6 +105,11 @@ public final class ComposerModel {
             return .handled
         case .accept:
             let shown = suggestions
+            if shown.isEmpty, text.isEmpty, let prompt, !prompt.isEmpty {
+                text = prompt
+                caret = prompt.count
+                return .handled
+            }
             guard shown.indices.contains(highlighted) else { return nil }
             choose(shown[highlighted])
             return .handled

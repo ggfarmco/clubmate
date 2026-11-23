@@ -83,6 +83,7 @@ type record struct {
 	Service       bool   `json:"service"`
 	Review        bool   `json:"review"`
 	NeedsYou      bool   `json:"needsYou"`
+	Suggestion    string `json:"suggestion"`
 	Gate          string `json:"gate"`
 	Hidden        bool   `json:"hidden"`
 	Kind          string `json:"kind"`

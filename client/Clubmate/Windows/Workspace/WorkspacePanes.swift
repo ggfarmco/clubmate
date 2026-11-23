@@ -79,6 +79,7 @@ struct ChatColumnView: View {
 
     @Environment(\.theme) private var theme
     @Environment(\.focusRouter) private var router
+    @Environment(\.sduiClientAction) private var outer
 
     private static let minWidth = CGFloat(ChatColumn.minWidth)
 
@@ -102,8 +103,8 @@ struct ChatColumnView: View {
             .environment(\.sduiInsetButtons, true)
             .background(PaneMarker(slot: slot))
             .environment(\.barNote, hint)
-            .environment(\.sduiClientAction) { [store] action in
-                guard action == SDUIClientAction.hideChat else { return false }
+            .environment(\.sduiClientAction) { [store, outer] action in
+                guard action == SDUIClientAction.hideChat else { return outer?(action) ?? false }
                 store.hideChat()
                 return true
             }

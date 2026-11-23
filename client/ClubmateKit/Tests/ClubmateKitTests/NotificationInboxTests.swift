@@ -240,8 +240,12 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertEqual(NotificationInbox.load(from: url).entries.map(\.id), ["good"])
     }
 
-    func testSystemNotificationsAskOnceThenStayOff() {
-        XCTAssertEqual(SystemNotifications.step(.notDetermined, asked: false), .request)
+    func testSystemNotificationsAskAtTheFirstSessionOnly() {
+        XCTAssertFalse(SystemNotifications.asks(.notDetermined, sessions: 0, asked: false))
+        XCTAssertTrue(SystemNotifications.asks(.notDetermined, sessions: 1, asked: false))
+        XCTAssertFalse(SystemNotifications.asks(.notDetermined, sessions: 1, asked: true))
+        XCTAssertFalse(SystemNotifications.asks(.denied, sessions: 1, asked: false))
+        XCTAssertEqual(SystemNotifications.step(.notDetermined, asked: false), .hold)
         XCTAssertEqual(SystemNotifications.step(.notDetermined, asked: true), .off)
         XCTAssertEqual(SystemNotifications.step(.denied, asked: false), .off)
         XCTAssertEqual(SystemNotifications.step(.allowed, asked: true), .deliver)

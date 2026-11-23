@@ -59,6 +59,7 @@ var (
 		"remote.set-tunnel":       true,
 		"remote.tunnel-rotate":    true,
 		"remote.dismiss-offer":    true,
+		"remote.offer":            true,
 	}
 )
 
@@ -312,6 +313,15 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 		return a.status(), nil
 	case "remote.pair":
 		return a.pair(ctx)
+	case "remote.offer":
+		moved, err := a.srv.companion.offer(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if moved {
+			a.changed()
+		}
+		return a.status(), nil
 	case "remote.dismiss-offer":
 		moved, err := a.srv.companion.dismiss(ctx)
 		if err != nil {

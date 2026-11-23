@@ -44,6 +44,16 @@ final class AgentsUITests: XCTestCase {
         }
     }
 
+    func testTabPutsTheSuggestedPromptInAnEmptyFieldOnly() {
+        let model = ComposerModel()
+        XCTAssertNil(model.handle(.accept))
+        model.prompt = "Find one small bug"
+
+        XCTAssertEqual(model.handle(.accept), .handled)
+        XCTAssertEqual(model.text, "Find one small bug")
+        XCTAssertNil(model.handle(.accept))
+    }
+
     func testComposerKeys() throws {
         let model = ComposerModel()
         model.commands = ["review", "compact", "context"].map { ComposerCommand(name: $0, description: "", hint: "") }

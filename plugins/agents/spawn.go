@@ -220,6 +220,7 @@ func (a *app) createSession(rec record, ready *setup) *session {
 	now := time.Now().UTC()
 	rec.ID, rec.Status, rec.CreatedAt, rec.UpdatedAt = cmp.Or(rec.ID, id.New(api.IDPrefix)), statusIdle, now, now
 	s := a.addSession(rec, true, ready)
+	a.firstSessionCreated(rec)
 	a.notes.mark(s, changeCreated, true)
 	a.kick(rec.Workspace)
 	go a.attachInBackground(s)

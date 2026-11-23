@@ -10,6 +10,7 @@ struct BarNote {
 
 enum SDUIClientAction {
     static let hideChat = "hideChat"
+    static let pairDevice = "pairDevice"
 }
 
 extension EnvironmentValues {

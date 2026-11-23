@@ -107,6 +107,9 @@ type screen struct {
 	AsideCount   int
 	ForkedFrom   string
 	Beside       bool
+	Suggestion   string
+	NeedsYou     string
+	OfferTurn    int
 }
 
 type codePanel struct {
@@ -511,6 +514,7 @@ func composer(sc screen) sdui.Node {
 		Docked:      docked(sc),
 		Context:     contextLabel,
 		Draft:       composerDraftNode(rec.ComposerDraft),
+		Suggestion:  sc.Suggestion,
 	})
 }
 

@@ -192,6 +192,7 @@ type permissionContent struct {
 	Command string                  `json:"command,omitempty"`
 	Caption string                  `json:"caption,omitempty"`
 	Options []sdui.PermissionOption `json:"options"`
+	Note    string                  `json:"note,omitempty"`
 }
 
 type turnInfo struct {
@@ -199,6 +200,7 @@ type turnInfo struct {
 	CheckpointSha string   `json:"checkpointSha"`
 	StopReason    string   `json:"stopReason,omitempty"`
 	Commits       []string `json:"commits,omitempty"`
+	Ended         bool     `json:"ended,omitempty"`
 }
 
 type promptPayload struct {
@@ -590,6 +592,7 @@ func (s *session) apply(e envelope) {
 		}
 		s.ended[e.Turn] = true
 		s.lastEnd = e.TS
+		s.turnInfo(e.Turn).Ended = true
 		s.linkDocs(e.Turn)
 		var p turnEndPayload
 		if json.Unmarshal(e.Payload, &p) == nil {

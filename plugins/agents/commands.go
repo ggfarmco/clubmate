@@ -594,7 +594,7 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	v := s.viewSince(args.FromTurn, since, always)
 	v.Cursor = v.pos.format(key)
 	if !cmd.Agent {
-		withPermissionContent(v.Session, v.Entries, w.Name)
+		withPermissionContent(v.Session, v.Entries, w.Name, a.firstRun.get().NeedsYou)
 		a.withCallContent(&v, s)
 		a.withTaskContent(&v, w)
 		a.withAsideContent(&v, s)

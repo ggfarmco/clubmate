@@ -62,18 +62,20 @@ type app struct {
 	reviews      *reviewBoard
 	self         *selfStore
 
-	sessionRevs delta.Observed
-	runNeeds    runNeeds
-	trustNeeds  trustNeeds
-	graphs      *graphs.Engine
-	runSigsMu   sync.Mutex
-	runSigs     map[string]map[string]string
-	reminders   reminders
-	limitJobs   limitJobs
-	taskLookups taskLookups
-	openWake    chan struct{}
-	inbox       inboxMemo
-	setup       setupCheck
+	sessionRevs    delta.Observed
+	runNeeds       runNeeds
+	trustNeeds     trustNeeds
+	graphs         *graphs.Engine
+	runSigsMu      sync.Mutex
+	runSigs        map[string]map[string]string
+	reminders      reminders
+	limitJobs      limitJobs
+	taskLookups    taskLookups
+	openWake       chan struct{}
+	inbox          inboxMemo
+	setup          setupCheck
+	firstRun       firstRun
+	companionState companionWatch
 
 	spawnMu        sync.Mutex
 	asideMu        sync.Mutex
@@ -182,6 +184,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
+	if err := a.firstRun.load(ctx, h, len(recs) > 0); err != nil {
+		return err
+	}
 	cut := map[*session]string{}
 	for _, rec := range recs {
 		if !busy(rec.Status) {
@@ -267,6 +272,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	for id, sections := range watched {
 		a.setWatched(id, sections)
 	}
+	if _, err := h.Subscribe(ctx, remoteChangedTopic, ready.Seq); err != nil {
+		return err
+	}
 	if _, err := h.Subscribe(ctx, contract.TopicRemoteWatching, ready.Seq); err != nil {
 		return err
 	}
@@ -296,6 +304,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	go a.ensureSelf(context.WithoutCancel(ctx))
 	go a.nightLoop()
 	a.renderAll(ctx)
+	go a.loadCompanion(context.WithoutCancel(ctx))
 	go a.startGraphs(ctx, ready.Seq)
 	return nil
 }
@@ -348,6 +357,8 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, sub string, ev pl
 		}
 	case docsReadyTopic:
 		a.settleAllGatedDocs()
+	case remoteChangedTopic:
+		go a.loadCompanion(context.Background())
 	case contract.TopicRemoteWatching:
 		var p contract.RemoteWatching
 		if json.Unmarshal(ev.Payload, &p) == nil {
@@ -428,6 +439,9 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 	s.resolved = func(kind, request string) { a.notes.resolved(s, kind, request) }
 	s.began = a.notes.superseded
 	s.requested = func(kind, request string) {
+		if kind == entryPermission {
+			a.firstPermission(rec.ID, request)
+		}
 		a.notes.superseded(s.snapshot().ID)
 		if kind != entryElicitation || !a.asksParent(s, s.snapshot()) {
 			a.notes.requested(s, kind, request)
@@ -521,6 +535,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		info.Service = rec.restricted()
 		info.Aside = asideViewOf(rec)
 		info.CanAside = a.canAside(rec)
+		info.Suggestion = a.suggestionFor(rec)
 		if rec.Status == statusError {
 			failure := failureOf(rec)
 			a.uiMu.Lock()

@@ -1382,6 +1382,9 @@ struct ComposerView: View {
                                 .disabled(!enabled)
                         }
                     }
+                    if let suggestion = session?.suggestion, draft.isEmpty, attachments.isEmpty, blocked == nil {
+                        SuggestedPrompt(text: suggestion) { draft = suggestion }
+                    }
                     if let caption = blocked ?? sizeCaption ?? session?.composerCaption(stopInHeader: wide) {
                         Text(caption)
                             .font(.caption)

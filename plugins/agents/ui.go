@@ -322,7 +322,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	}
 	var shown *screen
 	if slices.Contains(slots, mainSlot) {
-		main := pickSessionView(workspace.Home, a.setupState(), len(all) == 0)
+		main := pickSessionView(workspace.Home, a.setupState(), len(all) == 0 && a.emptyFirst())
 		if filter == filterOpen {
 			q := a.openQueueScreen(workspaceID, rows, selected)
 			q.Now = time.Now()
@@ -613,10 +613,13 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		CloseAsk:     closeAsk,
 		AsideCount:   asideCount,
 		ForkedFrom:   forked,
+		Suggestion:   a.suggestionFor(v.Session),
+		NeedsYou:     a.firstRun.get().NeedsYou,
+		OfferTurn:    a.offerTurn(sid),
 	}
 	sc.ReviewStates, sc.ReviewsOpen = a.reviews.cards(v.ReviewStates)
 	shown := gateUnderCalls(openItemsLast(v.Entries))
-	rows := windowRows(sc, shown, stopReasons(v))
+	rows := windowRows(sc, shown, turnNotes(v))
 	first, landed := st.window.resolve(rows, st.anchor != "")
 	sc.WindowFirst = first
 	if landed >= 0 {

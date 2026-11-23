@@ -863,9 +863,10 @@ public struct PermissionCardContent: Decodable, Sendable, Equatable {
     public let command: String?
     public let caption: String?
     public let options: [Option]
+    public let note: String?
 
     enum CodingKeys: String, CodingKey {
-        case title, command, caption, options
+        case title, command, caption, options, note
     }
 
     public init(from decoder: any Decoder) throws {
@@ -874,6 +875,7 @@ public struct PermissionCardContent: Decodable, Sendable, Equatable {
         command = try c.decodeIfPresent(String.self, forKey: .command).flatMap { $0.isEmpty ? nil : $0 }
         caption = try c.decodeIfPresent(String.self, forKey: .caption).flatMap { $0.isEmpty ? nil : $0 }
         options = try c.decodeIfPresent([Option].self, forKey: .options) ?? []
+        note = try c.decodeIfPresent(String.self, forKey: .note).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     public var buttons: [Option] {

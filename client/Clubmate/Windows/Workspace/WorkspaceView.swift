@@ -32,6 +32,11 @@ struct WorkspaceView: View {
             .environment(\.paneFocus, session.panes)
             .environment(\.sidebarSide, app.settings.sidebarSide)
             .environment(\.filePicker, FilePicker { [session] target in session.pickFile(target) })
+            .environment(\.sduiClientAction) { [app, windowID] action in
+                guard action == SDUIClientAction.pairDevice else { return false }
+                Task { await app.remoteDevices.pair(in: windowID) }
+                return true
+            }
             .eventBanner(session.banner)
             .commandPalette(session, entries: paletteEntries, run: perform)
             .testPresenter("palette", palettePresented)
