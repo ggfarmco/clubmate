@@ -568,6 +568,7 @@ actor FixtureServer {
                 ? [.object(["id": .string(FixtureMac.homeWorkspace), "name": .string("Home"), "folders": .array([.object(["path": .string("/Users/me/.clubmate/home")])]), "home": .bool(true)])]
                 : []
             let sends = UserDefaults.standard.bool(forKey: "activity")
+            let longName = UserDefaults.standard.bool(forKey: "longWorkspace")
             let stamp = { (ago: TimeInterval) in JSONValue.string(Date(timeIntervalSinceNow: -ago).formatted(.iso8601)) }
             let activity: [JSONValue] = [
                 .object(["needsYou": .number(2), "running": .number(1), "lastActiveAt": stamp(60)]),
@@ -575,7 +576,7 @@ actor FixtureServer {
                 .object(["lastActiveAt": stamp(2 * 86_400)]),
             ]
             return (200, Self.json(["result": .array(mac.workspaces.enumerated().map { index, item in
-                var fields: [String: JSONValue] = ["id": .string(item.id), "name": .string(TaskFixture.scene == nil ? item.name : "ads"), "folders": .array(TaskFixture.scene == nil ? [.object(["path": .string("/Users/me/src/" + item.name)])] : TaskFixture.folders)]
+                var fields: [String: JSONValue] = ["id": .string(item.id), "name": .string(TaskFixture.scene == nil ? (longName && index == 1 ? "infra-terraform-staging-eu-central-1-migration" : item.name) : "ads"), "folders": .array(TaskFixture.scene == nil ? [.object(["path": .string("/Users/me/src/" + item.name)])] : TaskFixture.folders)]
                 if sends { fields["activity"] = activity[index % activity.count] }
                 return .object(fields)
             } + home.map { workspace in

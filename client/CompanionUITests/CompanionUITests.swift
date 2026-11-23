@@ -563,9 +563,9 @@ final class CompanionUITests: XCTestCase {
             XCTAssertTrue(poll { largeTitle(app, "Agents") }, "no large Agents title after \(step)")
             XCTAssertTrue(poll { bar.exists && bar.isHittable && bar.buttons["Agents"].isHittable }, "no tab bar after \(step)")
         }
-        for (workspace, title) in [("shop", "Explain the checkout flow"), ("infra", "Move the state bucket to the new account"), ("clubmate", "Draft the companion brief")] {
+        for (workspace, mac, title) in [("shop", "Mac Studio", "Explain the checkout flow"), ("infra", "MacBook Pro", "Move the state bucket to the new account"), ("clubmate", "Mac Studio", "Draft the companion brief")] {
             if workspace != "shop" {
-                switchWorkspace(app, workspace)
+                switchWorkspace(app, workspace, on: mac)
             }
             let row = app.staticTexts[title].firstMatch
             let page = app.navigationBars[title]
@@ -1615,9 +1615,13 @@ final class CompanionUITests: XCTestCase {
         capsule.tap()
     }
 
-    private func switchWorkspace(_ app: XCUIApplication, _ workspace: String) {
+    private func switchWorkspace(_ app: XCUIApplication, _ workspace: String, on mac: String? = nil) {
         openCapsule(app)
         let capsule = app.buttons["workspace.capsule"]
+        XCTAssertTrue(menuItemQuery(app, "Pair a Mac").waitForExistence(timeout: 10))
+        if let mac, !menuItemQuery(app, workspace).waitForExistence(timeout: 2) {
+            menuItem(app, mac).tap()
+        }
         for _ in 0..<3 {
             let item = menuItem(app, workspace)
             item.tap()
@@ -1627,8 +1631,12 @@ final class CompanionUITests: XCTestCase {
         XCTFail("the capsule did not switch to \(workspace)")
     }
 
+    private func menuItemQuery(_ app: XCUIApplication, _ label: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "identifier != 'workspace.capsule' AND (label == %@ OR label BEGINSWITH %@)", label, label + ", ")).element(boundBy: 0)
+    }
+
     private func menuItem(_ app: XCUIApplication, _ label: String) -> XCUIElement {
-        let item = app.buttons.matching(NSPredicate(format: "identifier != 'workspace.capsule' AND (label == %@ OR label BEGINSWITH %@)", label, label + ", ")).element(boundBy: 0)
+        let item = menuItemQuery(app, label)
         XCTAssertTrue(item.waitForExistence(timeout: 10))
         return item
     }
