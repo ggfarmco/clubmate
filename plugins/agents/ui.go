@@ -322,7 +322,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	}
 	var shown *screen
 	if slices.Contains(slots, mainSlot) {
-		main := pickSessionView(workspace.Home)
+		main := pickSessionView(workspace.Home, a.setupState(), len(all) == 0)
 		if filter == filterOpen {
 			q := a.openQueueScreen(workspaceID, rows, selected)
 			q.Now = time.Now()

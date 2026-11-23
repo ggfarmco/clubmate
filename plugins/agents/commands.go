@@ -39,6 +39,8 @@ var (
 		"agents.mode":           withArgs((*app).modeCommand),
 		"agents.config":         withArgs((*app).configCommand),
 		"agents.sessions":       withArgs((*app).sessionsCommand),
+		"agents.setup":          withArgs((*app).setupCommand),
+		"agents.setup-fix":      withArgs((*app).setupFixCommand),
 		"agents.sessions-older": withArgs((*app).sessionsOlderCommand),
 		"agents.search":         withArgs((*app).searchCommand),
 		"agents.notify":         withArgs((*app).notifyCommand),

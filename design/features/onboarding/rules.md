@@ -138,7 +138,7 @@ Later: Clone repository… ⌥⌘O on Welcome (d).
 
 ## Open questions
 
-- Login check: can the agents plugin tell "signed out" before a session starts (credentials present), or only "unknown"? If only unknown, sign-in stays inside the session and `signed_out` is never shown before it.
+- Login check (answered 23 Nov): yes. After the background install, the plugin runs the agent's own CLI, `node <claude-agent-acp> --cli auth status --json`, which answers `loggedIn` from the same Keychain item and `~/.claude` config a session uses (about 0.3 s). `false` shows `signed_out`; no answer counts as unknown and leaves sign-in inside the session. `ANTHROPIC_API_KEY` does not count: sessions do not get it. `docs/agents.md` § Setup check.
 - Worktrees: "+ New" starts a session in the workspace's checkout; "New in worktree…" is separate (seen in the test app, 23 Nov). The README Agents row "Each in its own worktree" and the first-run empty text must say "can work in its own worktree", not "each".
 - Universal link domain: one QR code that installs and pairs the Companion needs one.
 - The Companion has no public install path yet (App Store / TestFlight); the pairing sheet's App Store line waits for it.

@@ -224,6 +224,8 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		return a.contextAct(ev, sid)
 	}
 	switch ev.Action {
+	case actSetupFix:
+		return a.runSetupFix(ctx, ev.WorkspaceID)
 	case actNew:
 		res, err := a.newSession(ctx, a.host, ev.WorkspaceID, "", newArgs{})
 		if err != nil {

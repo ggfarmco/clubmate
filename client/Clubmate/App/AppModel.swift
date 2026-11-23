@@ -27,6 +27,7 @@ final class AppModel {
     @ObservationIgnored private var browserClosing: [Task<Void, Never>] = []
     @ObservationIgnored private var usageChanges: Task<Void, Never>?
     @ObservationIgnored private var awakeChanges: Task<Void, Never>?
+    @ObservationIgnored private var setupChanges: Task<Void, Never>?
     @ObservationIgnored private var remoteChanges: Task<Void, Never>?
     @ObservationIgnored private var voiceChanges: Task<Void, Never>?
     @ObservationIgnored private var voiceSettingsChanges: Task<Void, Never>?
@@ -67,6 +68,10 @@ final class AppModel {
     }
 
     @ObservationIgnored private(set) lazy var awake = KeepAwakeModel { [weak self] invocation in
+        await self?.runCommand(invocation, in: "") ?? .failure(.notRunning)
+    }
+
+    @ObservationIgnored private(set) lazy var setup = AgentSetupModel { [weak self] invocation in
         await self?.runCommand(invocation, in: "") ?? .failure(.notRunning)
     }
 
@@ -118,6 +123,12 @@ final class AppModel {
         AppDelegate.willQuit = { [weak self] in self?.terminating() }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.terminating() }
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let setup = self?.setup else { return }
+                Task { await setup.load(check: true) }
+            }
         }
     }
 
@@ -388,6 +399,11 @@ final class AppModel {
         awakeChanges = Task { [weak self] in
             guard let awake = self?.awake else { return }
             await awake.follow(client)
+        }
+        setupChanges?.cancel()
+        setupChanges = Task { [weak self] in
+            guard let setup = self?.setup else { return }
+            await setup.follow(client)
         }
         remoteChanges?.cancel()
         remoteChanges = Task { [weak self] in

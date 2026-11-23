@@ -33,7 +33,13 @@ type closeArgs struct {
 }
 
 type newArgs struct {
-	Cwd string `json:"cwd"`
+	Cwd     string   `json:"cwd"`
+	Command []string `json:"command"`
+	Title   string   `json:"title"`
+}
+
+type newResult struct {
+	Session string `json:"session"`
 }
 
 type busyResult struct {
@@ -143,6 +149,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	created := ""
 	switch cmd.ID {
 	case "terminals.new":
 		var args newArgs
@@ -151,9 +158,11 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 				return nil, fmt.Errorf("terminals.new args: %w", err)
 			}
 		}
-		if err := a.create(ctx, h, cmd.WorkspaceID, args.Cwd); err != nil {
+		id, err := a.create(ctx, h, cmd.WorkspaceID, args)
+		if err != nil {
 			return nil, err
 		}
+		created = id
 	case "terminals.close":
 		var args closeArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -169,7 +178,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, err
 	}
 	if cmd.ID == "terminals.new" {
-		return nil, h.Focus(ctx, cmd.WorkspaceID, sectionID, mainSlot)
+		return newResult{Session: created}, h.Focus(ctx, cmd.WorkspaceID, sectionID, mainSlot)
 	}
 	return nil, nil
 }
@@ -221,7 +230,8 @@ func (a *app) eventWorkspace(ev pluginsdk.Event) (string, error) {
 func (a *app) act(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) error {
 	switch ev.Action {
 	case "new":
-		return a.create(ctx, h, ev.WorkspaceID, "")
+		_, err := a.create(ctx, h, ev.WorkspaceID, newArgs{})
+		return err
 	case "select":
 		var id string
 		if err := json.Unmarshal(ev.Value, &id); err != nil {
@@ -240,12 +250,16 @@ func (a *app) act(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) 
 	return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 }
 
-func (a *app) create(ctx context.Context, h *pluginsdk.Host, workspaceID, cwd string) error {
-	sessions, err := h.ListSessions(ctx, workspaceID, true)
-	if err != nil {
-		return err
+func (a *app) create(ctx context.Context, h *pluginsdk.Host, workspaceID string, args newArgs) (string, error) {
+	title := args.Title
+	if title == "" {
+		sessions, err := h.ListSessions(ctx, workspaceID, true)
+		if err != nil {
+			return "", err
+		}
+		title = titlePrefix + strconv.Itoa(maxNumber(sessions)+1)
 	}
-	return a.spawn(ctx, h, workspaceID, titlePrefix+strconv.Itoa(maxNumber(sessions)+1), cwd)
+	return a.spawn(ctx, h, workspaceID, title, args.Cwd, args.Command)
 }
 
 func (a *app) restart(ctx context.Context, h *pluginsdk.Host, workspaceID string) error {
@@ -261,7 +275,7 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, workspaceID string
 	if idx < 0 || sessions[idx].State == contract.SessionStateRunning {
 		return nil
 	}
-	if err := a.spawn(ctx, h, workspaceID, sessions[idx].Title, sessions[idx].Cwd); err != nil {
+	if _, err := a.spawn(ctx, h, workspaceID, sessions[idx].Title, sessions[idx].Cwd, nil); err != nil {
 		return err
 	}
 	return a.removeSession(ctx, h, sessions[idx])
@@ -304,17 +318,17 @@ func (a *app) removeSession(ctx context.Context, h *pluginsdk.Host, s pluginsdk.
 	return h.StorageDelete(ctx, bellKey(s.ID))
 }
 
-func (a *app) spawn(ctx context.Context, h *pluginsdk.Host, workspaceID, title, cwd string) error {
-	req := pluginsdk.SessionRequest{WorkspaceID: workspaceID, Title: title, Cwd: cwd}
+func (a *app) spawn(ctx context.Context, h *pluginsdk.Host, workspaceID, title, cwd string, command []string) (string, error) {
+	req := pluginsdk.SessionRequest{WorkspaceID: workspaceID, Title: title, Cwd: cwd, Command: command}
 	if tools := pluginsdk.ToolsDir(); tools != "" {
 		req.PathAppend = []string{tools}
 	}
 	s, err := h.CreateSession(ctx, req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	a.known[s.ID] = workspaceID
-	return h.StorageSet(ctx, selectedKey(workspaceID), s.ID)
+	return s.ID, h.StorageSet(ctx, selectedKey(workspaceID), s.ID)
 }
 
 func (a *app) render(ctx context.Context, h *pluginsdk.Host, workspaceID string) error {

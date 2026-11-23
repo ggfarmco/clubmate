@@ -36,6 +36,24 @@ Agents running in Clubmate terminals (Claude Code, Codex, scripts) can drive Clu
 
 Hidden helpers and commands not marked for agents stay out of reach.
 
+## Setup check
+
+The plugin checks what agents need on this Mac in the background: Node 22 or later, the Claude login, git. It runs at plugin start, when the Mac app becomes active (the app sends `agents.setup` with `check`), after a setup fix's terminal exits and after an in-session sign-in exits. Checks run one at a time and only the first failing one shows, in this order: Node, sign-in, git. After Node passes, the plugin installs claude-agent-acp in the background (the same install a first session would do), so the first session starts without the npm wait. A failed background install is not tried again before a stored time (`claude-acp.retry` in the plugin's state dir): 1 minute after the first failure, then 4 times longer each time, at most 6 hours; a success clears it. Only the first try shows the "installing" note in sessions; a retry is silent. A check that falls in the wait skips the sign-in check.
+
+- **Node**: `node` on the PATH, else Homebrew's keg-only `node@22` (`/opt/homebrew/opt/node@22/bin/node`, `/usr/local/opt/…`). A session also starts with that keg's Node and puts its folder first on the agent's PATH. Missing: `node_missing`; older than 22: `node_old` (detail "found 18.19"). The fix is `brew install node@22` in a terminal tab when Homebrew is present, else a link to nodejs.org.
+- **Sign-in**: the plugin runs the installed agent's own CLI, `node <claude-agent-acp> --cli auth status --json`, with the agent's environment (without `ANTHROPIC_API_KEY`, which sessions do not get either). `loggedIn: false` is `signed_out`, with the fix `claude auth login` (the agent's `--cli auth login`) in a terminal tab. Any other answer (no output, not JSON, a timeout, a failed install) is unknown: the plugin shows nothing and sign-in stays inside the session (the Sign in terminal).
+- **git**: `git --version`; when `git` is the `/usr/bin/git` shim, only after `xcode-select -p` succeeds, so the check never opens the Command Line Tools dialog. Missing: `git_missing`, fix `xcode-select --install`.
+
+The result is one field, `agents.setup` → `{state, found: {node, git}, fix: {label, run | url}, title, detail}`; every change publishes `agents.setup.changed`. state is `checking` until the first check ends, then `ok`, `node_missing`, `node_old`, `signed_out` or `git_missing`. title and detail are set only for a failing state. Clients render it and never re-derive it:
+
+- Welcome (Mac) shows one warning row under Open folder…: title · detail and the fix button, hidden when title is empty. When the fix fails (no Home workspace, the workspace does not open, `terminals.new` fails), the error shows in place of the detail until the state changes.
+- The Agents empty state (the main slot with no session open, Mac and phone) swaps its title, text, button and the caption under it for a failing state. With `git_missing` agents still run, so New session ⌘N stays next to the fix. With no failure, a workspace with no sessions yet shows "Start your first agent" with New session ⌘N and a caption: "Getting Claude ready…" while checking, "Claude Code · Node 22.11 · git 2.47" when ok.
+- The fix button (`setupFix` in the empty state, `agents.setup-fix` from Welcome) opens the URL, or runs the command in a Terminals tab (`terminals.new` with `command`) of the workspace, or of Home from Welcome. The check runs again when the terminal starts and when it exits; the tab stays open so its output can be read. The ids of running fix terminals are stored (`setup/fixes`), so an exit after a plugin or core restart still runs the check.
+
+`CLUBMATE_AGENTS_SETUP=<state>` (or `@<file>` holding the state, read at every check) forces a state with fake versions (tests, test-app shots); its fix runs `/usr/bin/true`, or `/bin/sh -c "$CLUBMATE_AGENTS_SETUP_FIX"`, never an install. With `CLUBMATE_AGENTS_COMMAND` set, only git is checked.
+
+The Agents section has `opensFirst` in its manifest, so a workspace opens on Agents the first time and on its last section after that (`docs/sdui-protocol.md`).
+
 ## Import your nvim config
 
 **Import ~/.config/nvim…** in the command palette (or Import… in Settings › General › Editors) starts an agent session in the Agents section that reads `~/.config/nvim` and moves your own keymaps, options, autocmds and plugins into Clubmate's Neovim user layer (`~/.config/clubmate`, or `~/.config/clubmate-dev` for development builds), following the guide bundled at `nvim-distro/skill/SKILL.md`. It skips what Clubmate's defaults already cover and asks you before adding destructive or machine-specific mappings. It needs an open folder workspace and never changes `~/.config/nvim`. Neovim offers the same import once, the first time Code opens to edit while `~/.config/nvim` exists ([nvim integration](nvim-integration.md#import-your-nvim-config)).

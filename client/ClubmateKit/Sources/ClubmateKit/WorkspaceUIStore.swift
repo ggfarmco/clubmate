@@ -557,7 +557,8 @@ public final class WorkspaceUIStore {
     private func restore(from state: JSONValue?) {
         let saved = state?.objectValue ?? [:]
         restoring = true
-        selectedSection = order(sections).first?.id
+        let ordered = order(sections)
+        selectedSection = (ordered.first(where: \.opensFirst) ?? ordered.first)?.id
         if let section = requestedSection ?? saved["section"]?.stringValue { select(section) }
         sidebarWidth = saved["sidebarWidth"]?.numberValue
         sidebarHidden = saved["sidebarHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]

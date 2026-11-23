@@ -20,6 +20,7 @@ type SectionDef struct {
 	Order   int      `json:"order"`
 	Scope   string   `json:"scope"`
 	AutoNew bool     `json:"autoNew"`
+	First   bool     `json:"opensFirst,omitempty"`
 	Slots   []string `json:"slots,omitempty"`
 	Host    string   `json:"host,omitempty"`
 	Rail    *bool    `json:"rail,omitempty"`

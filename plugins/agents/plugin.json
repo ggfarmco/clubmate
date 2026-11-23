@@ -47,7 +47,7 @@
       {"keys": "cmd+shift+k", "action": "Aside: keep it as its own session", "when": "an aside is open"},
       {"keys": "cmd+.", "action": "Stop the run (confirmed)", "when": "a running run is open in Graphs"}
     ],
-    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "slots": ["sheet", "aside"]}, {"id": "agents.graphs", "title": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "order": 37, "rail": false}, {"id": "agents.gates", "title": "Gates", "icon": "checkmark.shield", "order": 38, "rail": false}],
+    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "opensFirst": true, "slots": ["sheet", "aside"]}, {"id": "agents.graphs", "title": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "order": 37, "rail": false}, {"id": "agents.gates", "title": "Gates", "icon": "checkmark.shield", "order": 38, "rail": false}],
     "views": [{"slot": "editor-nvim.chat"}, {"slot": "wiki.chat"}, {"slot": "agents.settings"}],
     "commands": [
       {
@@ -1301,6 +1301,27 @@
           },
           "required": ["path"]
         }
+      },
+      {
+        "id": "agents.setup",
+        "title": "Agents setup check",
+        "scope": "app",
+        "hidden": true,
+        "remote": true,
+        "readOnly": true,
+        "description": "What agents need on this Mac and what is missing: {state, found: {node?, git?}, fix?: {label, run? | url?}, title?, detail?}. state is checking, ok, node_missing, node_old, signed_out or git_missing; only the first failing check shows, in the order Node 22+, the Claude login, git. title and detail are the one line to show for a failing state (empty when ok or checking), fix.label its one button. The check runs at plugin start, after a setup fix or an in-session sign-in exits, and with check; every change publishes agents.setup.changed with the same shape. Show every string as it is. Non-destructive.",
+        "args": {
+          "properties": {
+            "check": {"type": "boolean", "description": "Run the checks again in the background (the Mac sends it when the app becomes active); the reply is the state before the new check."}
+          }
+        }
+      },
+      {
+        "id": "agents.setup-fix",
+        "title": "Fix the agents setup",
+        "scope": "app",
+        "hidden": true,
+        "description": "Run the fix of the failing setup check: open fix.url in the browser, or run fix.run in a terminal tab (terminals.new) of the Home workspace, which opens; the Agents empty state's button runs it in its own workspace; the check runs again when the command exits. User only: not offered to agent sessions, and the plugin refuses any other agent caller (\"only the user runs a setup fix\"); fails with \"no setup fix to run\" when nothing fails."
       },
       {
         "id": "agents.sessions",

@@ -50,8 +50,8 @@ func rawJSON(t *testing.T, v any) json.RawMessage {
 
 func TestPickSessionViewOffersNewSession(t *testing.T) {
 	t.Parallel()
-	project := pickSessionView(false)
-	home := pickSessionView(true)
+	project := pickSessionView(false, setupState{State: setupOK}, false)
+	home := pickSessionView(true, setupState{State: setupOK}, false)
 
 	for _, n := range []sdui.Node{project, home} {
 		require.Len(t, n.Children, 1)

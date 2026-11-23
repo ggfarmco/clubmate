@@ -86,6 +86,11 @@ struct WelcomeView: View {
                     .foregroundStyle(theme.muted)
             }
             WelcomeAction(title: "Open folder…", icon: "folder", shortcut: "⌘O", highlighted: current == .openFolder) { choose(.openFolder) }
+            if let setup = app.setup.state, setup.shown {
+                SetupRow(setup: setup, failure: app.setup.fixError) {
+                    Task { await app.setup.fix() }
+                }
+            }
             if let home = Workspace.home(in: app.workspaceStore?.workspaces ?? []) {
                 HomeRow(workspace: home, open: open.contains(home.id), highlighted: current == .workspace(home.id)) {
                     choose(.workspace(home.id))
@@ -192,6 +197,52 @@ private struct WelcomeAction: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .testNode("welcome.open", role: "button", label: title)
+    }
+}
+
+private struct SetupRow: View {
+    let setup: AgentSetup
+    let failure: String?
+    let fix: () -> Void
+
+    private var detail: String { failure ?? setup.detail }
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: theme.spacing.m) {
+            Image(systemName: "exclamationmark.circle")
+                .foregroundStyle(theme.warning)
+                .accessibilityHidden(true)
+            HStack(spacing: theme.spacing.s) {
+                Text(setup.title)
+                    .foregroundStyle(theme.foreground)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if !detail.isEmpty {
+                    Text("· \(detail)")
+                        .foregroundStyle(failure == nil ? theme.muted : theme.danger)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .layoutPriority(failure == nil ? 1 : 0)
+                        .fixedSize(horizontal: failure == nil, vertical: false)
+                }
+            }
+            .font(theme.ui)
+            .help(detail.isEmpty ? setup.title : "\(setup.title) · \(detail)")
+            Spacer(minLength: theme.gutter)
+            if !setup.fixLabel.isEmpty {
+                CardButton(label: setup.fixLabel, action: fix)
+                    .testNode("welcome.setup.fix", role: "button", label: setup.fixLabel)
+            }
+        }
+        .padding(.leading, theme.gutter)
+        .padding(.trailing, theme.spacing.s)
+        .frame(minHeight: theme.rowHeight)
+        .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.toneBg(theme.warning)))
+        .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(theme.toneBorder(theme.warning)))
+        .accessibilityElement(children: .contain)
+        .testNode("welcome.setup", role: "group", label: setup.title)
     }
 }
 

@@ -193,12 +193,65 @@ func mainView(sc screen) sdui.Node {
 	return sdui.VStack(append(children, composer(sc))...)
 }
 
-func pickSessionView(home bool) sdui.Node {
+func pickSessionView(home bool, setup setupState, first bool) sdui.Node {
 	add := sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(newSessionNode, newSessionText, "plus"), actNew), sdui.VariantPrimary), "cmd+n")
+	if n, ok := setupEmpty(setup, add); ok {
+		return n
+	}
 	if home {
 		return sdui.EmptyState(homePickText, sdui.EmptyProps{Title: homePickTitle, Icon: pickIcon, Action: &add, Center: true})
 	}
+	if first {
+		return sdui.EmptyState(firstRunText, sdui.EmptyProps{Title: firstRunTitle, Icon: pickIcon, Action: &add, Note: setupCaption(setup)})
+	}
 	return sdui.EmptyState(pickSession, sdui.EmptyProps{Icon: pickIcon, Action: &add, Center: true})
+}
+
+func setupEmpty(st setupState, add sdui.Node) (sdui.Node, bool) {
+	var p sdui.EmptyProps
+	text := ""
+	switch st.State {
+	case setupNodeMissing, setupNodeOld:
+		p.Title, text, p.Note = nodeTitle, nodeNeedText, nodeBrewHint
+		if st.State == setupNodeOld {
+			text = "Found Node " + shortVersion(st.Found.Node) + " at " + st.path + ". " + nodeNeedText
+		}
+		if st.Fix != nil && st.Fix.URL != "" {
+			p.Note = nodeURLHint
+		}
+	case setupSignedOut:
+		p.Title, text, p.Note = signInEmpty, signInText, signInHint
+	case setupGitMissing:
+		p.Title, text, p.Note = gitTitle, gitText, gitHint
+	default:
+		return sdui.Node{}, false
+	}
+	p.Icon = pickIcon
+	if st.Fix != nil {
+		fix := sdui.WithVariant(sdui.WithAction(sdui.Button(setupFixNode, st.Fix.Label, ""), actSetupFix), sdui.VariantPrimary)
+		if st.State == setupGitMissing {
+			fix = sdui.HStack(add, sdui.WithVariant(sdui.WithAction(sdui.Button(setupFixNode, st.Fix.Label, ""), actSetupFix), sdui.VariantSecondary))
+		}
+		p.Action = &fix
+	}
+	return sdui.EmptyState(text, p), true
+}
+
+func setupCaption(st setupState) string {
+	switch st.State {
+	case setupChecking:
+		return checkingText
+	case setupOK:
+		parts := []string{"Claude Code"}
+		if st.Found.Node != "" {
+			parts = append(parts, "Node "+shortVersion(st.Found.Node))
+		}
+		if st.Found.Git != "" {
+			parts = append(parts, "git "+shortVersion(st.Found.Git))
+		}
+		return strings.Join(parts, " · ")
+	}
+	return ""
 }
 
 func codeView(recs []record, sc screen, panel codePanel) sdui.Node {

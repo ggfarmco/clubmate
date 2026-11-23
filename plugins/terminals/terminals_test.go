@@ -197,3 +197,17 @@ func contains(n sdui.Node, typ string) bool {
 	}
 	return false
 }
+
+func TestNewTerminalRunsCommandWithTitle(t *testing.T) {
+	h := newHarness(t)
+	p := h.CreateWorkspace(t, "demo")
+	var out struct {
+		Session string `json:"session"`
+	}
+	args := map[string]any{"command": []string{"/bin/sh", "-c", "exit 0"}, "title": "Install Node"}
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "workspaceId": p.ID, "args": args}, &out))
+	require.NotEmpty(t, out.Session)
+	s := h.GetSession(t, out.Session)
+	assert.Equal(t, "Install Node", s.Title)
+	assert.Equal(t, []string{"/bin/sh", "-c", "exit 0"}, s.Command)
+}

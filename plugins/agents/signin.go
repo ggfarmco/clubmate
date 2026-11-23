@@ -101,6 +101,7 @@ func (a *app) signInExited(ctx context.Context, ev pluginsdk.Event) {
 		return
 	}
 	a.removeTerminal(ctx, p.ID, false)
+	a.recheckSetup()
 	if s := a.session(sid); s != nil {
 		a.resume(s)
 	}

@@ -73,6 +73,7 @@ type app struct {
 	taskLookups taskLookups
 	openWake    chan struct{}
 	inbox       inboxMemo
+	setup       setupCheck
 
 	spawnMu        sync.Mutex
 	asideMu        sync.Mutex
@@ -275,6 +276,10 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.reapNight(ctx)
 	a.requeueLandPrompts()
 	close(a.loaded)
+	if err := a.loadSetupFixes(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: load setup fixes:", err)
+	}
+	a.recheckSetup()
 	a.resumeClones()
 	go a.landingAtStart()
 	if err := a.renderSettings(ctx); err != nil {
@@ -303,6 +308,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, sub string, ev pl
 	switch ev.Topic {
 	case "session.exited":
 		a.signInExited(ctx, ev)
+		a.setupFixExited(ev)
 	case "ui.opened", "ui.idle", "ui.section":
 		a.presenceEvent(ctx, ev)
 	case pluginChangedTopic:

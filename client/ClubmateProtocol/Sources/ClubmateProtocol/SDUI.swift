@@ -45,6 +45,7 @@ public struct SectionInfo: Codable, Sendable, Equatable {
     public let order: Int
     public let scope: String
     public let autoNew: Bool
+    public let opensFirst: Bool
     public let plugin: String
     public let host: String?
     public let slots: [String]
@@ -58,6 +59,7 @@ public struct SectionInfo: Codable, Sendable, Equatable {
         order = try container.decode(Int.self, forKey: .order)
         scope = try container.decode(String.self, forKey: .scope)
         autoNew = try container.decodeIfPresent(Bool.self, forKey: .autoNew) ?? false
+        opensFirst = try container.decodeIfPresent(Bool.self, forKey: .opensFirst) ?? false
         plugin = try container.decode(String.self, forKey: .plugin)
         host = try container.decodeIfPresent(String.self, forKey: .host)
         slots = try container.decodeIfPresent([String].self, forKey: .slots) ?? []

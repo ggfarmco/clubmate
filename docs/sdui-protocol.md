@@ -252,6 +252,8 @@ A manifest section has `scope`: `"workspace"` (default) or `"app"`; any other va
 
 A manifest section may set `autoNew: true` (default `false`); `ui.sections` returns it. When the user selects such a section and its main slot, once rendered, is an `empty` node (the section has nothing to show, e.g. no terminals; an exited terminal's view is not `empty`), the client runs the section's `<section>.new` command once for that selection (`CommandInvocation.shouldAutoNew`). Terminals sets it, so a terminal appears on entering the section.
 
+A manifest section may set `opensFirst: true` (default `false`); `ui.sections` returns it. A workspace with no saved section (its first open) opens on the first such section in the rail order, else on the first section; a workspace opened before opens on its last section. Agents sets it.
+
 The `.status` slot is a compact status line for the section; clients show it in the status area while the section is active.
 
 ### Views
@@ -298,7 +300,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 
 | method | params | result |
 |---|---|---|
-| ui.sections | none | `[{id, title, icon, order, scope, autoNew, plugin, slots?, host?, rail?}]` |
+| ui.sections | none | `[{id, title, icon, order, scope, autoNew, opensFirst?, plugin, slots?, host?, rail?}]` |
 | ui.get | `{workspaceId}` (`""` for app scope) | `[SlotView]` sorted by slot |
 | ui.subscribe | `{workspaceId, delta?, append?, keep?, presence?}` | `{subscription}`; `delta: true` opts into delta frames, `append: true` into string appends inside them, `keep: true` into kept array elements inside them (see `ui.updated`); `presence: false` (default true) keeps a workspace subscription out of presence (`ui.presence`, `ui.opened`/`ui.idle`) and `ui.focus`, as `remote` does while a phone watches only popups |
 | ui.unsubscribe | `{subscription}` | `{}` |

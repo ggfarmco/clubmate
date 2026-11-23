@@ -54,6 +54,7 @@ func launcherFor(ctx context.Context, stateDir, agent, workspace, root string, i
 	if err != nil {
 		return launch{}, err
 	}
+	env = withPathDir(env, filepath.Dir(node))
 	ictx, cancel := context.WithTimeout(ctx, installTimeout)
 	defer cancel()
 	script, err := installClaude(ictx, filepath.Join(stateDir, claudeDir), env, installing)
@@ -91,15 +92,8 @@ func appendTools(env []string, tools string) []string {
 }
 
 func nodeBinary(ctx context.Context) (string, error) {
-	node, err := exec.LookPath("node")
-	if err != nil {
-		return "", nodeError("none")
-	}
-	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, node, "--version").Output()
-	version := strings.TrimSpace(string(out))
-	if err != nil || nodeMajor(version) < minNodeMajor {
+	node, version := lookupNode(ctx)
+	if node == "" || nodeMajor(version) < minNodeMajor {
 		return "", nodeError(version)
 	}
 	return node, nil
@@ -185,7 +179,7 @@ func reinstall(ctx context.Context, prefix string, env []string) error {
 }
 
 func npmInstall(ctx context.Context, prefix string, env []string) error {
-	npm, err := exec.LookPath("npm")
+	npm, err := lookPathIn(env, "npm")
 	if err != nil {
 		return errors.New("npm is required to install the Claude agent")
 	}
@@ -203,6 +197,21 @@ func npmInstall(ctx context.Context, prefix string, env []string) error {
 		return fmt.Errorf("npm install %s@%s: %w\n%s", claudePackage, claudeVersion, err, text)
 	}
 	return nil
+}
+
+func lookPathIn(env []string, name string) (string, error) {
+	for _, kv := range slices.Backward(env) {
+		if dirs, ok := strings.CutPrefix(kv, "PATH="); ok {
+			for _, dir := range filepath.SplitList(dirs) {
+				p := filepath.Join(dir, name)
+				if info, err := os.Stat(p); err == nil && !info.IsDir() && info.Mode().Perm()&0o111 != 0 {
+					return p, nil
+				}
+			}
+			break
+		}
+	}
+	return exec.LookPath(name)
 }
 
 type packageManifest struct {
