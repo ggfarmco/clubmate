@@ -32,7 +32,7 @@ final class ComputerConnectionTests: XCTestCase {
         connection.observe { signals.add($0) }
         connection.start()
         try await waitUntil { held.values.count == 1 && connection.state == .online }
-        XCTAssertEqual(delays.values, [.seconds(1), .seconds(2), .seconds(1)])
+        XCTAssertEqual(delays.values.filter { $0 != ComputerConnection.workspaceRefreshEvery }, [.seconds(1), .seconds(2), .seconds(1)])
         XCTAssertEqual(transport.requests.last?.value(forHTTPHeaderField: "Last-Event-ID"), "3")
         XCTAssertEqual(signals.values, [.online, .event(BusEvent(seq: 5, topic: "agents.changed", workspace: "w")), .event(BusEvent(seq: 3, topic: "agents.changed", workspace: "w")), .online])
         XCTAssertEqual(connection.workspaces.map(\.name), ["shop"])
@@ -99,6 +99,51 @@ final class ComputerConnectionTests: XCTestCase {
         held.values[0].yield(Data("id: 9\nevent: bus\ndata: {\"seq\":9,\"topic\":\"plugin.changed\",\"payload\":{\"id\":\"agents\",\"running\":false}}\n\n".utf8))
 
         try await waitUntil { !connection.supports("agents.sessions") }
+        connection.stop()
+    }
+
+    func testAgentsChangedRefreshesWorkspacesOncePerWindowWithOneFetchInFlight() async throws {
+        let held = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()
+        let fetches = Recorder<Int>()
+        let (gate, release) = AsyncStream.makeStream(of: Void.self)
+        let transport = FakeTransport(reply: { request in
+            if FakeTransport.rpc(request) == "workspaces" {
+                fetches.add(1)
+                return (FakeTransport.result(workspacesJSON), 200)
+            }
+            return (FakeTransport.result(helloJSON), 200)
+        }, stream: { _ in
+            (200, AsyncThrowingStream {
+                $0.yield(Data(": connected\n\n".utf8))
+                held.add($0)
+            })
+        })
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { duration in
+            guard duration == ComputerConnection.workspaceRefreshEvery else { return }
+            for await _ in gate { return }
+        })
+        let events = Recorder<Int>()
+        connection.observe { if case .event = $0 { events.add(1) } }
+        connection.start()
+        try await waitUntil { connection.state == .online && held.values.count == 1 }
+        XCTAssertEqual(fetches.values.count, 1)
+
+        func burst(_ ids: ClosedRange<Int>) {
+            for id in ids {
+                held.values[0].yield(Data("id: \(id)\nevent: bus\ndata: {\"seq\":\(id),\"topic\":\"agents.changed\",\"workspace\":\"w\",\"payload\":{}}\n\n".utf8))
+            }
+        }
+        burst(1...4)
+        try await waitUntil { events.values.count == 4 && fetches.values.count == 2 }
+        burst(5...8)
+        try await waitUntil { events.values.count == 8 }
+        XCTAssertEqual(fetches.values.count, 2)
+
+        release.yield()
+        try await waitUntil { fetches.values.count == 3 }
+        release.yield()
+        burst(9...9)
+        try await waitUntil { events.values.count == 9 && fetches.values.count == 4 }
         connection.stop()
     }
 

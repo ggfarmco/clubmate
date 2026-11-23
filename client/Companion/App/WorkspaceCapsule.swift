@@ -8,31 +8,33 @@ struct WorkspaceCapsule: View {
     var body: some View {
         let model = context.model
         let navigation = context.navigation
-        let current = navigation.workspaceKey
+        let now = Date()
         Menu {
-            ForEach(model.computers) { computer in
-                if let connection = model.connection(computer.id) {
-                    Section(connection.computer.name + " · " + connection.shortPresence) {
-                        ForEach(Workspace.homeFirst(connection.workspaces)) { workspace in
-                            let key = WorkspaceKey(computer: computer.id, workspace: workspace.id)
-                            let waiting = model.waitingCount(computer: computer.id, workspace: workspace.id)
-                            Button {
-                                navigation.switchWorkspace(computer: computer.id, workspace: workspace.id)
-                            } label: {
-                                Label(workspace.name, systemImage: key == current ? "checkmark" : (workspace.home == true ? "house" : "folder"))
-                                if waiting > 0 {
-                                    Text("\(waiting) waiting")
-                                }
+            ControlGroup {
+                Button("Mac Details", systemImage: "info.circle") {
+                    navigation.push(.macDetails(computer: context.connection.computer.id))
+                }
+                Button("Pair a Mac", systemImage: "qrcode.viewfinder") { navigation.showingAddComputer = true }
+            }
+            if otherMacs.count > 0 {
+                Section("Other Macs") {
+                    ForEach(otherMacs, id: \.computer.id) { connection in
+                        Menu {
+                            workspaceRows(connection, now: now)
+                            Button("Mac Details", systemImage: "info.circle") {
+                                navigation.push(.macDetails(computer: connection.computer.id))
                             }
-                        }
-                        Button("Mac Details", systemImage: "info.circle") {
-                            navigation.push(.macDetails(computer: computer.id))
+                        } label: {
+                            Label(connection.computer.name, systemImage: "desktopcomputer")
+                            if let subtitle = macSubtitle(connection, now: now) {
+                                Text(subtitle)
+                            }
                         }
                     }
                 }
             }
-            Section {
-                Button("Pair a Mac", systemImage: "qrcode.viewfinder") { navigation.showingAddComputer = true }
+            Section(context.connection.computer.name + " · " + context.connection.shortPresence) {
+                workspaceRows(context.connection, now: now)
             }
         } label: {
             HStack(spacing: 6) {
@@ -51,7 +53,7 @@ struct WorkspaceCapsule: View {
         .accessibilityValue(online ? "" : context.connection.shortPresence)
         .task(id: stores) {
             for key in stores {
-                guard let store = model.agents(computer: key.computer, workspace: key.workspace, settled: false), !store.fetched else { continue }
+                guard let store = context.model.agents(computer: key.computer, workspace: key.workspace, settled: false), !store.fetched else { continue }
                 await store.refresh()
             }
         }
@@ -59,6 +61,43 @@ struct WorkspaceCapsule: View {
 
     private var online: Bool {
         context.connection.state == .online
+    }
+
+    private var otherMacs: [ComputerConnection] {
+        context.model.computers.compactMap { context.model.connection($0.id) }.filter { $0.computer.id != context.connection.computer.id }
+    }
+
+    private func summary(_ workspace: Workspace, in connection: ComputerConnection) -> WorkspaceSummary {
+        WorkspaceSummary.summary(of: workspace, sendsActivity: WorkspaceSummary.sendsActivity(connection.workspaces)) {
+            context.model.waitingCount(computer: connection.computer.id, workspace: $0.id)
+        }
+    }
+
+    private func macSubtitle(_ connection: ComputerConnection, now: Date) -> String? {
+        let total = WorkspaceSummary.of(connection.workspaces) {
+            context.model.waitingCount(computer: connection.computer.id, workspace: $0.id)
+        }
+        return WorkspaceSummary.macSubtitle(total, offline: connection.isOffline, lastSeen: connection.lastSeen, now: now)
+    }
+
+    @ViewBuilder
+    private func workspaceRows(_ connection: ComputerConnection, now: Date) -> some View {
+        let current = context.navigation.workspaceKey
+        ForEach(Workspace.homeFirst(connection.workspaces)) { workspace in
+            let key = WorkspaceKey(computer: connection.computer.id, workspace: workspace.id)
+            let state = summary(workspace, in: connection)
+            let isCurrent = key == current
+            let subtitle = state.subtitle(now: now, asOf: connection.lastSeen, offline: connection.isOffline)
+            Button {
+                context.navigation.switchWorkspace(computer: connection.computer.id, workspace: workspace.id)
+            } label: {
+                Label(workspace.name, systemImage: isCurrent ? "checkmark" : state.glyph(home: workspace.home == true))
+                if let subtitle {
+                    Text(subtitle)
+                }
+            }
+            .accessibilityLabel(state.accessibilityLabel(name: workspace.name, current: isCurrent, now: now, asOf: connection.lastSeen, offline: connection.isOffline))
+        }
     }
 
     private var stores: [WorkspaceKey] {

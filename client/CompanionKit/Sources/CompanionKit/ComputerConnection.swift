@@ -69,6 +69,7 @@ public final class ComputerConnection: CommandRunner {
     public static let usageTopic = "agents.usage"
     public static let backoff: [Duration] = [1, 2, 5, 10, 30].map { .seconds($0) }
     public static let pingInterval: Duration = .seconds(15)
+    public nonisolated static let workspaceRefreshEvery: Duration = .milliseconds(2500)
 
     public private(set) var computer: Computer
     public private(set) var state: State = .offline(nil)
@@ -95,6 +96,9 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored let now: @Sendable () -> ContinuousClock.Instant
     @ObservationIgnored private var heardAt: ContinuousClock.Instant?
     @ObservationIgnored private var task: Task<Void, Never>?
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var refreshQueued = false
+    @ObservationIgnored private var refreshRun = 0
     @ObservationIgnored private var pending: PendingAttempt?
     @ObservationIgnored private var listeners: [UUID: @MainActor (ConnectionSignal) -> Void] = [:]
     @ObservationIgnored private var interfaces: [String: WeakInterface] = [:]
@@ -268,6 +272,10 @@ public final class ComputerConnection: CommandRunner {
         abandon("the app stopped it")
         task?.cancel()
         task = nil
+        refreshTask?.cancel()
+        refreshTask = nil
+        refreshQueued = false
+        refreshRun &+= 1
         streamID = nil
         leavePath()
         if state != .unauthorized { move(to: .offline(nil)) }
@@ -361,9 +369,29 @@ public final class ComputerConnection: CommandRunner {
     }
 
     public func refreshWorkspaces() async {
-        guard let list = try? await client.workspaces() else { return }
+        guard let list = try? await client.workspaces(), !Task.isCancelled, list != workspaces else { return }
         workspaces = list
         save()
+    }
+
+    public func refreshWorkspacesSoon() {
+        guard refreshTask == nil else {
+            refreshQueued = true
+            return
+        }
+        refreshRun &+= 1
+        let run = refreshRun
+        refreshTask = Task { [weak self] in
+            while let self, !Task.isCancelled {
+                await self.refreshWorkspaces()
+                try? await self.sleep(Self.workspaceRefreshEvery)
+                guard self.refreshQueued, !Task.isCancelled else { break }
+                self.refreshQueued = false
+            }
+            guard let self, self.refreshRun == run else { return }
+            self.refreshQueued = false
+            self.refreshTask = nil
+        }
     }
 
     public func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
@@ -472,6 +500,11 @@ public final class ComputerConnection: CommandRunner {
 
     public var pathChoices: [PathChoice] {
         selector.paths.count > 1 ? PathChoice.allCases : []
+    }
+
+    public var isOffline: Bool {
+        if case .offline = state { return true }
+        return false
     }
 
     public var shortPresence: String {
@@ -606,6 +639,9 @@ public final class ComputerConnection: CommandRunner {
                             await loadUsage()
                             if Task.isCancelled { return }
                         }
+                        if event.topic == Topic.agentsChanged {
+                            refreshWorkspacesSoon()
+                        }
                         if event.topic == Self.voiceSettingsTopic {
                             voiceEnabled = event.payload["enabled"]?.boolValue
                         }
@@ -729,6 +765,10 @@ public final class ComputerConnection: CommandRunner {
         pending = nil
         task?.cancel()
         task = nil
+        refreshTask?.cancel()
+        refreshTask = nil
+        refreshQueued = false
+        refreshRun &+= 1
     }
 
     private func emit(_ signal: ConnectionSignal) {

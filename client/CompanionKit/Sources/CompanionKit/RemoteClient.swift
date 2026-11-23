@@ -84,16 +84,40 @@ public struct Workspace: Codable, Sendable, Equatable, Identifiable, Hashable {
         }
     }
 
+    public struct Activity: Codable, Sendable, Equatable, Hashable {
+        public let needsYou: Int
+        public let running: Int
+        public let failed: Int
+        public let lastActiveAt: Date?
+
+        public init(needsYou: Int = 0, running: Int = 0, failed: Int = 0, lastActiveAt: Date? = nil) {
+            self.needsYou = needsYou
+            self.running = running
+            self.failed = failed
+            self.lastActiveAt = lastActiveAt
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            needsYou = try c.decodeIfPresent(Int.self, forKey: .needsYou) ?? 0
+            running = try c.decodeIfPresent(Int.self, forKey: .running) ?? 0
+            failed = try c.decodeIfPresent(Int.self, forKey: .failed) ?? 0
+            lastActiveAt = try? c.decodeIfPresent(Date.self, forKey: .lastActiveAt)
+        }
+    }
+
     public let id: String
     public let name: String
     public let folders: [Folder]?
     public let home: Bool?
+    public let activity: Activity?
 
-    public init(id: String, name: String, folders: [Folder]? = nil, home: Bool? = nil) {
+    public init(id: String, name: String, folders: [Folder]? = nil, home: Bool? = nil, activity: Activity? = nil) {
         self.id = id
         self.name = name
         self.folders = folders
         self.home = home
+        self.activity = activity
     }
 
     public static func homeFirst(_ workspaces: [Workspace]) -> [Workspace] {
