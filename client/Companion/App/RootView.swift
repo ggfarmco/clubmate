@@ -488,7 +488,10 @@ struct WelcomeView: View {
         ContentUnavailableView {
             Label("Pair a Mac", systemImage: "macbook.and.iphone")
         } description: {
-            Text("On your Mac, open Clubmate Settings › Remote › Pair Device…, then scan the code.\n\nWorks over Tailscale, or through the relay without it.")
+            Text("On your Mac, open Clubmate Settings › Remote › Pair Device…, then scan the code.")
+            Text("Works over Tailscale, or through the relay without it.")
+                .font(.footnote)
+                .foregroundStyle(Color.captionInk)
         } actions: {
             Button("Scan code", systemImage: "qrcode.viewfinder") {
                 navigation.scanOnPair = true

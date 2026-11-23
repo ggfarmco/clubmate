@@ -138,7 +138,7 @@ struct WelcomeView: View {
                 }
             }
         }
-        .frame(width: 440)
+        .frame(width: 480)
         .padding(theme.gutter * 3)
         .padding(.top, picked == nil ? height * 0.25 : 0)
         .frame(maxWidth: picked == nil ? .infinity : nil, maxHeight: picked == nil ? .infinity : nil, alignment: .top)
@@ -219,13 +219,12 @@ private struct SetupRow: View {
                     .foregroundStyle(theme.foreground)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .layoutPriority(1)
                 if !detail.isEmpty {
                     Text("· \(detail)")
                         .foregroundStyle(failure == nil ? theme.muted : theme.danger)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .layoutPriority(failure == nil ? 1 : 0)
-                        .fixedSize(horizontal: failure == nil, vertical: false)
                 }
             }
             .font(theme.ui)

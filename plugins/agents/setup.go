@@ -60,7 +60,7 @@ const (
 	gitHint        = "Installs the Xcode Command Line Tools (xcode-select --install)."
 	checkingText   = "Getting Claude ready…"
 	firstRunTitle  = "Start your first agent"
-	firstRunText   = "An agent can work in its own worktree, and every turn saves a git checkpoint you can go back to."
+	firstRunText   = "Each agent can work in its own worktree, and every turn saves a git checkpoint you can go back to."
 	installNodeTab = "Install Node"
 	signInTab      = "Sign in to Claude"
 	installGitTab  = "Install git"

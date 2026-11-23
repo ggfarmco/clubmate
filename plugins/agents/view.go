@@ -20,6 +20,9 @@ const (
 	pickSession    = "Start an agent session with + New"
 	homePickTitle  = "Start a session about anything"
 	pickIcon       = "sparkles"
+	setupIcon      = "exclamationmark.circle"
+	signInIcon     = "key"
+	setupButtonGap = 8
 	homePickText   = "Agents in Home can read every workspace's backlog, sessions and wiki, and never change them. Try \"What waits for me today?\""
 	newSessionNode = "main/new"
 	newSessionText = "New session"
@@ -213,6 +216,7 @@ func pickSessionView(home bool, setup setupState, first bool) sdui.Node {
 func setupEmpty(st setupState, add sdui.Node) (sdui.Node, bool) {
 	var p sdui.EmptyProps
 	text := ""
+	p.Icon = setupIcon
 	switch st.State {
 	case setupNodeMissing, setupNodeOld:
 		p.Title, text, p.Note = nodeTitle, nodeNeedText, nodeBrewHint
@@ -223,17 +227,16 @@ func setupEmpty(st setupState, add sdui.Node) (sdui.Node, bool) {
 			p.Note = nodeURLHint
 		}
 	case setupSignedOut:
-		p.Title, text, p.Note = signInEmpty, signInText, signInHint
+		p.Title, text, p.Note, p.Icon = signInEmpty, signInText, signInHint, signInIcon
 	case setupGitMissing:
 		p.Title, text, p.Note = gitTitle, gitText, gitHint
 	default:
 		return sdui.Node{}, false
 	}
-	p.Icon = pickIcon
 	if st.Fix != nil {
 		fix := sdui.WithVariant(sdui.WithAction(sdui.Button(setupFixNode, st.Fix.Label, ""), actSetupFix), sdui.VariantPrimary)
 		if st.State == setupGitMissing {
-			fix = sdui.HStack(add, sdui.WithVariant(sdui.WithAction(sdui.Button(setupFixNode, st.Fix.Label, ""), actSetupFix), sdui.VariantSecondary))
+			fix = sdui.WithGap(sdui.HStack(add, sdui.WithVariant(sdui.WithAction(sdui.Button(setupFixNode, st.Fix.Label, ""), actSetupFix), sdui.VariantSecondary)), setupButtonGap)
 		}
 		p.Action = &fix
 	}
