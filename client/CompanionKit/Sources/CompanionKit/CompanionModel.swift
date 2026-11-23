@@ -159,7 +159,7 @@ public final class CompanionModel {
 
     private func identified(_ computer: Computer) {
         let before = computers.first { $0.id == computer.id }?.tag
-        try? store.identify(computer.id, as: ComputerInfo(id: computer.id, name: computer.name, colour: computer.colour))
+        try? store.identify(computer.id, as: ComputerInfo(id: computer.id, name: computer.name, colour: computer.colour, model: computer.model))
         computers = store.computers
         if computers.first(where: { $0.id == computer.id })?.tag != before { sendMacs(excluding: computer.id) }
     }

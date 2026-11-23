@@ -32,10 +32,11 @@ public struct Computer: Codable, Sendable, Equatable, Identifiable, Hashable {
     public var pairedAt: Date
     public var lastSeen: Date?
     public var colour: String?
+    public var model: String?
     public var relay: RelayRoute?
     public var path: PathChoice
 
-    public init(id: String, name: String, hosts: [String], port: Int, pairedAt: Date = .now, lastSeen: Date? = nil, colour: String? = nil, relay: RelayRoute? = nil, path: PathChoice = .auto) {
+    public init(id: String, name: String, hosts: [String], port: Int, pairedAt: Date = .now, lastSeen: Date? = nil, colour: String? = nil, model: String? = nil, relay: RelayRoute? = nil, path: PathChoice = .auto) {
         self.id = id
         self.name = name
         self.hosts = hosts
@@ -43,6 +44,7 @@ public struct Computer: Codable, Sendable, Equatable, Identifiable, Hashable {
         self.pairedAt = pairedAt
         self.lastSeen = lastSeen
         self.colour = colour
+        self.model = model
         self.relay = relay
         self.path = path
     }
@@ -56,8 +58,13 @@ public struct Computer: Codable, Sendable, Equatable, Identifiable, Hashable {
         pairedAt = try c.decode(Date.self, forKey: .pairedAt)
         lastSeen = try c.decodeIfPresent(Date.self, forKey: .lastSeen)
         colour = try c.decodeIfPresent(String.self, forKey: .colour)
+        model = try? c.decodeIfPresent(String.self, forKey: .model)
         relay = try? c.decodeIfPresent(RelayRoute.self, forKey: .relay)
         path = (try? c.decodeIfPresent(PathChoice.self, forKey: .path)) ?? .auto
+    }
+
+    public var symbol: String {
+        model == "laptop" ? "laptopcomputer" : "desktopcomputer"
     }
 }
 
@@ -136,9 +143,11 @@ public final class ComputerStore {
     public func identify(_ id: String, as info: ComputerInfo) throws {
         guard let index = computers.firstIndex(where: { $0.id == id }) else { return }
         let colour = info.colour ?? computers[index].colour
-        guard computers[index].name != info.name || computers[index].colour != colour else { return }
+        let model = info.model ?? computers[index].model
+        guard computers[index].name != info.name || computers[index].colour != colour || computers[index].model != model else { return }
         computers[index].name = info.name
         computers[index].colour = colour
+        computers[index].model = model
         try persist()
     }
 

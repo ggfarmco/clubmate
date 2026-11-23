@@ -25,7 +25,7 @@ struct WorkspaceCapsule: View {
                                 navigation.push(.macDetails(computer: connection.computer.id))
                             }
                         } label: {
-                            Label(connection.computer.name, systemImage: "desktopcomputer")
+                            Label(connection.computer.name, systemImage: connection.computer.symbol)
                             if let subtitle = macSubtitle(connection, now: now) {
                                 Text(subtitle)
                             }
@@ -82,21 +82,19 @@ struct WorkspaceCapsule: View {
 
     @ViewBuilder
     private func workspaceRows(_ connection: ComputerConnection, now: Date) -> some View {
-        let current = context.navigation.workspaceKey
         ForEach(Workspace.homeFirst(connection.workspaces)) { workspace in
             let key = WorkspaceKey(computer: connection.computer.id, workspace: workspace.id)
             let state = summary(workspace, in: connection)
-            let isCurrent = key == current
-            let subtitle = state.subtitle(now: now, asOf: connection.lastSeen, offline: connection.isOffline)
-            Button {
-                context.navigation.switchWorkspace(computer: connection.computer.id, workspace: workspace.id)
-            } label: {
-                Label(workspace.name, systemImage: isCurrent ? "checkmark" : state.glyph(home: workspace.home == true))
-                if let subtitle {
+            Toggle(isOn: Binding {
+                context.navigation.workspaceKey == key
+            } set: { _ in
+                context.navigation.switchWorkspace(computer: key.computer, workspace: key.workspace)
+            }) {
+                Label(WorkspaceSummary.rowName(workspace.name), systemImage: state.glyph(home: workspace.home == true))
+                if let subtitle = state.subtitle(now: now, asOf: connection.lastSeen, offline: connection.isOffline) {
                     Text(subtitle)
                 }
             }
-            .accessibilityLabel(state.accessibilityLabel(name: workspace.name, current: isCurrent, now: now, asOf: connection.lastSeen, offline: connection.isOffline))
         }
     }
 

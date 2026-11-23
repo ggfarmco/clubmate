@@ -76,9 +76,10 @@ public struct WorkspaceSummary: Sendable, Equatable {
         return text.map { prefix + " · " + $0 } ?? prefix
     }
 
-    public func accessibilityLabel(name: String, current: Bool, now: Date, asOf: Date? = nil, offline: Bool = false) -> String {
-        let detail = subtitle(now: now, asOf: asOf, offline: offline).map { $0.replacingOccurrences(of: " · ", with: ", ") }
-        return [name, current ? "current workspace" : nil, detail].compactMap { $0 }.joined(separator: ", ")
+    public static let rowNameLimit = 18
+
+    public static func rowName(_ name: String) -> String {
+        name.count > rowNameLimit ? name.prefix(rowNameLimit - 1) + "…" : name
     }
 
     public static func macSubtitle(_ summary: Self, offline: Bool, lastSeen: Date?, now: Date) -> String? {

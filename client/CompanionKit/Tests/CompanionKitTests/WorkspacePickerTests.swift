@@ -61,10 +61,8 @@ final class WorkspacePickerTests: XCTestCase {
         XCTAssertEqual(WorkspaceSummary.of(list) { $0.id == "a" ? 3 : 0 }, WorkspaceSummary(needsYou: 3))
     }
 
-    func testVoiceOverLabelNamesCurrentAndStatus() {
-        let state = WorkspaceSummary(needsYou: 2, running: 1)
-
-        XCTAssertEqual(state.accessibilityLabel(name: "shop", current: true, now: now), "shop, current workspace, 2 waiting, 1 running")
-        XCTAssertEqual(state.accessibilityLabel(name: "shop", current: false, now: now), "shop, 2 waiting, 1 running")
+    func testRowNameCutsALongNameToOneMenuLine() {
+        XCTAssertEqual(WorkspaceSummary.rowName("infra-terraform-staging-eu-central-1-migration"), "infra-terraform-s…")
+        XCTAssertEqual(WorkspaceSummary.rowName("infra-terraform-st"), "infra-terraform-st")
     }
 }

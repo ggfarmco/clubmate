@@ -437,6 +437,18 @@ final class CompanionUITests: XCTestCase {
         }
     }
 
+    func testCapsuleRowReadsSelectedNameAndState() {
+        let app = launch(open: "agents", ["-activity", "YES", "-longWorkspace", "YES"])
+        XCTAssertTrue(capsuleShows(app, "shop"))
+        openCapsule(app)
+        let shop = menuItem(app, "shop")
+        let long = menuItem(app, "infra-terraform-s…")
+        XCTAssertEqual(shop.label, "shop, 2 waiting · 1 running")
+        XCTAssertTrue(shop.isSelected)
+        XCTAssertEqual(long.label, "infra-terraform-s…, 1 failed")
+        XCTAssertFalse(long.isSelected)
+    }
+
     func testCapsuleMenuRowsTap() {
         let app = launch(open: "agents")
         XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))

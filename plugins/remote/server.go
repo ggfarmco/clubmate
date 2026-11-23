@@ -74,6 +74,7 @@ type computer struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Colour string `json:"colour"`
+	Model  string `json:"model,omitempty"`
 }
 
 type apiError struct {

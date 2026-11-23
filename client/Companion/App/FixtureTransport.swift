@@ -164,13 +164,14 @@ struct FixtureMac: Sendable {
     static let relayKid = "aaa8fff703b50b22"
     static let homeWorkspace = "prj_00000000000000f0"
 
-    static let studio = FixtureMac(id: "mac-mock", name: "Mac Studio", colour: "blue", host: "100.101.1.2", workspaces: [("prj_00000000000000f1", "shop"), ("prj_00000000000000f2", "clubmate")])
-    static let pro = FixtureMac(id: "mac-pro", name: "MacBook Pro", colour: "magenta", host: "100.101.1.3", workspaces: [("prj_00000000000000f3", "infra")])
-    static let air = FixtureMac(id: "mac-air", name: "MacBook Air", colour: "graphite", host: "100.101.1.4", workspaces: [("prj_00000000000000f4", "shop-api")])
+    static let studio = FixtureMac(id: "mac-mock", name: "Mac Studio", colour: "blue", model: "desktop", host: "100.101.1.2", workspaces: [("prj_00000000000000f1", "shop"), ("prj_00000000000000f2", "clubmate")])
+    static let pro = FixtureMac(id: "mac-pro", name: "MacBook Pro", colour: "magenta", model: "laptop", host: "100.101.1.3", workspaces: [("prj_00000000000000f3", "infra")])
+    static let air = FixtureMac(id: "mac-air", name: "MacBook Air", colour: "graphite", model: "laptop", host: "100.101.1.4", workspaces: [("prj_00000000000000f4", "shop-api")])
 
     let id: String
     let name: String
     let colour: String
+    let model: String
     let host: String
     let workspaces: [(id: String, name: String)]
 
@@ -617,7 +618,7 @@ actor FixtureServer {
     }
 
     private var computer: JSONValue {
-        .object(["id": .string(mac.id), "name": .string(mac.name), "colour": .string(colour)])
+        .object(["id": .string(mac.id), "name": .string(mac.name), "colour": .string(colour), "model": .string(mac.model)])
     }
 
     private func command(_ id: String, workspace: String, args: JSONValue) -> JSONValue {

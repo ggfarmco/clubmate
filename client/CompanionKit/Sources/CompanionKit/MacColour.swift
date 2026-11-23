@@ -51,10 +51,6 @@ public struct MacTag: Codable, Sendable, Equatable, Hashable {
     }
 
     public var macColour: MacColour { MacColour(token: colour) }
-
-    public var glyph: String {
-        name.localizedCaseInsensitiveContains("MacBook") ? "laptopcomputer" : "desktopcomputer"
-    }
 }
 
 extension Computer {

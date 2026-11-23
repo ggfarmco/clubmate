@@ -430,16 +430,22 @@ func TestRPCNeedsAKnownToken(t *testing.T) {
 
 func TestCommandRunsOnlyRemoteCommands(t *testing.T) {
 	f := newFixture(t)
+	f.srv.identity.comp.Model = modelLaptop
 	token := f.pair(t, "phone")
 
 	_, hello := f.call(t, token, "hello", nil)
 	_, ok := f.call(t, token, "command", map[string]any{"id": "agents.sessions", "workspace": "prj_1", "args": map[string]any{"x": 1}})
 	_, denied := f.call(t, token, "command", map[string]any{"id": "agents.delete", "workspace": "prj_1"})
 
-	assert.JSONEq(t, `{"computer":{"id":"cmp","name":"Mac","colour":""},"version":"1.2.3","commands":["agents.sessions"],"topics":["agents.changed","agents.usage","awake.changed","backlog.changed","docs.changed","docs.opened","notify.posted","plugin.changed","remote.identity","voice.changed","voice.settings-changed"],"ui":true,"requests":true,"reports":true}`, string(hello.Result))
+	assert.JSONEq(t, `{"computer":{"id":"cmp","name":"Mac","colour":"","model":"laptop"},"version":"1.2.3","commands":["agents.sessions"],"topics":["agents.changed","agents.usage","awake.changed","backlog.changed","docs.changed","docs.opened","notify.posted","plugin.changed","remote.identity","voice.changed","voice.settings-changed"],"ui":true,"requests":true,"reports":true}`, string(hello.Result))
 	assert.JSONEq(t, `{"ran":"agents.sessions"}`, string(ok.Result))
 	assert.Equal(t, []runCall{{id: "agents.sessions", workspace: "prj_1", args: `{"x":1}`}}, f.backend.calls())
 	assert.Equal(t, codeNotAllowed, denied.Error.Code)
+}
+
+func TestModelFromBattery(t *testing.T) {
+	assert.Equal(t, modelLaptop, modelFromBattery("Now drawing from 'AC Power'\n -InternalBattery-0 (id=23134307)\t80%; AC attached; not charging present: true\n"))
+	assert.Equal(t, modelDesktop, modelFromBattery("Now drawing from 'AC Power'\n"))
 }
 
 func TestRemoteHelloListsAliases(t *testing.T) {

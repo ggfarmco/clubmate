@@ -813,6 +813,7 @@ func loadComputer(ctx context.Context, h *pluginsdk.Host) (computer, error) {
 		c.ID = rand.Text()
 	}
 	c.Name = computerName(ctx)
+	c.Model = computerModel(ctx)
 	return c, h.StorageSet(ctx, computerKey, c)
 }
 

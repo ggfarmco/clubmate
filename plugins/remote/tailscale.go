@@ -11,6 +11,11 @@ import (
 )
 
 const (
+	modelLaptop  = "laptop"
+	modelDesktop = "desktop"
+)
+
+const (
 	tailscaleApp     = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
 	tailscaleTimeout = 3 * time.Second
 )
@@ -105,10 +110,26 @@ func backendReason(state string) string {
 }
 
 func computerName(ctx context.Context) string {
+	ctx, cancel := context.WithTimeout(ctx, tailscaleTimeout)
+	defer cancel()
 	out, err := exec.CommandContext(ctx, "scutil", "--get", "ComputerName").Output()
 	if name := strings.TrimSpace(string(out)); err == nil && name != "" {
 		return name
 	}
 	name, _ := os.Hostname()
 	return name
+}
+
+func computerModel(ctx context.Context) string {
+	ctx, cancel := context.WithTimeout(ctx, tailscaleTimeout)
+	defer cancel()
+	out, _ := exec.CommandContext(ctx, "pmset", "-g", "batt").Output()
+	return modelFromBattery(string(out))
+}
+
+func modelFromBattery(pmset string) string {
+	if strings.Contains(pmset, "InternalBattery") {
+		return modelLaptop
+	}
+	return modelDesktop
 }

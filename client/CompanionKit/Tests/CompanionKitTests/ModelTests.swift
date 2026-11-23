@@ -316,6 +316,17 @@ final class ModelTests: XCTestCase {
     }
 
     @MainActor
+    func testHelloModelPicksTheMacGlyph() throws {
+        let store = ComputerStore(file: nil, vault: MemoryTokenVault())
+        try store.save(Computer(id: "m", name: "Mac", hosts: [], port: 1), token: "t")
+        XCTAssertEqual(store.computers[0].symbol, "desktopcomputer")
+
+        let hello = try JSONDecoder.clubmate.decode(Hello.self, from: Data(#"{"computer":{"id":"m","name":"Mac","colour":"blue","model":"laptop"},"version":"1","commands":[],"topics":[]}"#.utf8))
+        try store.identify("m", as: hello.computer)
+        XCTAssertEqual(store.computers[0].symbol, "laptopcomputer")
+    }
+
+    @MainActor
     func testComputerStoreKeepsLastSeenAcrossLaunches() async throws {
         let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "computers.json")
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)

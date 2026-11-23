@@ -31,11 +31,13 @@ public struct ComputerInfo: Codable, Sendable, Equatable {
     public let id: String
     public let name: String
     public let colour: String?
+    public let model: String?
 
-    public init(id: String, name: String, colour: String? = nil) {
+    public init(id: String, name: String, colour: String? = nil, model: String? = nil) {
         self.id = id
         self.name = name
         self.colour = colour
+        self.model = model
     }
 }
 
@@ -240,7 +242,7 @@ public actor RemoteClient {
             guard reply.computer.id == link.computerID else { throw RemoteError.pairingFailed(mismatchMessage) }
             if host == nil, reply.relayTicket?.isEmpty ?? true { throw RemoteError.pairingFailed(noRelayTicketMessage) }
             let hosts = host.map { first in [first] + tailnet.filter { $0 != first } } ?? tailnet
-            let computer = Computer(id: reply.computer.id, name: reply.computer.name, hosts: hosts, port: link.port, pairedAt: now, colour: reply.computer.colour, relay: link.relay)
+            let computer = Computer(id: reply.computer.id, name: reply.computer.name, hosts: hosts, port: link.port, pairedAt: now, colour: reply.computer.colour, model: reply.computer.model, relay: link.relay)
             return PairResult(token: reply.token, relayTicket: reply.relayTicket, computer: computer)
         case 403 where host == nil && mayHavePaired:
             throw RemoteError.pairingFailed(mayHavePairedMessage)

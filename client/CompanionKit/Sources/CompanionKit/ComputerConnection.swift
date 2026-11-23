@@ -698,6 +698,7 @@ public final class ComputerConnection: CommandRunner {
         guard info.id == computer.id else { return }
         computer.name = info.name
         if let colour = info.colour { computer.colour = colour }
+        if let model = info.model { computer.model = model }
     }
 
     private func loadVoiceSettings() async {
