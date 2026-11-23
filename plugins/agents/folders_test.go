@@ -389,7 +389,7 @@ func (f *fixture) jobEnabled(t *testing.T, workspace, job string) bool {
 
 func TestFolderRemoveLetsASessionInAnotherWorkspaceBe(t *testing.T) {
 	t.Parallel()
-	f := startWithCron(t, map[string]any{"prompt": []map[string]any{{"sleep": 3000}}})
+	f := startWithCron(t, map[string]any{"prompt": []map[string]any{{"wait": filepath.Join(t.TempDir(), "never")}}})
 	workspace, _, second := f.twoFolders(t)
 	f.runningIn(t, addWorktree(t, second, "feat-x"))
 
@@ -401,7 +401,7 @@ func TestFolderRemoveLetsASessionInAnotherWorkspaceBe(t *testing.T) {
 
 func TestFolderSheetHoldsATickedWorktreeBeyondTheFolder(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"prompt": []map[string]any{{"sleep": 3000}}})
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"wait": filepath.Join(t.TempDir(), "never")}}})
 	repo := newRepo(t)
 	sub := filepath.Join(repo, "sub")
 	require.NoError(t, os.Mkdir(sub, 0o755))

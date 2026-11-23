@@ -624,10 +624,11 @@ func (f *fixture) callReviewer(t *testing.T, workspace, session, gate, except st
 			gf := r.GateFor
 			return gf != nil && gf.Point == "tool" && gf.Lander == session && gf.Gate == gate && gf.Verdict && !gf.Done && r.Status != "closed" && r.ID != except
 		})
-		if i >= 0 {
-			found = list[i]
+		if i < 0 || list[i].AgentSessionID == "" || len(f.promptsTo(t, list[i].AgentSessionID, callReview)) == 0 {
+			return false
 		}
-		return i >= 0
+		found = list[i]
+		return true
 	}, wait)
 	return found
 }

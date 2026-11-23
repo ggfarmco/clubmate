@@ -14,6 +14,7 @@ import (
 
 const (
 	rpcTimeout    = 2 * time.Second
+	saveCheckWait = 10 * time.Second
 	modeTimeout   = 500 * time.Millisecond
 	socketPoll    = 50 * time.Millisecond
 	socketWait    = 5 * time.Second
@@ -180,7 +181,7 @@ func (c *client) checktime() error {
 
 func (c *client) modified() ([]string, error) {
 	var names []string
-	if err := c.exec(modifiedLua, &names); err != nil {
+	if err := c.callWithin(saveCheckWait, func(v *nvim.Nvim) error { return v.ExecLua(modifiedLua, &names) }); err != nil {
 		return nil, err
 	}
 	return names, nil
