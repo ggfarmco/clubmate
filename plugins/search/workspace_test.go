@@ -175,14 +175,6 @@ func groupIDs(r workspaceResult) []string {
 	return ids
 }
 
-func errorIDs(r workspaceResult) []string {
-	ids := make([]string, 0, len(r.Errors))
-	for _, e := range r.Errors {
-		ids = append(ids, e.ID)
-	}
-	return ids
-}
-
 func mapKeys(m map[string]string) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {

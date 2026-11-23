@@ -32,9 +32,9 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 ## Core (`internal/`)
 | Package | Role |
 |---|---|
-| `rpc` | JSON-RPC server, built-in methods (primitives), command registry. Every command is flagged `agent` (visible to MCP/agents), `destructive` (needs in-app approval when an agent calls it), `hidden` (not in the palette), or `remote` (runnable by paired companion devices); an agent call to a command without `agent` gets unknown command. `scope: app` commands need no workspace. An agent caller (`agt_…`) must belong to the workspace it names, checked against `agents.sessions` (`caller_scope.go`). |
+| `rpc` | JSON-RPC server, built-in methods (primitives), command registry. Every command is flagged `agent` (visible to MCP/agents), `destructive` (needs in-app approval when an agent calls it), `readOnly` (changes nothing; MCP `readOnlyHint`), `hidden` (not in the palette), or `remote` (runnable by paired companion devices); an agent call to a command without `agent` gets unknown command. `scope: app` commands need no workspace. An agent caller (`agt_…`) must belong to the workspace it names, checked against `agents.sessions` (`caller_scope.go`); a caller listed in the Home workspace also passes for a `readOnly` command (`docs/agents.md` § Home reads). |
 | `bus` | Persistent event bus on SQLite (`bus.db`). Topics, publish, subscribe with backfill, 64 KiB payload cap. Pruned on start and hourly (`retention.go`): 30 days or the newest 10 000 events, never below a stored cursor younger than 90 days (`docs/sdui-protocol.md` § Bus topics). Plugins and the app react to `workspace.updated`, `agents.changed`, `notify.posted`, … |
-| `core` | The service behind the built-in methods: workspaces and folders, sessions, process trees and kills, process roots plugins register; publishes their bus events. |
+| `core` | The service behind the built-in methods: workspaces and folders, sessions, process trees and kills, process roots plugins register; makes the Home workspace at start (`home.go`: `~/.clubmate/home` with git, can't be removed); publishes their bus events. |
 | `workspace` | Workspaces (`clubmate.db`): folders, git repos, the selected worktree per folder, missing folders. |
 | `session` | Session manager: creates, attaches, kills and removes `clubmate-session` hosts; owner plugin and workspace per session. |
 | `proc` | Process tracker (reads processes through libproc, no `ps`): process trees per session and per root a plugin registered (agents), CPU/MEM history, orphan detection and kill. |
@@ -43,7 +43,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 | `kv` | Plugin storage (`plugins.db`). Each plugin also has a private state dir, `plugin-data/<id>`. |
 | `cli` | The `clubmate`/`cm` commands: open, workspace, session, attach, process, command, agent, plugin, bus, notify, ui (sections, dump, event, snapshot, present, key, click, hover, drag, menu, scroll, drop), core, diagnostics, debug, mcp, version. |
 | `sessionhost` | The PTY host inside `clubmate-session`: scrollback, terminal state kept for the next attach, bell, open-file limit. |
-| `mcp` | `clubmate mcp`: exposes agent-visible commands as MCP tools, scoped to `$CLUBMATE_WORKSPACE_ID` (another `workspace` is refused; the core denies agent `session.read/send/kill` on a session of another workspace). |
+| `mcp` | `clubmate mcp`: exposes agent-visible commands as MCP tools, scoped to `$CLUBMATE_WORKSPACE_ID` (another `workspace` is refused, except that from Home `readOnly` tools may name one; the core denies agent `session.send/kill` on a session of another workspace, and `session.read` too unless the caller is in Home). |
 | `notify` | `notify.post`: validates, rate-limits (per workspace and global) and publishes `notify.posted`. |
 | `shellenv` | Resolves the login-shell environment once, so GUI-launched processes get your `PATH`. |
 | `diagnostics` | `diagnostics.collect`: the zip behind Help → Collect Diagnostics. |
