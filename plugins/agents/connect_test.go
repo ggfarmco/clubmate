@@ -96,6 +96,7 @@ func (f *fixture) folderPaths(t *testing.T, workspace string) []string {
 
 func (f *fixture) restartAgents(t *testing.T, workspace string) {
 	t.Helper()
+	f.waitSaved(t, workspace)
 	before := f.agentsPID(t)
 	require.NoError(t, syscall.Kill(before, syscall.SIGKILL))
 	testutil.Eventually(t, func() bool {

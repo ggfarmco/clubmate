@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"os/exec"
@@ -393,7 +394,7 @@ func (f *fixture) waitRecord(t *testing.T, workspace, session, want string, cond
 		got = f.session(t, workspace, session)
 		return cond(got)
 	}, wait)
-	require.True(t, reached, "session %s never reached %s: status %q, pending %v, error %q, start notice %q", session, want, got.Status, got.Pending, got.Error, got.StartNotice)
+	require.True(t, reached, "session %s never reached %s: status %q, pending %v, calls %+v, error %q, start notice %q", session, want, got.Status, got.Pending, got.Calls, got.Error, got.StartNotice)
 	return got
 }
 
@@ -961,8 +962,51 @@ func TestCheckpointPerTurn(t *testing.T) {
 	assert.Empty(t, git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/"))
 }
 
+type storedState struct {
+	Status string          `json:"status"`
+	Turns  int             `json:"turns"`
+	Held   json.RawMessage `json:"held"`
+}
+
+func (s storedState) String() string {
+	return fmt.Sprintf("status %q, turns %d, held %t", s.Status, s.Turns, len(s.Held) > 0 && string(s.Held) != "null")
+}
+
+func (f *fixture) waitSaved(t *testing.T, workspace string) {
+	t.Helper()
+	var diff string
+	saved := testutil.Poll(func() bool {
+		var live []struct {
+			ID string `json:"id"`
+			storedState
+		}
+		if err := f.run(t, workspace, "agents.sessions", map[string]any{}, &live); err != nil {
+			diff = err.Error()
+			return false
+		}
+		for _, l := range live {
+			if !strings.HasPrefix(l.ID, "agt_") {
+				continue
+			}
+			raw, found, err := f.h.KV.Get(t.Context(), "agents", "session/"+workspace+"/"+l.ID)
+			require.NoError(t, err)
+			var got storedState
+			if found {
+				require.NoError(t, json.Unmarshal(raw, &got))
+			}
+			if !found || got.String() != l.storedState.String() {
+				diff = fmt.Sprintf("session %s: live %s, stored %s (found %t)", l.ID, l.storedState, got, found)
+				return false
+			}
+		}
+		return true
+	}, wait)
+	require.True(t, saved, "the stored sessions never matched the live ones: %s", diff)
+}
+
 func (f *fixture) restartPlugin(t *testing.T, workspace string) {
 	t.Helper()
+	f.waitSaved(t, workspace)
 	pids := f.h.Sup.PIDs()
 	require.Len(t, pids, 1)
 	first := f.calls(t, "start")

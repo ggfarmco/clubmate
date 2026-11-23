@@ -97,6 +97,7 @@ func permissionNote(n sdui.Node) string {
 
 func (f *fixture) restartAgentsAmong(t *testing.T, workspace string) {
 	t.Helper()
+	f.waitSaved(t, workspace)
 	pid := func() int {
 		i := slices.IndexFunc(f.h.Sup.Statuses(), func(s plugin.Status) bool { return s.ID == "agents" })
 		if i < 0 {
