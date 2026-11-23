@@ -66,6 +66,8 @@ struct StackNodeView: View {
                 .padding(.leading, theme.spacing.xl)
                 .padding(.trailing, theme.spacing.m)
                 .frame(maxWidth: .infinity, minHeight: theme.control + theme.spacing.m, maxHeight: theme.control + theme.spacing.m, alignment: .leading)
+                .background(theme.surface1)
+                .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
             if let barNote, node.bool("notes") == true {
                 BarNoteView(note: barNote)
             }

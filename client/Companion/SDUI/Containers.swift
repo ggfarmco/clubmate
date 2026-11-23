@@ -41,6 +41,23 @@ struct StackNode: View {
         }
     }
 
+    private var horizontal: some View {
+        Group {
+            if node.children.contains(where: { $0.props["lines"]?.numberValue == 1 }) {
+                row
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    row
+                    FlowLayout(spacing: gap ?? 8) { SDUIChildren(node: node, context: context) }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: node.children.contains { $0.type == "divider" })
+        .environment(\.sduiInset, 0)
+        .padding(.horizontal, inset)
+    }
+
     private func pageHeader(_ header: SDUINode, document: SDUINode, page: SDUIPage) -> AnyView? {
         if PadLayout.on(sizeClass) {
             let title = header.string("title").flatMap { $0.isEmpty ? nil : $0 } ?? page.title
@@ -67,21 +84,14 @@ struct StackNode: View {
                     SDUINodeView(node: child.node, context: context)
                 }
             }
-        } else if node.string("direction") == "horizontal" {
-            Group {
-                if node.children.contains(where: { $0.props["lines"]?.numberValue == 1 }) {
-                    row
-                } else {
-                    ViewThatFits(in: .horizontal) {
-                        row
-                        FlowLayout(spacing: gap ?? 8) { SDUIChildren(node: node, context: context) }
-                    }
-                }
+        } else if panelRows != nil, node.string("inset") == "bar" {
+            VStack(spacing: 0) {
+                horizontal
+                Divider()
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: node.children.contains { $0.type == "divider" })
-            .environment(\.sduiInset, 0)
-            .padding(.horizontal, inset)
+            .background(Color.surface1)
+        } else if node.string("direction") == "horizontal" {
+            horizontal
         } else if panelRows != nil, node.string("inset") == "foot" {
             VStack(alignment: .leading, spacing: gap ?? 6) { SDUIChildren(node: node, context: context) }
                 .environment(\.sduiInset, 0)
