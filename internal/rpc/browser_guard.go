@@ -23,6 +23,12 @@ var (
 		netip.MustParsePrefix("0.0.0.0/8"),
 		netip.MustParsePrefix("100.64.0.0/10"),
 		netip.MustParsePrefix("255.255.255.255/32"),
+		netip.MustParsePrefix("::/96"),
+		netip.MustParsePrefix("64:ff9b::/96"),
+		netip.MustParsePrefix("64:ff9b:1::/48"),
+		netip.MustParsePrefix("2002::/16"),
+		netip.MustParsePrefix("::ffff:0:0:0/96"),
+		netip.MustParsePrefix("2001::/32"),
 	}
 )
 

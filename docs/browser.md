@@ -56,7 +56,7 @@ The core checks every browser call before it reaches the app (`internal/rpc/brow
 
 - only `http` and `https`;
 - `localhost`, `*.localhost`, `*.local`;
-- loopback, private (RFC 1918, IPv6 ULA `fc00::/7`, which covers Tailscale's `fd7a:115c:a1e0::/48`), CGNAT `100.64.0.0/10` (Tailscale), link-local (`169.254.0.0/16`, `fe80::/10`), `0.0.0.0/8`, `::`, multicast and broadcast addresses, also IPv4-mapped IPv6 and the short numeric IPv4 forms browsers accept (`127.1`, `2130706433`, `0x7f.0.0.1`);
+- loopback, private (RFC 1918, IPv6 ULA `fc00::/7`, which covers Tailscale's `fd7a:115c:a1e0::/48`), CGNAT `100.64.0.0/10` (Tailscale), link-local (`169.254.0.0/16`, `fe80::/10`), `0.0.0.0/8`, `::`, multicast and broadcast addresses, also IPv4-mapped and IPv4-compatible IPv6 (`::ffff:a.b.c.d`, `::/96`), NAT64 (`64:ff9b::/96`, `64:ff9b:1::/48`), SIIT (`::ffff:0:0:0/96`), 6to4 (`2002::/16`), Teredo (`2001::/32`) and the short numeric IPv4 forms browsers accept (`127.1`, `2130706433`, `0x7f.0.0.1`);
 - a DNS name is resolved and refused when any of its addresses is in those ranges, or when it does not resolve within 5 s.
 
 What is checked:

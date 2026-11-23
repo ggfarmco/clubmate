@@ -107,6 +107,10 @@ func TestBrowserURLGuard(t *testing.T) {
 			return []netip.Addr{netip.MustParseAddr("93.184.215.14")}, nil
 		case "rebound.test":
 			return []netip.Addr{netip.MustParseAddr("93.184.215.14"), netip.MustParseAddr("10.0.0.5")}, nil
+		case "nat64.test":
+			return []netip.Addr{netip.MustParseAddr("64:ff9b::7f00:1")}, nil
+		case "public6.test":
+			return []netip.Addr{netip.MustParseAddr("2606:4700::1111")}, nil
 		}
 		return nil, errors.New("no such host")
 	}
@@ -114,6 +118,15 @@ func TestBrowserURLGuard(t *testing.T) {
 		url     string
 		allowed bool
 	}{
+		{"https://public6.test/", true},
+		{"https://[2606:4700::1111]/", true},
+		{"https://nat64.test/", false},
+		{"http://[::7f00:1]/", false},
+		{"http://[64:ff9b::a00:1]/", false},
+		{"http://[64:ff9b:1::1]/", false},
+		{"http://[2002:7f00:1::]/", false},
+		{"http://[::ffff:0:7f00:1]/", false},
+		{"http://[2001:0:4136:e378:8000:63bf:80ff:fffe]/", false},
 		{"https://public.test/a", true},
 		{"https://93.184.215.14/", true},
 		{"https://[2606:2800:220:1::]/", true},
