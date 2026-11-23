@@ -95,6 +95,20 @@ struct CapsuleSlot: ToolbarContent {
     }
 }
 
+struct DetailCapsule: ViewModifier {
+    let tab: CompanionTab
+    let context: PluginContext
+
+    func body(content: Content) -> some View {
+        let navigation = context.navigation
+        content.toolbar {
+            if !navigation.listShown(tab, shown: tab == navigation.listTab) {
+                CapsuleSlot(context: context)
+            }
+        }
+    }
+}
+
 struct InboxSlot: ToolbarContent {
     let context: PluginContext
 

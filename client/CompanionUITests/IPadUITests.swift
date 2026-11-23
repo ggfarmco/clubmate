@@ -56,6 +56,26 @@ final class IPadUITests: XCTestCase {
         XCTAssertTrue(press(app, "s", [.control, .command], until: shown(row)))
     }
 
+    func testCapsuleSwitchesTheWorkspaceWithTheListHidden() {
+        let app = launch(open: "tab:agents")
+        XCTAssertTrue(shown(sessionRow(app)))
+        XCTAssertTrue(wait { self.capsules(app).count == 1 })
+        toggle(app).tap()
+        XCTAssertTrue(listHidden(app))
+        XCTAssertTrue(wait(timeout: 10) { self.capsules(app).count == 1 }, "no capsule in the detail column with the list hidden")
+        let capsule = capsules(app)[0]
+        XCTAssertLessThan(capsule.frame.minX, toggle(app).frame.maxX + 80)
+        capsule.tap()
+        let item = app.buttons.matching(NSPredicate(format: "identifier != 'workspace.capsule' AND (label == 'clubmate' OR label BEGINSWITH 'clubmate, ')")).element(boundBy: 0)
+        XCTAssertTrue(item.waitForExistence(timeout: 10))
+        item.tap()
+        XCTAssertTrue(wait(timeout: 10) { self.capsules(app).first?.label.contains("clubmate") == true })
+        toggle(app).tap()
+        let listCell = app.cells.containing(NSPredicate(format: "identifier BEGINSWITH 'row.'")).firstMatch
+        XCTAssertTrue(listCell.waitForExistence(timeout: 10))
+        XCTAssertTrue(wait(timeout: 10) { self.capsules(app).count == 1 && self.capsules(app)[0].frame.maxX <= listCell.frame.maxX })
+    }
+
     func testPortraitListSlidesOverAndClosesOnPick() {
         XCUIDevice.shared.orientation = .portrait
         let app = launch(open: "agents/agt_0000000000000004")
@@ -379,6 +399,10 @@ final class IPadUITests: XCTestCase {
 
     private func toggle(_ app: XCUIApplication) -> XCUIElement {
         app.buttons.matching(NSPredicate(format: "identifier CONTAINS[c] 'sidebar' OR label CONTAINS[c] 'sidebar'")).element(boundBy: 0)
+    }
+
+    private func capsules(_ app: XCUIApplication) -> [XCUIElement] {
+        app.buttons.matching(identifier: "workspace.capsule").allElementsBoundByIndex.filter { onScreen($0) && $0.isHittable }
     }
 
     private func sessionRow(_ app: XCUIApplication) -> XCUIElement {

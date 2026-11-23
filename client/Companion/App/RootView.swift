@@ -367,6 +367,7 @@ struct TabDetail: View {
             if let first = path.first {
                 NavigationStack(path: Binding(get: { Array(navigation.path(tab).dropFirst()) }, set: { navigation.setPath([first] + $0, tab: tab) })) {
                     DestinationView(entry: first, tab: tab, context: context)
+                        .modifier(DetailCapsule(tab: tab, context: context))
                         .navigationDestination(for: StackEntry.self) { entry in
                             DestinationView(entry: entry, tab: tab, context: context)
                         }
@@ -374,6 +375,7 @@ struct TabDetail: View {
                 .id(first)
             } else {
                 plugin.makeEmptyDetail(context: context)
+                    .modifier(DetailCapsule(tab: tab, context: context))
             }
         }
         .onChange(of: path.first, initial: true) { _, first in

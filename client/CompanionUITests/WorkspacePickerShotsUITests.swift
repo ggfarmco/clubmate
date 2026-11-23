@@ -71,6 +71,9 @@ final class WorkspacePickerShotsUITests: XCTestCase {
         shot(app, "ipad-hidden")
         hold(name: "ipad-hidden")
         XCTAssertTrue(app.buttons["workspace.capsule"].exists, "no capsule with the sidebar hidden")
+        openCapsule(app)
+        shot(app, "ipad-hidden-menu")
+        hold(name: "ipad-hidden-menu")
     }
 
     private func hold(name: String) {
