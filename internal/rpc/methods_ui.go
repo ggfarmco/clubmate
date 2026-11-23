@@ -16,6 +16,7 @@ import (
 	"clubmate/internal/schema"
 	"clubmate/internal/sdui"
 	"clubmate/internal/workspace"
+	"clubmate/pkg/contract"
 )
 
 const (
@@ -95,6 +96,7 @@ type focusParams struct {
 	Slot        string `json:"slot"`
 	Field       bool   `json:"field"`
 	Node        string `json:"node"`
+	OpenedFor   string `json:"openedFor"`
 }
 
 type uiFocusParams struct {
@@ -246,6 +248,13 @@ func (s *Server) uiFocus(ctx context.Context, p focusParams) (deliveredResult, e
 	if p.Node != "" && (p.Slot == "" || p.Field) {
 		return deliveredResult{}, invalidParams("node needs a slot and no field")
 	}
+	if !slices.Contains([]string{"", contract.OpenedForEdit, contract.OpenedForReview}, p.OpenedFor) {
+		return deliveredResult{}, invalidParams(fmt.Sprintf("openedFor must be %s or %s", contract.OpenedForEdit, contract.OpenedForReview))
+	}
+	token, err := s.expectSection(ctx, p.WorkspaceID, p.Section, p.OpenedFor)
+	if err != nil {
+		return deliveredResult{}, err
+	}
 	var wg sync.WaitGroup
 	var delivered atomic.Int32
 	for _, t := range s.presence.focusTargets(p.WorkspaceID) {
@@ -257,6 +266,9 @@ func (s *Server) uiFocus(ctx context.Context, p focusParams) (deliveredResult, e
 		})
 	}
 	wg.Wait()
+	if delivered.Load() == 0 && token != 0 {
+		s.forgetSection(p.WorkspaceID, token)
+	}
 	return deliveredResult{Delivered: int(delivered.Load())}, nil
 }
 

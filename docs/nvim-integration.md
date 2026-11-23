@@ -42,9 +42,11 @@ The distribution ships `lsp/*.lua` for gopls, rust_analyzer, ts_ls, tailwindcss,
 
 `:checkhealth clubmate` lists the distribution root and lock, every bundled plugin and parser, the fuzzy matcher, the theme, your user layer files, missing LSP servers with their `:MasonInstall` lines, and the bundled tools.
 
-## Import my nvim config
+## Import your nvim config
 
-Palette "Import my nvim config" (offered once when `~/.config/nvim` exists) starts an agent session that moves your own settings into the user layer; see `docs/agents.md`.
+Palette "Import ~/.config/nvim…" and Settings › General › Editors › Neovim config › Import… start an agent session that moves your own settings into the user layer; see `docs/agents.md`.
+
+Neovim asks once, "Bring your ~/.config/nvim keys and plugins into Clubmate?" (Import with an agent · Not now), when `~/.config/nvim` exists, the bundled distribution runs, and Code opens to edit: the user picks Code in the rail, or a file, quickfix list or worktree switch shows it. Code opened by Review changes, Full diff or `editor-nvim.review` does not ask. The core tells why Code opened: a `ui.focus` carries `openedFor` (`edit` or `review`), and the next `ui.section` to that section repeats it; a section switch with no such `ui.focus` is `edit`. editor-nvim stores the answer under `nvimImport` in its storage before it asks (`declined`), so a crash or a restart never asks again, and sets `imported` and publishes `editor-nvim.import {state}` when an import starts. The old `importOffered: true` reads as `declined`. Not now leaves the Settings row and the palette command.
 
 ## Bumping a plugin
 

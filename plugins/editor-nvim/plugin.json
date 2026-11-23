@@ -205,9 +205,9 @@
       },
       {
         "id": "editor-nvim.import-config",
-        "title": "Import my nvim config",
+        "title": "Import ~/.config/nvim…",
         "agent": false,
-        "description": "Start an agent session in the Agents section that reads ~/.config/nvim and moves the user's own keymaps, options, autocmds and plugins into Clubmate's Neovim user layer, following the bundled nvim guide. Fails with no ~/.config/nvim to import when that directory is missing."
+        "description": "Start an agent session in the Agents section that reads ~/.config/nvim and moves the user's own keymaps, options, autocmds and plugins into Clubmate's Neovim user layer, following the bundled nvim guide; marks the import done, so Settings › General › Editors drops its Neovim config row. Fails with no ~/.config/nvim to import when that directory is missing."
       },
       {
         "id": "editor-nvim.restart",

@@ -2,6 +2,7 @@ package rpc_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"testing"
@@ -10,9 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
 	"clubmate/internal/workspace"
+	"clubmate/pkg/contract"
 )
 
 func TestUIFocusNotifiesWorkspaceSubscribers(t *testing.T) {
@@ -175,4 +178,36 @@ func TestWorkspaceOpenCountsRegisteredClients(t *testing.T) {
 	}
 	err = caller.Call(t.Context(), "workspace.show", map[string]string{"id": "prj_0123456789abcdef"}, &res)
 	assert.ErrorIs(t, err, rpc.ErrNotFound)
+}
+
+func TestUISectionSaysWhyTheSectionOpened(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("echo", `{"sections":[{"id":"echo","title":"Echo"},{"id":"echo.other","title":"Other"}]}`)))
+	p := h.CreateWorkspace(t, "p")
+	c := h.Client(t)
+	show := func(section string) {
+		require.NoError(t, c.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": p.ID, "state": map[string]any{"section": section}}, nil))
+	}
+	focus := func(section, reason string) error {
+		return c.Call(t.Context(), "ui.focus", map[string]any{"workspaceId": p.ID, "section": section, "slot": "", "openedFor": reason}, nil)
+	}
+
+	require.NoError(t, focus("echo", "review"))
+	show("echo")
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, nil))
+	show("echo.other")
+	require.NoError(t, focus("echo", "review"))
+	show("echo")
+	require.NoError(t, focus("echo", "review"))
+	show("echo.other")
+	assert.ErrorIs(t, focus("echo", "browse"), rpc.ErrInvalidParams)
+
+	events := testutil.WaitEvents(t, h.Bus, "ui.section", func(e []bus.Event) bool { return len(e) == 4 })
+	var got []string
+	for _, e := range events {
+		var s contract.UISection
+		require.NoError(t, json.Unmarshal(e.Payload, &s))
+		got = append(got, s.Section+":"+s.OpenedFor)
+	}
+	assert.Equal(t, []string{"echo:edit", "echo.other:edit", "echo:review", "echo.other:edit"}, got)
 }

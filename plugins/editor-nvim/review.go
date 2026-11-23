@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 )
@@ -501,7 +502,7 @@ func (a *app) showReview(ctx context.Context, h *pluginsdk.Host, ws, id string) 
 	if err != nil {
 		return err
 	}
-	focusMain(ctx, h, ws)
+	focusMain(ctx, h, ws, contract.OpenedForReview)
 	return nil
 }
 

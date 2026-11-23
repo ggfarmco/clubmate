@@ -98,7 +98,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	for _, pattern := range []string{contract.TopicUIOpened, contract.TopicSessionExited, contract.TopicWorkspaceUpdated, contract.TopicWorkspaceDeleted} {
+	for _, pattern := range []string{contract.TopicUIOpened, contract.TopicUISection, contract.TopicSessionExited, contract.TopicWorkspaceUpdated, contract.TopicWorkspaceDeleted} {
 		if _, err := h.Subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
@@ -133,6 +133,13 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 			return
 		}
 		go a.ensureLogged(ctx, h, opened.Workspace)
+	case contract.TopicUISection:
+		var shown contract.UISection
+		if err := json.Unmarshal(ev.Payload, &shown); err != nil {
+			logError(ev.Topic, err)
+			return
+		}
+		go a.sectionShown(h, shown)
 	case contract.TopicSessionExited:
 		var exited contract.SessionExited
 		if err := json.Unmarshal(ev.Payload, &exited); err != nil {

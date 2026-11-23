@@ -48,6 +48,7 @@ public enum PaletteAction: Hashable, Sendable {
     case removeWorktree
     case openDoc
     case pairDevice
+    case editor(String)
 
     public static let pairCommand = "remote.pair"
 
@@ -64,6 +65,8 @@ public enum PaletteAction: Hashable, Sendable {
             self = .section(id)
         } else if let id = entryID.dropPrefix("workspace:") {
             self = .switchWorkspace(id)
+        } else if let id = entryID.dropPrefix("editor:") {
+            self = .editor(id)
         } else if let action = Self.fixed.first(where: { $0.entryID == entryID }) {
             self = action
         } else {
@@ -76,6 +79,7 @@ public enum PaletteAction: Hashable, Sendable {
         case .command(let id): "command:\(id)"
         case .section(let id): "section:\(id)"
         case .switchWorkspace(let id): "workspace:\(id)"
+        case .editor(let id): "editor:\(id)"
         case .toggleSidebar: "toggle-sidebar"
         case .toggleChat: "toggle-chat"
         case .openFolder: "open-folder"
@@ -95,7 +99,7 @@ public enum PaletteAction: Hashable, Sendable {
 }
 
 extension CommandPalette {
-    public static func entries(commands: [Command], sections: [SectionInfo], sidebar: Bool, chat: Bool = false, workspaces: [PaletteWorkspace] = [], active: String? = nil, worktrees: [Worktree] = []) -> [PaletteEntry] {
+    public static func entries(commands: [Command], sections: [SectionInfo], sidebar: Bool, chat: Bool = false, workspaces: [PaletteWorkspace] = [], active: String? = nil, worktrees: [Worktree] = [], editors: [EditorCommand] = []) -> [PaletteEntry] {
         let commandEntries = commands.filter { !$0.hidden && $0.running }.map {
             PaletteEntry(id: PaletteAction.command($0.id).entryID, title: $0.title, detail: pluginName($0.plugin, sections: sections))
         }
@@ -106,7 +110,8 @@ extension CommandPalette {
         let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: "Toggle sidebar", detail: "⌃⌘S")] : []
         let docEntries = commands.contains { $0.id == DocsPicker.listCommand } ? [PaletteEntry(id: PaletteAction.openDoc.entryID, title: "Open doc…", detail: "⇧⌘D")] : []
         let pairEntries = commands.contains { $0.id == PaletteAction.pairCommand } ? [PaletteEntry(id: PaletteAction.pairDevice.entryID, title: "Pair iPhone or iPad…", detail: "Remote")] : []
-        return commandEntries + sectionEntries + chatEntries + sidebarEntries + docEntries + pairEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
+        let editorEntries = editors.map { PaletteEntry(id: PaletteAction.editor($0.id).entryID, title: $0.title, detail: $0.detail) }
+        return commandEntries + sectionEntries + chatEntries + sidebarEntries + docEntries + pairEntries + editorEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
     }
 
     private static func pluginName(_ plugin: String, sections: [SectionInfo]) -> String {

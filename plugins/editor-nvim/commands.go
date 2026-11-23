@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/editorroot"
 	"clubmate/plugins/internal/gitrepo"
@@ -201,7 +202,7 @@ func (a *app) open(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 		return err
 	}
 	if args.Focus {
-		focusMain(ctx, h, e.id)
+		focusMain(ctx, h, e.id, contract.OpenedForEdit)
 	}
 	return nil
 }
@@ -280,8 +281,8 @@ func decodeRoot(name string, raw json.RawMessage, errRelative error) (rootArgs, 
 	return args, nil
 }
 
-func focusMain(ctx context.Context, h *pluginsdk.Host, workspaceID string) {
-	if err := h.Focus(ctx, workspaceID, h.PluginID(), mainSlot); err != nil {
+func focusMain(ctx context.Context, h *pluginsdk.Host, workspaceID, openedFor string) {
+	if err := h.FocusFor(ctx, workspaceID, h.PluginID(), mainSlot, openedFor); err != nil {
 		logError("focus", err)
 	}
 }

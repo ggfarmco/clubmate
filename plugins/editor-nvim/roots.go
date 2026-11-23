@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/editorroot"
 )
@@ -76,7 +77,7 @@ func (a *app) target(ctx context.Context, h *pluginsdk.Host, workspaceID, path s
 		return nil, err
 	}
 	if t.Switched {
-		focusMain(ctx, h, workspaceID)
+		focusMain(ctx, h, workspaceID, contract.OpenedForEdit)
 	}
 	return e, nil
 }

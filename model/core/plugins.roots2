@@ -17,7 +17,7 @@ module Plugins "plugin processes: which run, how a dead or silent one comes back
         contributes, the process id, the environment and the log of the process; the slots it
         rendered and the process roots it registered, both cleared when its process ends
         (cmd/clubmate-core/main.go:160, internal/rpc/server.go:179-181); capability defaults and
-        onboarding (control.go:89-103, internal/plugin/onboarding.go)
+        the editors' state, editor.state (control.go:89-103, internal/plugin/editors.go)
       id: PluginId, key
       state: PluginState
       records every change of state: at

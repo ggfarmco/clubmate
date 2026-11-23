@@ -655,6 +655,15 @@ final class StoresTests: XCTestCase {
         XCTAssertEqual(PaletteAction(entryID: pairEntry.id), .pairDevice)
     }
 
+    func testPaletteEditorEntries() throws {
+        let state = try JSONDecoder().decode(EditorState.self, from: Data(#"{"enabled":["editor-nvim"],"review":"diffview","nvimImport":"unasked","importRow":true,"caption":"c","commands":[{"id":"vscode-on","title":"Turn on VS Code…","detail":"Editors"}]}"#.utf8))
+
+        let entry = try XCTUnwrap(CommandPalette.entries(commands: [], sections: [], sidebar: false, editors: state.commands).first)
+
+        XCTAssertEqual([entry.title, entry.detail], ["Turn on VS Code…", "Editors"])
+        XCTAssertEqual(PaletteAction(entryID: entry.id), .editor("vscode-on"))
+    }
+
     func testPaletteWorkspaceEntries() {
         let workspaces = [PaletteWorkspace(id: "a", name: "api"), PaletteWorkspace(id: "b", name: "web")]
 

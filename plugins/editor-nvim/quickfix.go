@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -53,7 +54,7 @@ func (a *app) quickfix(ctx context.Context, h *pluginsdk.Host, workspaceID strin
 	if err := c.quickfix(title, items); err != nil {
 		return err
 	}
-	focusMain(ctx, h, e.id)
+	focusMain(ctx, h, e.id, contract.OpenedForEdit)
 	return nil
 }
 

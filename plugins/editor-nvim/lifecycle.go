@@ -78,7 +78,6 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	go a.clearTabOnExit(h, e.id, e.root, c, conn)
 	go a.adoptReviews(context.Background(), h, e.id, e.root, c)
 	go a.applyTheme(c)
-	go a.offerImport(h, e, c)
 	return c, nil
 }
 

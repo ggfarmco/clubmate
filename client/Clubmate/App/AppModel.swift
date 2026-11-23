@@ -13,7 +13,7 @@ final class AppModel {
     let updates: Updates
     let settings = AppSettings(defaults: TestMode.defaults)
     let claude = ClaudeIntegration()
-    let onboarding = OnboardingModel()
+    let editors = EditorsModel()
     let reports = ReportModel()
     let launchCache = LaunchCache(url: ClubmatePaths.resolve().state.appending(path: "launch-cache.json"), version: Bundle.main.clubmateVersion)
     private(set) var workspaceStore: WorkspacesStore?
@@ -23,6 +23,7 @@ final class AppModel {
     @ObservationIgnored private var openRequests: Task<Void, Never>?
     @ObservationIgnored private var gitChanges: Task<Void, Never>?
     @ObservationIgnored private var pluginChanges: Task<Void, Never>?
+    @ObservationIgnored private var editorChanges: Task<Void, Never>?
     @ObservationIgnored private var browserClosing: [Task<Void, Never>] = []
     @ObservationIgnored private var usageChanges: Task<Void, Never>?
     @ObservationIgnored private var awakeChanges: Task<Void, Never>?
@@ -149,7 +150,7 @@ final class AppModel {
 
     private func offerGhosttyImport() {
         let ghostty = GhosttyApp.shared
-        guard !settings.ghosttyImportOffered, !onboarding.show, !ghostty.imported, let source = GhosttyConfigReader.systemConfig, !TestMode.current else { return }
+        guard !settings.ghosttyImportOffered, !ghostty.imported, let source = GhosttyConfigReader.systemConfig, !TestMode.current else { return }
         settings.ghosttyImportOffered = true
         let alert = NSAlert()
         alert.messageText = "Bring your Ghostty settings into Clubmate?"
@@ -287,7 +288,6 @@ final class AppModel {
             workspaceStore = store
             self.commands = commands
             listen(client)
-            Task { await onboarding.load(client) }
             windows.restore(store.workspaces)
             if let id = launchWorkspace {
                 launchWorkspace = nil
@@ -302,7 +302,7 @@ final class AppModel {
 
     private func approve(_ request: ConfirmRequest, _ expiry: ConfirmExpiry) async -> Bool {
         if TestMode.current, !TestHarness.approvals { return false }
-        let window = windows.attentionWindow.map { onboarding.show || $0.attachedSheet?.identifier == ReportSheet.windowID ? $0.attachedSheet ?? $0 : $0 }
+        let window = windows.attentionWindow.map { $0.attachedSheet?.identifier == ReportSheet.windowID ? $0.attachedSheet ?? $0 : $0 }
         let attention = NSApp.requestUserAttention(.criticalRequest)
         defer { NSApp.cancelUserAttentionRequest(attention) }
         let font = GhosttyApp.shared.theme.nsMono(size: settings.interfaceFontSize, bold: false)
@@ -406,6 +406,10 @@ final class AppModel {
                 let workspace = event.payload["workspace"]?.stringValue ?? event.workspace
                 self?.sessions.existing(workspace)?.voice.busEvent(event)
             }
+        }
+        editorChanges?.cancel()
+        editorChanges = Task { [weak self] in
+            await self?.editors.follow(client)
         }
         pluginChanges?.cancel()
         pluginChanges = Task { [weak self] in

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
 )
@@ -194,7 +195,7 @@ func (a *app) openReview(ctx context.Context, h *pluginsdk.Host, workspaceID str
 		a.scheduleStatus(h, e)
 		return nil, err
 	}
-	focusMain(ctx, h, workspaceID)
+	focusMain(ctx, h, workspaceID, contract.OpenedForReview)
 	return r, nil
 }
 

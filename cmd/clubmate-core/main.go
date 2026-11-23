@@ -153,13 +153,6 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("load plugin preferences: %w", err)
 	}
-	existing, err := store.List(context.Background())
-	if err != nil {
-		return err
-	}
-	if err := control.LoadOnboarding(context.Background(), len(existing) == 0 && onboardingAllowed()); err != nil {
-		return err
-	}
 	if _, err := svc.EnsureHome(context.Background()); err != nil {
 		logger.Error("ensure home workspace", "err", err)
 	}
@@ -218,10 +211,6 @@ func trimLogs(ctx context.Context, logger *slog.Logger, logs func() []string) {
 			}
 		}
 	}
-}
-
-func onboardingAllowed() bool {
-	return os.Getenv("CLUBMATE_TEST_MODE") != "1" || os.Getenv("CLUBMATE_ONBOARDING") == "1"
 }
 
 func applyShellEnv(logger *slog.Logger) {

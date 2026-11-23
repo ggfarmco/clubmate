@@ -4,17 +4,24 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
 
 const (
 	importTitle     = "Import nvim config"
 	importEvent     = "import"
+	importStateKey  = "nvimImport"
 	importOfferedID = "importOffered"
+	importUnasked   = "unasked"
+	importImported  = "imported"
+	importDeclined  = "declined"
+	importTopic     = "editor-nvim.import"
 )
 
 var (
@@ -72,6 +79,9 @@ func (a *app) importConfig(ctx context.Context, h *pluginsdk.Host, workspaceID s
 	if err := h.RunCommand(ctx, "agents.new", workspaceID, args, &out); err != nil {
 		return agentsNewResult{}, err
 	}
+	if err := a.setImportState(ctx, h, importImported); err != nil {
+		logError(importEvent, err)
+	}
 	if err := h.Focus(ctx, workspaceID, "agents", ""); err != nil {
 		logError("focus", err)
 	}
@@ -89,22 +99,67 @@ func (a *app) importFromEditor(h *pluginsdk.Host, e *editor) {
 	}
 }
 
-func (a *app) offerImport(h *pluginsdk.Host, e *editor, c *client) {
+func (a *app) sectionShown(h *pluginsdk.Host, ev contract.UISection) {
+	if ev.Section != h.PluginID() || ev.OpenedFor != contract.OpenedForEdit {
+		return
+	}
+	a.offerImport(h, ev.Workspace)
+}
+
+func (a *app) offerImport(h *pluginsdk.Host, workspaceID string) {
 	ctx := context.Background()
 	if !distroInUse() || importSource() == "" {
 		return
 	}
 	a.offerMu.Lock()
 	defer a.offerMu.Unlock()
-	var offered bool
-	if found, err := h.StorageGet(ctx, importOfferedID, &offered); err != nil || found && offered {
-		return
-	}
-	if err := h.StorageSet(ctx, importOfferedID, true); err != nil {
+	if err := a.askImport(ctx, h, workspaceID); err != nil {
 		logError(importEvent, err)
-		return
+	}
+}
+
+func (a *app) askImport(ctx context.Context, h *pluginsdk.Host, workspaceID string) error {
+	state, err := importState(ctx, h)
+	if err != nil || state != importUnasked {
+		return err
+	}
+	e, err := a.active(ctx, h, workspaceID)
+	if e == nil || err != nil {
+		return err
+	}
+	c, err := a.ensure(ctx, h, e)
+	if err != nil {
+		return err
+	}
+	if err := a.setImportState(ctx, h, importDeclined); err != nil {
+		return err
 	}
 	if err := c.exec(offerLua, nil); err != nil {
-		logError(importEvent, err)
+		return fmt.Errorf("ask failed, %s stored %s: %w", importStateKey, importDeclined, err)
 	}
+	return nil
+}
+
+func importState(ctx context.Context, h *pluginsdk.Host) (string, error) {
+	var state string
+	found, err := h.StorageGet(ctx, importStateKey, &state)
+	if err != nil || found {
+		return state, err
+	}
+	var offered bool
+	if _, err := h.StorageGet(ctx, importOfferedID, &offered); err != nil {
+		return "", err
+	}
+	if offered {
+		return importDeclined, nil
+	}
+	return importUnasked, nil
+}
+
+func (a *app) setImportState(ctx context.Context, h *pluginsdk.Host, state string) error {
+	if err := h.StorageSet(ctx, importStateKey, state); err != nil {
+		return err
+	}
+	_, err := h.Publish(ctx, importTopic, map[string]string{"state": state})
+	return err
 }

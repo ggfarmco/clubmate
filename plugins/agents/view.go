@@ -75,6 +75,7 @@ type screen struct {
 	NodeProblem  string
 	Installing   bool
 	Changes      bool
+	EditorReview string
 	ReviewBases  []string
 	ReviewBase   string
 	Advisor      string
@@ -294,7 +295,7 @@ func header(sc screen) sdui.Node {
 	if b, ok := contextButton(sc); ok && sc.Code == nil {
 		buttons = append(buttons, b)
 	}
-	if sc.Changes {
+	if sc.Changes && sc.EditorReview == reviewDiffview {
 		buttons = append(buttons, reviewButton(sid, sc.ReviewBases, sc.ReviewBase))
 	}
 	if display == statusReview {

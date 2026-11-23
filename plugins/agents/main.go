@@ -39,27 +39,28 @@ var (
 )
 
 type app struct {
-	host       *pluginsdk.Host
-	stateDir   string
-	sendHold   time.Duration
-	takeHold   time.Duration
-	roundAfter time.Duration
-	olderAfter time.Duration
-	loaded     chan struct{}
-	quit       chan struct{}
-	notes      *notifier
-	groups     *groups
-	codePanel  bool
-	wikiPanel  bool
-	usage      usageTracker
-	branches   branchCache
-	baseCache  baseCache
-	texts      textIndex
-	found      searchCache
-	thumbs     thumbCache
-	watchdog   watchdog
-	reviews    *reviewBoard
-	self       *selfStore
+	host         *pluginsdk.Host
+	stateDir     string
+	sendHold     time.Duration
+	takeHold     time.Duration
+	roundAfter   time.Duration
+	olderAfter   time.Duration
+	loaded       chan struct{}
+	quit         chan struct{}
+	notes        *notifier
+	groups       *groups
+	codePanel    bool
+	wikiPanel    bool
+	editorReview atomic.Pointer[string]
+	usage        usageTracker
+	branches     branchCache
+	baseCache    baseCache
+	texts        textIndex
+	found        searchCache
+	thumbs       thumbCache
+	watchdog     watchdog
+	reviews      *reviewBoard
+	self         *selfStore
 
 	sessionRevs delta.Observed
 	runNeeds    runNeeds
@@ -174,6 +175,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	a.codePanel = slices.ContainsFunc(sections, func(s sectionRef) bool { return s.ID == editorSection })
+	a.loadEditorReview(ctx)
 	a.wikiPanel = slices.ContainsFunc(sections, func(s sectionRef) bool { return s.ID == wikiSection })
 	recs, err := loadRecords(ctx, h)
 	if err != nil {
@@ -234,6 +236,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	if _, err := h.Subscribe(ctx, gitChangedTopic, ready.Seq); err != nil {
+		return err
+	}
+	if _, err := h.Subscribe(ctx, pluginChangedTopic, ready.Seq); err != nil {
 		return err
 	}
 	if _, err := h.Subscribe(ctx, editorFileTopic, ready.Seq); err != nil {
@@ -300,6 +305,8 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, sub string, ev pl
 		a.signInExited(ctx, ev)
 	case "ui.opened", "ui.idle", "ui.section":
 		a.presenceEvent(ctx, ev)
+	case pluginChangedTopic:
+		a.pluginChanged(ev.Payload)
 	case gitChangedTopic:
 		var p gitChanged
 		if json.Unmarshal(ev.Payload, &p) == nil {

@@ -313,7 +313,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 | command.run | `{id, workspaceId, args, agent}` | plugin-defined JSON, or the primitive's result |
 | command.capabilities | none | `{capabilities: {name: commandId}}` |
 | command.broadcast | `{topic, workspaceId, args}` | `{}`; runs every command whose `handles` lists `topic` (see below) |
-| ui.focus | `{workspaceId, section, slot, field, node?}` | `{delivered}` |
+| ui.focus | `{workspaceId, section, slot, field, node?, openedFor?}` | `{delivered}`; `openedFor` (`edit` or `review`) says why the section opens and comes back in the next `ui.section` to it |
 | client.register | `{handles}` | `{}` |
 | workspace.show | `{id}` | `{clients}` |
 | workspace.rename | `{id, name}` | workspace |
@@ -332,8 +332,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 | plugin.set-enabled | `{id, enabled}` (not for plugin callers) | `{}` |
 | capability.providers | `{name}` | `{default, providers: [{plugin, name, enabled}]}` |
 | capability.set-default | `{name, plugin}` (not for plugin callers) | `{}` |
-| onboarding.state | `{}` (not for plugin callers) | `{show}`: the first-launch editor sheet is pending |
-| onboarding.finish | `{editor}`: `editor-nvim` or `editor-vscode` (not for plugin callers) | `{}`; `editor-vscode` turns it on and makes it the `editor.open` default; marks onboarding done |
+| editor.state | `{}` | `{enabled, review, nvimImport, importRow, caption, commands: [{id, title, detail}]}`: the editors' state, decided by the core ([VS Code integration § Editors setting](vscode-integration.md#editors-setting)) |
 | process.tree | `{workspaceId, sessionId}` (both optional filters) | `[{process: {pid, ppid, pgid, comm, args, startTime, rssKiB, cpu}, sessionId, orphan, duplicate}]`; `rssKiB` is resident memory, `cpu` the percent of one core the process used since the core's previous snapshot (its lifetime average the first time it is seen); processes that exit while the snapshot is read are left out |
 | process.kill | `{pids, sessionId, workspaceId, orphansOnly}` | `{killed: [pid]}` |
 | process.register | `{workspaceId, pid, label}` (plugin callers only) | `{id, workspaceId, label, owner, pid, ended}` |
@@ -638,7 +637,7 @@ The core publishes `ui.opened` `{workspace}` on the durable bus when a workspace
 
 ## Visible section
 
-Clients keep per-workspace UI state with `ui.state.get` / `ui.state.set` `{workspaceId, state}` (client callers only). `ui.state.patch` `{workspaceId, key, value}` sets one top-level key atomically in the core, so concurrent writers to the same workspace do not drop each other's keys; a `null` value deletes the key. Its `section` field is the section the workspace's window shows: the app has one window per workspace and writes `section` when it opens the workspace and on every switch. When a `ui.state.set` or `ui.state.patch` changes `section`, the core publishes `ui.section` `{workspace, section}` on the durable bus. Plugins read the current value with `ui.state.section` (`pluginsdk.Host.SelectedSection`).
+Clients keep per-workspace UI state with `ui.state.get` / `ui.state.set` `{workspaceId, state}` (client callers only). `ui.state.patch` `{workspaceId, key, value}` sets one top-level key atomically in the core, so concurrent writers to the same workspace do not drop each other's keys; a `null` value deletes the key. Its `section` field is the section the workspace's window shows: the app has one window per workspace and writes `section` when it opens the workspace and on every switch. When a `ui.state.set` or `ui.state.patch` changes `section`, the core publishes `ui.section` `{workspace, section, openedFor}` on the durable bus; `openedFor` is `review` when a `ui.focus` with `openedFor: review` reached a client, asked for this section while another one showed, and the switch came within 10 s; else `edit`. Plugins read the current value with `ui.state.section` (`pluginsdk.Host.SelectedSection`).
 
 `processes` uses it to skip work nobody sees: its refresh samples every second while some present workspace shows the section and every 10 s while none does (each such sample fills the 10 s it covers in the history, so the charts keep their time scale), records history for every present workspace, reads a core process's argv once per pid and start time, and renders only workspaces whose section is `processes` or unknown (`""`), or that a phone watches (`remote.watching` lists `processes`, see [Remote § Plugin UI on the phone](remote.md#plugin-ui-on-the-phone)). On `ui.section` to `processes`, and when a phone starts watching it, it renders at once. `processes.sidebar` is sent again only when its sessions or selection changed; the core keeps the last tree for new subscribers.
 

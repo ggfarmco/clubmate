@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1093,27 +1094,49 @@ func TestImportRefused(t *testing.T) {
 	testutil.Never(t, func() bool { return len(agentCalls(t, e, 0)) > 0 }, 250*time.Millisecond)
 }
 
-func TestImportOfferedOnce(t *testing.T) {
+func TestImportAskedOnceWhenCodeOpensToEdit(t *testing.T) {
 	importHome(t)
 	distroWith(t, `package.loaded["clubmate.import"] = { offer = function() vim.g.offered = (vim.g.offered or 0) + 1 end }`)
 	e := startEditor(t)
 	v := dial(t, e.sock)
-	testutil.Eventually(t, func() bool { return eval[int](t, v, "get(g:, 'offered', 0)") == 1 }, 5*time.Second)
-	e.run(t, "restart", nil, nil)
-	main := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
-		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
-	})
-	cmd := e.h.GetSession(t, main.Props["sessionId"].(string)).Command
-	w := dial(t, cmd[len(cmd)-1])
-	testutil.Eventually(t, func() bool { return eval[int](t, w, "v:vim_did_enter") == 1 }, 5*time.Second)
-	testutil.Never(t, func() bool { return eval[int](t, w, "get(g:, 'offered', 0)") > 0 }, time.Second)
+	offered := func() int { return eval[int](t, v, "get(g:, 'offered', 0)") }
+
+	e.shown(t, "review")
+	testutil.Never(t, func() bool { return offered() > 0 }, 500*time.Millisecond)
+	e.shown(t, "edit")
+	testutil.Eventually(t, func() bool { return offered() == 1 }, 5*time.Second)
+	assert.Equal(t, "declined", e.importState(t))
+
+	require.NoError(t, e.h.Sup.Restart("editor-nvim"))
+	testutil.WaitEvents(t, e.h.Bus, "editor-nvim.ready", func(ev []bus.Event) bool { return len(ev) == 2 })
+	e.shown(t, "edit")
+	testutil.Never(t, func() bool { return offered() > 1 }, time.Second)
+	require.NoError(t, e.h.KV.Delete(t.Context(), "editor-nvim", "nvimImport"))
+	e.shown(t, "edit")
+	testutil.Eventually(t, func() bool { return offered() == 2 }, 5*time.Second)
 }
 
 func TestImportEventStartsSession(t *testing.T) {
 	importHome(t)
 	distroWith(t, `package.loaded["clubmate.import"] = { offer = function() vim.schedule(function() vim.rpcnotify(require("clubmate").chan, "clubmate", { event = "import" }) end) end }`)
 	e := startEditorIn(t, setup{plugins: []string{fakeAgents(t)}})
+	e.shown(t, "edit")
 	require.Len(t, agentCalls(t, e, 1), 1)
+	testutil.Eventually(t, func() bool { return e.importState(t) == "imported" }, 5*time.Second)
+}
+
+func (e *editor) shown(t *testing.T, openedFor string) {
+	t.Helper()
+	e.publish(t, "ui.section", fmt.Sprintf(`{"workspace":%q,"section":"editor-nvim","openedFor":%q}`, e.workspaceID, openedFor))
+}
+
+func (e *editor) importState(t *testing.T) string {
+	t.Helper()
+	raw, _, err := e.h.KV.Get(t.Context(), "editor-nvim", "nvimImport")
+	require.NoError(t, err)
+	var state string
+	_ = json.Unmarshal(raw, &state)
+	return state
 }
 
 func TestDocOpenEventCallsDocsOpen(t *testing.T) {

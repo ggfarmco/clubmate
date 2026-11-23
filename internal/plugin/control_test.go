@@ -111,68 +111,56 @@ func TestControlMigratesVSCodeChoice(t *testing.T) {
 	assert.JSONEq(t, `41234`, string(port))
 }
 
-func TestOnboardingIsDecidedOnceOnFreshState(t *testing.T) {
-	off := false
-	vscode := plugin.Manifest{ID: "editor-vscode", EnabledByDefault: &off}
-	cases := []struct {
-		name       string
-		fresh      bool
-		vscodePref string
-		show       bool
-	}{
-		{name: "fresh install", fresh: true, show: true},
-		{name: "workspaces exist", fresh: false},
-		{name: "vscode already on", fresh: true, vscodePref: "true"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			store, err := kv.Open(filepath.Join(t.TempDir(), "plugins.db"))
-			require.NoError(t, err)
-			t.Cleanup(func() { store.Close() })
-			if tc.vscodePref != "" {
-				require.NoError(t, store.Set(t.Context(), "core", "plugin.enabled.editor-vscode", json.RawMessage(tc.vscodePref)))
-			}
-			load := func(fresh bool) bool {
-				control, err := plugin.NewControl(t.Context(), store, []plugin.Manifest{vscode})
-				require.NoError(t, err)
-				require.NoError(t, control.LoadOnboarding(t.Context(), fresh))
-				return control.Onboarding()
-			}
-
-			assert.Equal(t, tc.show, load(tc.fresh))
-			assert.Equal(t, tc.show, load(!tc.fresh))
-		})
-	}
-}
-
-func TestFinishOnboardingWithVSCodeTurnsItOnAsDefaultEditor(t *testing.T) {
+func TestEditorStateFollowsTheSwitches(t *testing.T) {
 	h := testutil.NewHarness(t)
 	editor := func(id, extra string) string {
 		return fmt.Sprintf(`{"id":%q,"name":%q,"version":"0.1.0","protocol":1,"command":["echo"]%s,"contributes":{"commands":[{"id":"%s.open","title":"Open","provides":["editor.open"]}]}}`, id, id, extra, id)
 	}
-	root := testutil.EchoPluginDirAs(t, editor("editor-nvim", ""), editor("editor-vscode", `,"enabledByDefault":false`))
-	h.Start(t, root)
-	require.NoError(t, h.Control.LoadOnboarding(t.Context(), true))
+	h.Start(t, testutil.EchoPluginDirAs(t, editor("editor-nvim", ""), editor("editor-vscode", `,"enabledByDefault":false`)))
 	c := h.Client(t)
-	show := func() bool {
-		var out rpc.OnboardingState
-		require.NoError(t, c.Call(t.Context(), "onboarding.state", struct{}{}, &out))
-		return out.Show
+	state := func() rpc.EditorState {
+		var out rpc.EditorState
+		require.NoError(t, h.PluginCallResult(t, "agents", "editor.state", struct{}{}, &out))
+		return out
+	}
+	ids := func(st rpc.EditorState) []string {
+		var out []string
+		for _, cmd := range st.Commands {
+			out = append(out, cmd.ID)
+		}
+		return out
+	}
+	set := func(id string, on bool) {
+		require.NoError(t, c.Call(t.Context(), "plugin.set-enabled", map[string]any{"id": id, "enabled": on}, nil))
 	}
 
-	require.True(t, show())
-	assert.ErrorContains(t, c.Call(t.Context(), "onboarding.finish", map[string]string{"editor": "emacs"}, nil), "editor must be")
-	assert.True(t, show())
+	st := state()
+	assert.Equal(t, []string{"editor-nvim"}, st.Enabled)
+	assert.Equal(t, "diffview", st.Review)
+	assert.Equal(t, "unasked", st.NvimImport)
+	assert.True(t, st.ImportRow)
+	assert.Equal(t, []string{"vscode-on", "nvim-off", "settings"}, ids(st))
 
-	require.NoError(t, c.Call(t.Context(), "onboarding.finish", map[string]string{"editor": "editor-vscode"}, nil))
-	assert.False(t, show())
-	assert.True(t, h.Control.Enabled("editor-vscode"))
-	assert.Equal(t, "editor-vscode", h.Control.Providers("editor.open").Default)
+	require.NoError(t, h.KV.Set(t.Context(), "editor-nvim", "importOffered", json.RawMessage(`true`)))
+	assert.Equal(t, "declined", state().NvimImport)
+	require.NoError(t, h.KV.Set(t.Context(), "editor-nvim", "nvimImport", json.RawMessage(`"imported"`)))
+	assert.False(t, state().ImportRow)
 
-	manifests, errs := plugin.Discover([]string{root})
-	require.Empty(t, errs)
-	reloaded, err := plugin.NewControl(t.Context(), h.KV, manifests)
-	require.NoError(t, err)
-	require.NoError(t, reloaded.LoadOnboarding(t.Context(), true))
-	assert.False(t, reloaded.Onboarding())
+	set("editor-vscode", true)
+	st = state()
+	assert.Equal(t, []string{"editor-nvim", "editor-vscode"}, st.Enabled)
+	assert.Equal(t, "diffview", st.Review)
+	assert.Contains(t, st.Caption, "Both on")
+
+	set("editor-nvim", false)
+	st = state()
+	assert.Equal(t, "vscode", st.Review)
+	assert.False(t, st.ImportRow)
+	assert.Equal(t, []string{"vscode-off", "nvim-on", "settings"}, ids(st))
+
+	set("editor-vscode", false)
+	st = state()
+	assert.Empty(t, st.Enabled)
+	assert.Equal(t, "hidden", st.Review)
+	assert.Contains(t, st.Caption, "Both off")
 }

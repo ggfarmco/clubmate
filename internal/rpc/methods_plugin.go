@@ -7,8 +7,7 @@ type PluginControl interface {
 	SetEnabled(ctx context.Context, id string, enabled bool) error
 	Providers(capability string) CapabilityProviders
 	SetDefault(ctx context.Context, capability, pluginID string) error
-	Onboarding() bool
-	FinishOnboarding(ctx context.Context, editor string) error
+	Editors(ctx context.Context) (EditorState, error)
 }
 
 type CapabilityProviders struct {
@@ -31,12 +30,19 @@ type capabilityParams struct {
 	Name string `json:"name"`
 }
 
-type OnboardingState struct {
-	Show bool `json:"show"`
+type EditorState struct {
+	Enabled    []string        `json:"enabled"`
+	Review     string          `json:"review"`
+	NvimImport string          `json:"nvimImport"`
+	ImportRow  bool            `json:"importRow"`
+	Caption    string          `json:"caption"`
+	Commands   []EditorCommand `json:"commands"`
 }
 
-type finishOnboardingParams struct {
-	Editor string `json:"editor"`
+type EditorCommand struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Detail string `json:"detail"`
 }
 
 type setDefaultParams struct {
@@ -69,8 +75,7 @@ func (s *Server) pluginMethods() map[string]handlerFunc {
 		"plugin.set-enabled":     method(s.setPluginEnabled),
 		"capability.providers":   method(s.capabilityProviders),
 		"capability.set-default": method(s.setCapabilityDefault),
-		"onboarding.state":       method(s.onboardingState),
-		"onboarding.finish":      method(s.finishOnboarding),
+		"editor.state":           method(s.editorState),
 	}
 }
 
@@ -121,23 +126,12 @@ func (s *Server) setCapabilityDefault(ctx context.Context, p setDefaultParams) (
 	return empty{}, (*c).SetDefault(ctx, p.Name, p.Plugin)
 }
 
-func (s *Server) onboardingState(ctx context.Context, _ empty) (OnboardingState, error) {
-	if CallerFrom(ctx).IsPlugin() {
-		return OnboardingState{}, invalidParams("onboarding.state is not available to plugins")
-	}
-	c := s.pluginControl.Load()
-	return OnboardingState{Show: c != nil && (*c).Onboarding()}, nil
-}
-
-func (s *Server) finishOnboarding(ctx context.Context, p finishOnboardingParams) (empty, error) {
-	if CallerFrom(ctx).IsPlugin() {
-		return empty{}, invalidParams("onboarding.finish is not available to plugins")
-	}
+func (s *Server) editorState(ctx context.Context, _ empty) (EditorState, error) {
 	c := s.pluginControl.Load()
 	if c == nil {
-		return empty{}, ErrUnknownPlugin
+		return EditorState{}, ErrUnknownPlugin
 	}
-	return empty{}, (*c).FinishOnboarding(ctx, p.Editor)
+	return (*c).Editors(ctx)
 }
 
 func (s *Server) pluginEnabled(id string) bool {

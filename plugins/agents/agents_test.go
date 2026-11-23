@@ -1547,7 +1547,7 @@ func TestReviewPopoverComparesWithChosenBranch(t *testing.T) {
 func TestReviewButtonFollowsWorktreeChanges(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
-	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}})
+	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.EchoPluginDirAs(t, diffviewManifest))
 	workspace := f.workspace(t, repo)
 	session := f.newSession(t, workspace)
 	button := func(n sdui.Node, id string) bool {
@@ -1566,6 +1566,50 @@ func TestReviewButtonFollowsWorktreeChanges(t *testing.T) {
 	require.NoError(t, os.Remove(filepath.Join(repo, "new.txt")))
 	f.h.Event(t, workspace, "agents.sidebar", session, "select", session)
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return !button(n, "review") })
+}
+
+func TestNoEditorHidesReviewAndOpenActions(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	path := filepath.Join(repo, "a.go")
+	edit := map[string]any{
+		"sessionUpdate": "tool_call", "toolCallId": "e1", "title": "Edit a.go", "kind": "edit", "status": "completed",
+		"content":   []map[string]any{{"type": "diff", "path": path, "oldText": "one\n", "newText": "two\n"}},
+		"locations": []map[string]any{{"path": path, "line": 1}},
+	}
+	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}, {"update": edit}}}, testutil.EchoPluginDirAs(t, diffviewManifest))
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	actions := func(n sdui.Node) []string {
+		var out []string
+		for _, card := range cardsOf(n, "toolCard") {
+			list, _ := card.Props["actions"].([]any)
+			for _, a := range list {
+				m, _ := a.(map[string]any)
+				name, _ := m["action"].(string)
+				out = append(out, name)
+			}
+		}
+		return out
+	}
+	review := func(n sdui.Node) bool {
+		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.ID == session+"/review" })
+	}
+	f.prompt(t, workspace, session, "change it")
+	f.waitStatus(t, workspace, session, "done")
+	write(t, path, "two\n")
+	f.prompt(t, workspace, session, "change it again")
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		return review(n) && slices.Contains(actions(n), "review") && slices.Contains(actions(n), "openLocation")
+	})
+
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "plugin.set-enabled", map[string]any{"id": "editor-nvim", "enabled": false}, nil))
+
+	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		return len(cardsOf(n, "toolCard")) > 0 && !review(n) && !slices.Contains(actions(n), "review") && !slices.Contains(actions(n), "openLocation")
+	})
+	body, _ := cardsOf(main, "toolCard")[0].Props["body"].(map[string]any)
+	assert.Equal(t, "diff", body["format"])
 }
 
 func TestOpenLocationShowsEditor(t *testing.T) {

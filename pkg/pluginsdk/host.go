@@ -100,6 +100,10 @@ func (h *Host) Focus(ctx context.Context, workspaceID, section, slot string) err
 	return h.Call(ctx, "ui.focus", map[string]string{"workspaceId": workspaceID, "section": section, "slot": slot}, nil)
 }
 
+func (h *Host) FocusFor(ctx context.Context, workspaceID, section, slot, openedFor string) error {
+	return h.Call(ctx, "ui.focus", map[string]string{"workspaceId": workspaceID, "section": section, "slot": slot, "openedFor": openedFor}, nil)
+}
+
 func (h *Host) FocusNode(ctx context.Context, workspaceID, section, slot, node string) error {
 	return h.Call(ctx, "ui.focus", map[string]string{"workspaceId": workspaceID, "section": section, "slot": slot, "node": node}, nil)
 }

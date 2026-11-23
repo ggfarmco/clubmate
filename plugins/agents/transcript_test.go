@@ -104,7 +104,7 @@ func TestDocOnlyForCompletedDocTools(t *testing.T) {
 	}
 	assert.Equal(t, map[string]string{"doc": "/r/docs/a.md", "code": "", "failed": "", "relative": "/w/docs/b.md", "artifact": "/r/out/report.html", "link": "/r/plan.mmd"}, docs)
 
-	actions, _ := toolCard("c", "/r", s.view(0).Entries[0], false, false, "").Props["actions"].([]sdui.CardAction)
+	actions, _ := toolCard("c", "/r", s.view(0).Entries[0], false, false, true, "").Props["actions"].([]sdui.CardAction)
 	require.Len(t, actions, 2)
 	assert.Equal(t, sdui.CardAction{Action: actOpenDoc, Label: "Open", Icon: "doc.richtext", Value: "/r/docs/a.md"}, actions[0])
 	assert.Equal(t, actOpenLocation, actions[1].Action)

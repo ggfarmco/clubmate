@@ -43,16 +43,6 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so the app gets it (`GhosttyApp.swift`). Selecting text copies it to the system clipboard and a middle click pastes the clipboard, as before Ghostty 1.4: Clubmate defaults to `copy-on-select = clipboard` and `middle-click-action = clipboard-paste` (Ghostty 1.4 turned copy-on-select off on macOS, and its `primary` copies nothing here because Clubmate has no selection clipboard); both keys in Clubmate's own `ghostty.conf` override them (`GhosttyConfigReader.swift`). Dropping files on a terminal or nvim pastes their paths, each quoted for the shell (`'my file.txt'`) and separated by spaces; dropped text pastes as it is. A drop is a paste: bracketed paste and Ghostty's paste protection apply, and nothing runs until you press ↩ (`TerminalSurfaceView.swift`, `ClubmateKit/TerminalDrop.swift`).
 ⇧⌘I, ⇧⌘D, ⌘J and ⌥⌘A are app menu keys, so they shadow any mapping of them in terminals (Ghostty's default ⇧⌘D split) and nvim.
 
-## First-launch editor sheet
-
-| Keys | Action |
-|---|---|
-| ↑ ↓ | Choose Neovim or VS Code |
-| ↩ | Continue with the chosen editor; on the VS Code step, Done |
-| Esc | Keep Neovim and close; on the VS Code step, Done |
-
-Defined in `App/Onboarding.swift` (`OnboardingSheet.key`).
-
 ## Problem report sheet
 
 | Keys | Action |

@@ -2,10 +2,12 @@ package rpc
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
 
@@ -165,11 +167,53 @@ func sectionOf(state json.RawMessage) string {
 	return v.Section
 }
 
+const openedForTTL = 10 * time.Second
+
+type openedFor struct {
+	section string
+	reason  string
+	at      time.Time
+	token   uint64
+}
+
+func (s *Server) expectSection(ctx context.Context, workspaceID, section, reason string) (uint64, error) {
+	s.uiStateMu.Lock()
+	defer s.uiStateMu.Unlock()
+	saved, err := s.savedSection(ctx, workspaceID)
+	if err != nil || saved == section {
+		return 0, err
+	}
+	if s.openedFor == nil {
+		s.openedFor = map[string]openedFor{}
+	}
+	s.openedSeq++
+	s.openedFor[workspaceID] = openedFor{section: section, reason: cmp.Or(reason, contract.OpenedForEdit), at: time.Now(), token: s.openedSeq}
+	return s.openedSeq, nil
+}
+
+func (s *Server) forgetSection(workspaceID string, token uint64) {
+	s.uiStateMu.Lock()
+	defer s.uiStateMu.Unlock()
+	if o, ok := s.openedFor[workspaceID]; ok && o.token == token {
+		delete(s.openedFor, workspaceID)
+	}
+}
+
+func (s *Server) takeOpenedFor(workspaceID, section string) string {
+	o, ok := s.openedFor[workspaceID]
+	delete(s.openedFor, workspaceID)
+	if ok && o.section == section && time.Since(o.at) < openedForTTL {
+		return o.reason
+	}
+	return contract.OpenedForEdit
+}
+
 func (s *Server) publishSection(workspaceID, section string) {
+	reason := s.takeOpenedFor(workspaceID, section)
 	if s.bus == nil {
 		return
 	}
-	raw, err := json.Marshal(contract.UISection{Workspace: workspaceID, Section: section})
+	raw, err := json.Marshal(contract.UISection{Workspace: workspaceID, Section: section, OpenedFor: reason})
 	if err != nil {
 		s.logger.Error("marshal section event", "err", err)
 		return

@@ -60,7 +60,7 @@ your side threads and your processes, on every project and in Home.
 - Companion: iPhone or iPad on iOS 27, with Tailscale or the relay
 
 Neovim is built in and on; turn on VS Code, or turn both off,
-in Settings › Plugins.
+in Settings › General › Editors.
 
 ## More
 

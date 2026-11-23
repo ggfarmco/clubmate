@@ -75,6 +75,7 @@ type nodeKey struct {
 	sid        string
 	root       string
 	reviewable bool
+	editor     string
 	pending    bool
 	from       string
 	review     string
@@ -459,7 +460,7 @@ func entryNode(sc screen, en *entry, sha string) builtNode {
 	if en.node == nil || en.Kind == entryTool && (sc.Expanded[en.ID] || markOf(en) != nil) || en.Kind == entryOpenItems || en.Kind == entryNotice {
 		return build()
 	}
-	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en)}
+	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", editor: sc.EditorReview, pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en)}
 	return en.node.get(key, build)
 }
 
@@ -544,7 +545,7 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		if b != nil {
 			word = b.Word
 		}
-		return toolCard(id, root, en, sc.Expanded[en.ID], sha != "", word), !en.Hidden
+		return toolCard(id, root, en, sc.Expanded[en.ID], sha != "" && sc.EditorReview == reviewDiffview, sc.EditorReview != reviewHidden, word), !en.Hidden
 	case entryPermission:
 		return permissionCard(sc, en), true
 	case entryElicitation:
@@ -581,7 +582,7 @@ func parseTool(tool map[string]json.RawMessage) (toolFields, string, string) {
 	return f, kind, command
 }
 
-func toolCard(id, root string, en *entry, expanded, reviewable bool, word string) sdui.Node {
+func toolCard(id, root string, en *entry, expanded, reviewable, openable bool, word string) sdui.Node {
 	f, kind, command := parseTool(en.Tool)
 	status := f.Status
 	if status == "" {
@@ -605,7 +606,7 @@ func toolCard(id, root string, en *entry, expanded, reviewable bool, word string
 	if en.Doc != "" {
 		p.Actions = append(p.Actions, sdui.CardAction{Action: actOpenDoc, Label: "Open", Icon: "doc.richtext", Value: en.Doc})
 	}
-	if path, line := location(f); path != "" && kind != "execute" {
+	if path, line := location(f); openable && path != "" && kind != "execute" {
 		value := map[string]any{"path": path}
 		if line > 0 {
 			value["line"] = line

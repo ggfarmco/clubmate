@@ -110,7 +110,7 @@ private struct GeneralSettings: View {
     @Bindable var settings: AppSettings
     let plugins: SettingsPlugins
 
-    @Environment(EventBanner.self) private var banner: EventBanner?
+    @Environment(AppModel.self) private var app
 
     var body: some View {
         Form {
@@ -134,29 +134,11 @@ private struct GeneralSettings: View {
                         .disabled(settings.paneFontOverrideCount == 0)
                 }
             }
-            if let editors = plugins.editors, editors.enabled.count > 1 {
-                Section("Files") {
-                    SettingsRow(title: "Default editor", detail: "Files you open from a chat, a link or the palette open here.") {
-                        Picker("Default editor", selection: defaultEditor(editors)) {
-                            ForEach(editors.enabled) { editor in
-                                Text(editor.name).tag(editor.plugin)
-                            }
-                        }
-                        .labelsHidden()
-                        .fixedSize()
-                    }
-                }
+            if let state = app.editors.state {
+                EditorsSettings(state: state, plugins: plugins)
             }
         }
         .formStyle(.grouped)
-    }
-
-    private func defaultEditor(_ editors: CapabilityProviders) -> Binding<String> {
-        Binding { editors.default } set: { [plugins, banner] plugin in
-            Task {
-                if let error = await plugins.setDefaultEditor(plugin) { banner?.show(error) }
-            }
-        }
     }
 
     private var interfaceFontDetail: String {
@@ -173,6 +155,73 @@ private struct GeneralSettings: View {
         case 0: "Every plugin uses the interface font. A plugin's page can set its own."
         case 1: "1 plugin has its own font or size."
         case let count: "\(count) plugins have their own font or size."
+        }
+    }
+}
+
+private struct EditorsSettings: View {
+    let state: EditorState
+    let plugins: SettingsPlugins
+
+    @Environment(AppModel.self) private var app
+    @Environment(EventBanner.self) private var banner: EventBanner?
+
+    var body: some View {
+        Section {
+            SettingsToggle(title: "Neovim", detail: "Built in. Opens files, and reviews diffs with line comments.", isOn: enabled(EditorState.neovim))
+            if state.importRow {
+                SettingsRow(title: "Neovim config", detail: "Bring your ~/.config/nvim keys and plugins in. An agent does it in a session you can watch.") {
+                    Button("Import…", action: importConfig)
+                }
+            }
+            SettingsToggle(title: "VS Code", detail: "Uses VS Code on this Mac and Microsoft's VS Code Server (about 600 MB, once).", isOn: enabled(EditorState.vscode))
+            if let editors = plugins.editors, editors.enabled.count > 1 {
+                SettingsRow(title: "Default editor", detail: "Files you open from a chat, a link or the palette open here.") {
+                    Picker("Default editor", selection: defaultEditor(editors)) {
+                        ForEach(editors.enabled) { editor in
+                            Text(editor.name).tag(editor.plugin)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+            }
+        } header: {
+            Text("Editors")
+        } footer: {
+            SettingsDetail(state.caption)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func enabled(_ plugin: String) -> Binding<Bool> {
+        Binding { [plugins, state] in plugins.switching[plugin] ?? state.isOn(plugin) } set: { [plugins, app, banner] on in
+            Task {
+                if let error = await plugins.setEnabled(plugin, on) { banner?.show(error) }
+                await app.editors.load()
+            }
+        }
+    }
+
+    private func defaultEditor(_ editors: CapabilityProviders) -> Binding<String> {
+        Binding { editors.default } set: { [plugins, banner] plugin in
+            Task {
+                if let error = await plugins.setDefaultEditor(plugin) { banner?.show(error) }
+            }
+        }
+    }
+
+    private func importConfig() {
+        guard let workspace = app.windows.activeWorkspace, let client = app.supervisor.client else {
+            banner?.show("Open a workspace first: the import runs as an agent session there.")
+            return
+        }
+        Task { [banner] in
+            do {
+                _ = try await client.commandRun(id: EditorState.importCommand, workspaceID: workspace)
+            } catch {
+                banner?.show(error.localizedDescription)
+            }
         }
     }
 }

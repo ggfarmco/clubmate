@@ -57,9 +57,15 @@ type UIPresence struct {
 	Workspace string `json:"workspace"`
 }
 
+const (
+	OpenedForEdit   = "edit"
+	OpenedForReview = "review"
+)
+
 type UISection struct {
 	Workspace string `json:"workspace"`
 	Section   string `json:"section"`
+	OpenedFor string `json:"openedFor"`
 }
 
 type RemoteWatching struct {

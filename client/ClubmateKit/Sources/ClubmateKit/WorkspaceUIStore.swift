@@ -164,6 +164,10 @@ public final class WorkspaceUIStore {
         selectedSection = order(self.sections).first?.id
     }
 
+    public func reloadSections() async {
+        await refreshSections(generation)
+    }
+
     public func show(section: String) {
         requestedSection = section
         if connected { applyRequestedSection() }

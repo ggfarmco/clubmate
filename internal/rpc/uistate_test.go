@@ -52,7 +52,7 @@ func TestUIStateRoundTripAndDelete(t *testing.T) {
 	assert.Equal(t, "terminals", section.Section)
 	events := testutil.WaitEvents(t, b, "ui.section", func(e []bus.Event) bool { return len(e) > 0 })
 	require.Len(t, events, 1)
-	assert.JSONEq(t, `{"workspace":"`+p.ID+`","section":"terminals"}`, string(events[0].Payload))
+	assert.JSONEq(t, `{"workspace":"`+p.ID+`","section":"terminals","openedFor":"edit"}`, string(events[0].Payload))
 
 	err := plug.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": p.ID, "state": map[string]any{}}, nil)
 	assert.EqualValues(t, -32602, rpcCode(t, err))
@@ -73,6 +73,25 @@ func TestUIStateRoundTripAndDelete(t *testing.T) {
 	require.NoError(t, client.Call(t.Context(), "workspace.delete", map[string]any{"id": p.ID}, nil))
 	err = client.Call(t.Context(), "ui.state.get", map[string]any{"workspaceId": p.ID}, nil)
 	assert.EqualValues(t, -32004, rpcCode(t, err))
+}
+
+func TestUndeliveredFocusKeepsALaterFocusReason(t *testing.T) {
+	svc, b := testutil.NewServiceWithBus(t)
+	srv := rpc.NewServer(svc, b)
+	client := connectAs(t, srv, rpc.Caller{})
+	var p workspace.Workspace
+	require.NoError(t, client.Call(t.Context(), "workspace.create", map[string]any{"name": "demo", "repos": []string{t.TempDir()}}, &p))
+
+	first, err := rpc.ExpectSection(t.Context(), srv, p.ID, "editor-nvim", "review")
+	require.NoError(t, err)
+	_, err = rpc.ExpectSection(t.Context(), srv, p.ID, "editor-nvim", "review")
+	require.NoError(t, err)
+	rpc.ForgetSection(srv, p.ID, first)
+	require.NoError(t, client.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": p.ID, "state": map[string]any{"section": "editor-nvim"}}, nil))
+
+	events := testutil.WaitEvents(t, b, "ui.section", func(e []bus.Event) bool { return len(e) > 0 })
+	require.Len(t, events, 1)
+	assert.JSONEq(t, `{"workspace":"`+p.ID+`","section":"editor-nvim","openedFor":"review"}`, string(events[0].Payload))
 }
 
 func TestUIStatePatchMergesConcurrentKeys(t *testing.T) {
@@ -99,7 +118,7 @@ func TestUIStatePatchMergesConcurrentKeys(t *testing.T) {
 	assert.Equal(t, want, got.State)
 	events := testutil.WaitEvents(t, b, "ui.section", func(e []bus.Event) bool { return len(e) > 0 })
 	require.Len(t, events, 1)
-	assert.JSONEq(t, `{"workspace":"`+p.ID+`","section":"terminals"}`, string(events[0].Payload))
+	assert.JSONEq(t, `{"workspace":"`+p.ID+`","section":"terminals","openedFor":"edit"}`, string(events[0].Payload))
 
 	require.NoError(t, patch("k0", nil))
 	var deleted uiStateResult

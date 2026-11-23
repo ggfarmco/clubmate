@@ -10,6 +10,7 @@ struct WorkspaceView: View {
     @Environment(WindowRouter.self) private var windows
     @Environment(WorkspaceActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openSettings) private var openSettings
     @State private var focus = FocusRouter()
     @State private var rowWidth: CGFloat = 0
     @State private var handOver: StartupHandOver
@@ -171,7 +172,7 @@ struct WorkspaceView: View {
     private func paletteEntries() -> [PaletteEntry] {
         let workspaces = (windows.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.workspace($0)?.name ?? $0, home: app.workspace($0)?.home == true) }
         let sections = app.settings.ordered(session.store?.sections ?? [])
-        return CommandPalette.entries(commands: app.commands, sections: sections, sidebar: session.store?.togglesSidebar == true, chat: session.store?.togglesChat == true, workspaces: workspaces, active: session.workspaceID, worktrees: session.worktrees.worktrees)
+        return CommandPalette.entries(commands: app.commands, sections: sections, sidebar: session.store?.togglesSidebar == true, chat: session.store?.togglesChat == true, workspaces: workspaces, active: session.workspaceID, worktrees: session.worktrees.worktrees, editors: app.editors.state?.commands ?? [])
     }
 
     private func perform(_ action: PaletteAction) {
@@ -193,6 +194,26 @@ struct WorkspaceView: View {
         case .removeWorktree: session.chooseWorktreeToRemove()
         case .openDoc: session.chooseDoc()
         case .pairDevice: Task { [app, windowID] in await app.remoteDevices.pair(in: windowID) }
+        case .editor(let id): runEditor(id)
+        }
+    }
+
+    private func runEditor(_ id: String) {
+        let switches: [String: (String, Bool)] = ["vscode-on": (EditorState.vscode, true), "vscode-off": (EditorState.vscode, false), "nvim-on": (EditorState.neovim, true), "nvim-off": (EditorState.neovim, false)]
+        guard let (plugin, on) = switches[id] else {
+            app.settingsRequest = .general
+            openSettings()
+            return
+        }
+        let editors = app.editors, store = session.store, banner = session.banner
+        Task {
+            if let error = await editors.set(plugin, on: on) {
+                banner.show(error)
+                return
+            }
+            guard on, let store else { return }
+            await store.reloadSections()
+            _ = store.select(plugin)
         }
     }
 }

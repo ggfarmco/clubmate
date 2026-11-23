@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync/atomic"
 
 	"clubmate/internal/kv"
 	"clubmate/internal/rpc"
@@ -29,8 +28,7 @@ type Control struct {
 	router *Router
 	store  *kv.Store
 
-	enabled    map[string]bool
-	onboarding atomic.Bool
+	enabled map[string]bool
 }
 
 func NewControl(ctx context.Context, store *kv.Store, manifests []Manifest) (*Control, error) {

@@ -48,6 +48,8 @@ type Server struct {
 	ui                atomic.Pointer[uiState]
 	presence          presence
 	uiStateMu         sync.Mutex
+	openedFor         map[string]openedFor
+	openedSeq         uint64
 	logger            *slog.Logger
 	shutdown          atomic.Pointer[func()]
 	clientsMu         sync.Mutex

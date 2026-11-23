@@ -15,9 +15,6 @@ struct WorkspacePresenters: ViewModifier {
             .testPresenter("inbox", inboxPresented)
             .testPresenter("switcher", switcherPresented)
             .testPresenter("settings", settingsPresented)
-            .sheet(isPresented: onboardingPresented) { OnboardingSheet(model: app.onboarding) }
-            .testPresenter("onboarding", onboardingPresented)
-            .testPresenter("onboarding-vscode", onboardingVSCodePresented)
             .sheet(isPresented: reportPresented) { ReportSheet(model: app.reports) }
             .sheet(isPresented: pairPresented) {
                 if let windowID { PairDeviceSheet(model: app.remoteDevices, presenter: windowID) }
@@ -25,22 +22,6 @@ struct WorkspacePresenters: ViewModifier {
             .testPresenter("pair", pairPresented)
             .testPresenter("report", reportFixture(over: false))
             .testPresenter("report-over", reportFixture(over: true))
-            .task(id: app.onboarding.show) {
-                if app.onboarding.show, let windowID { app.onboarding.claim(windowID) }
-            }
-    }
-
-    private var onboardingPresented: Binding<Bool> {
-        Binding { [app] in app.onboarding.presented(in: windowID) } set: { [app] shown in
-            app.onboarding.present(shown, in: windowID)
-        }
-    }
-
-    private var onboardingVSCodePresented: Binding<Bool> {
-        Binding { [app] in app.onboarding.presented(in: windowID) && app.onboarding.step == .vscode } set: { [app] shown in
-            app.onboarding.present(shown, in: windowID)
-            if shown { Task { await app.onboarding.finish(.vscode) } }
-        }
     }
 
     private var pairPresented: Binding<Bool> {
