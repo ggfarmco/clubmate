@@ -3,6 +3,7 @@ package main_test
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -210,4 +211,10 @@ func TestNewTerminalRunsCommandWithTitle(t *testing.T) {
 	s := h.GetSession(t, out.Session)
 	assert.Equal(t, "Install Node", s.Title)
 	assert.Equal(t, []string{"/bin/sh", "-c", "exit 0"}, s.Command)
+
+	for _, from := range []map[string]any{{"agent": true}, {"caller": "agt_x"}} {
+		params := map[string]any{"id": "terminals.new", "workspaceId": p.ID, "args": args}
+		maps.Copy(params, from)
+		require.ErrorContains(t, h.Client(t).Call(t.Context(), "command.run", params, nil), "user-only")
+	}
 }

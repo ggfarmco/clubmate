@@ -12,11 +12,11 @@
         "provides": ["terminal.new"],
         "title": "New terminal",
         "agent": true,
-        "description": "Open a new login-shell terminal in the workspace and focus it. With command, the terminal runs that command instead of a shell; the tab stays open after it exits. Returns {session}.",
+        "description": "Open a new login-shell terminal in the workspace and focus it. With command, the terminal runs that command instead of a shell; the tab stays open after it exits. command is user-only: an agent call with it is refused. Returns {session}.",
         "args": {
           "properties": {
             "cwd": {"type": "string", "description": "Working directory; the first workspace folder (or home) when absent."},
-            "command": {"type": "array", "items": {"type": "string"}, "description": "Argument list to run instead of the login shell."},
+            "command": {"type": "array", "items": {"type": "string"}, "description": "Argument list to run instead of the login shell. User only; refused from an agent."},
             "title": {"type": "string", "description": "Tab title; \"Terminal N\" when absent."}
           }
         }

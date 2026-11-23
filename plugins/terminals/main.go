@@ -26,7 +26,10 @@ const (
 	refreshEvery = 2 * time.Second
 )
 
-var errUnknownAction = errors.New("unknown action")
+var (
+	errUnknownAction = errors.New("unknown action")
+	errUserOnly      = errors.New("command is user-only")
+)
 
 type closeArgs struct {
 	SessionID string `json:"sessionId"`
@@ -157,6 +160,9 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			if err := json.Unmarshal(cmd.Args, &args); err != nil {
 				return nil, fmt.Errorf("terminals.new args: %w", err)
 			}
+		}
+		if len(args.Command) > 0 && (cmd.Agent || cmd.Caller != "") {
+			return nil, fmt.Errorf("%w: terminals.new with command", errUserOnly)
 		}
 		id, err := a.create(ctx, h, cmd.WorkspaceID, args)
 		if err != nil {
