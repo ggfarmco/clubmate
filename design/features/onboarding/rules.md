@@ -142,4 +142,3 @@ Later: Clone repository… ⌥⌘O on Welcome (d).
 - Worktrees: "+ New" starts a session in the workspace's checkout; "New in worktree…" is separate (seen in the test app, 23 Nov). The README Agents row "Each in its own worktree" and the first-run empty text must say "can work in its own worktree", not "each".
 - Universal link domain: one QR code that installs and pairs the Companion needs one.
 - The Companion has no public install path yet (App Store / TestFlight); the pairing sheet's App Store line waits for it.
-- README feature shots and the hero are drawn mockups; the repo needs real 2× screenshots in the same layout.
