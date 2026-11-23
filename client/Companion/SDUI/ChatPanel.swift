@@ -16,11 +16,26 @@ struct ChatPanel: View {
         _ui = State(initialValue: connection.workspaceUI(workspace))
     }
 
+    static func subtitle(in tree: SDUINode?) -> String? {
+        guard let tree else { return nil }
+        if StackNode.chromeBar(tree) {
+            return tree.children.first { $0.type == "text" && $0.string("style") == "muted" }?.string("text").flatMap { $0.isEmpty ? nil : $0 }
+        }
+        return tree.children.lazy.compactMap { subtitle(in: $0) }.first
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 8) {
                 Text("Chat")
                     .font(.headline)
+                if let subtitle = Self.subtitle(in: ui.view(Self.slot)?.tree) {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.captionInk)
+                        .lineLimit(1)
+                        .accessibilityIdentifier("chat.subtitle")
+                }
                 Spacer()
                 Button {
                     withAnimation(.easeInOut(duration: 0.3)) { navigation.toggleChat() }

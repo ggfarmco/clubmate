@@ -101,21 +101,22 @@ enum WikiFixture {
     }
 
     static var chatPicker: JSONValue {
-        func row(_ id: String, _ label: String, _ caption: String, badge: String? = nil) -> JSONValue {
-            var fields: [String: JSONValue] = ["id": .string(id), "label": .string(label), "caption": .string(caption), "icon": .string("circle.fill")]
-            if let badge { fields["badge"] = .string(badge); fields["tone"] = .string("warning") }
+        func row(_ id: String, _ label: String, _ caption: String, icon: String = "checkmark.circle", tone: String? = nil, badge: String? = nil) -> JSONValue {
+            var fields: [String: JSONValue] = ["id": .string(id), "label": .string(label), "caption": .string(caption), "icon": .string(icon)]
+            if let tone { fields["tone"] = .string(tone) }
+            if let badge { fields["badge"] = .string(badge) }
             return .object(fields)
         }
         let items = JSONValue.array([
             .object(["id": .string("suggested"), "label": .string("Suggested"), "section": .bool(true)]),
-            row("agt_chat_1", "Rate-limit notifications", "last used here · 1h"),
+            row("agt_chat_1", "Rate-limit notifications", "last used here · 1h", icon: "play.circle", tone: "accent"),
             .object(["id": .string("open-in"), "label": .string("Open in shop"), "detail": .string("3"), "section": .bool(true)]),
-            row("agt_chat_2", "Wiki: document review flow", "docs/wiki · 12m", badge: "needs you"),
+            row("agt_chat_2", "Wiki: document review flow", "docs/wiki · 12m", icon: "exclamationmark.circle", tone: "warning", badge: "needs you"),
             row("agt_chat_3", "Fix flaky land gate test", "main · 25m"),
             row("agt_chat_4", "Port cron to the detail pattern", "docs/design-brief · 2h"),
         ])
         let list = node("list", "chat/sessions", ["action": .string("chatPick"), "focus": .string("agt_chat_1"), "items": items, "filter": .object(["placeholder": .string("Filter sessions"), "minRows": .number(10)])])
-        let add = node("button", "chat/new", ["label": .string("New session"), "icon": .string("plus"), "variant": .string("secondary"), "action": .string("chatNew"), "hint": .string("n")])
+        let add = node("button", "chat/new", ["label": .string("New session"), "icon": .string("plus"), "variant": .string("secondary"), "action": .string("chatNew"), "hint": .string("n"), "keyCap": .bool(true), "fill": .bool(true)])
         let note = node("text", nil, ["text": .string("Sees the page Checkout flow"), "style": .string("muted")])
         let foot = node("stack", nil, ["direction": .string("vertical"), "gap": .number(6), "inset": .string("foot")], [add, note])
         let header = node("stack", nil, ["direction": .string("horizontal"), "gap": .number(8), "inset": .string("bar"), "notes": .bool(true)], [

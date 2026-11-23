@@ -192,8 +192,11 @@ final class IPadUITests: XCTestCase {
         XCTAssertEqual(panel.frame.width, 400, accuracy: 2)
         XCTAssertGreaterThanOrEqual(second.frame.minY - first.frame.minY, 56)
         XCTAssertTrue(listHidden(app))
-        XCTAssertFalse(app.staticTexts["· pick a session"].exists)
+        XCTAssertTrue(app.staticTexts["chat.subtitle"].exists)
         XCTAssertFalse(app.buttons["Hide chat"].exists)
+        let add = app.buttons["New session"]
+        XCTAssertGreaterThanOrEqual(add.frame.width, panel.frame.width - 40 - 2)
+        XCTAssertGreaterThanOrEqual(add.frame.height, 44)
         app.buttons["chat.close"].tap()
         XCTAssertTrue(wait { !panel.exists })
         XCTAssertTrue(shown(row))

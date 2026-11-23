@@ -136,6 +136,21 @@ extension RowGroup where Header == EmptyView {
     }
 }
 
+extension SessionGlyph {
+    init?(statusIcon icon: String, needsYou: Bool) {
+        switch icon {
+        case "play.circle": self = .running
+        case "exclamationmark.circle": self = needsYou ? .permission : .childWaiting
+        case "arrow.up.circle": self = .asksParent
+        case "checkmark.circle", "circle": self = .done
+        case "eye.circle": self = .review
+        case "xmark.circle": self = .stopped
+        case "archivebox": self = .closed
+        default: return nil
+        }
+    }
+}
+
 struct ItemLabel: View {
     let item: SDUIItem
     var detailTone: String?
@@ -148,9 +163,13 @@ struct ItemLabel: View {
     var body: some View {
         HStack(spacing: 12) {
             if let icon = item.icon, !icon.isEmpty {
-                Image(systemName: icon)
-                    .foregroundStyle(SDUITone.ink(item.tone) ?? Color.captionInk)
-                    .frame(width: 28)
+                if rowHeight != nil, let glyph = SessionGlyph(statusIcon: icon, needsYou: item.badge?.isEmpty == false) {
+                    SessionGlyphView(glyph: glyph)
+                } else {
+                    Image(systemName: icon)
+                        .foregroundStyle(SDUITone.ink(item.tone) ?? Color.captionInk)
+                        .frame(width: 28)
+                }
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.label)

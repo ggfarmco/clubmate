@@ -36,6 +36,25 @@ final class SDUIRendererTests: XCTestCase {
         XCTAssertFalse(StackNode.chromeBar(bar([back, text, hide])))
     }
 
+    func testChatPanelHeaderTakesItsSubtitleFromThePickerBar() {
+        let bar = SDUINode(type: "stack", props: ["direction": .string("horizontal"), "inset": .string("bar")], children: [
+            SDUINode(type: "text", props: ["text": .string("Chat"), "style": .string("strong")]),
+            SDUINode(type: "text", props: ["text": .string("· pick a session"), "style": .string("muted")]),
+            SDUINode(type: "spacer"),
+        ])
+        let root = SDUINode(type: "keys", children: [SDUINode(type: "stack", props: ["direction": .string("vertical")], children: [bar])])
+
+        XCTAssertEqual(ChatPanel.subtitle(in: root), "· pick a session")
+        XCTAssertNil(ChatPanel.subtitle(in: SDUINode(type: "stack", props: ["direction": .string("vertical")])))
+    }
+
+    func testPickerRowsDrawCompanionStatusGlyphs() {
+        XCTAssertEqual(SessionGlyph(statusIcon: "play.circle", needsYou: false), .running)
+        XCTAssertEqual(SessionGlyph(statusIcon: "exclamationmark.circle", needsYou: true), .permission)
+        XCTAssertEqual(SessionGlyph(statusIcon: "exclamationmark.circle", needsYou: false), .childWaiting)
+        XCTAssertNil(SessionGlyph(statusIcon: "doc.text", needsYou: false))
+    }
+
     func testContextChipTapNamesTheChip() {
         XCTAssertEqual(ContextChip(id: "ctx/page", kind: "page", label: "Roadmap page", removable: true).openValue, .string("ctx/page"))
         XCTAssertEqual(ContextChip(id: nil, kind: "page", label: "Roadmap page", removable: false).openValue, .null)

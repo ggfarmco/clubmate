@@ -505,8 +505,16 @@ struct EmptyNode: View {
                 }
             }
         } actions: {
-            SDUIChildren(node: node, context: context)
-                .environment(\.sduiInset, 0)
+            VStack(spacing: 12) {
+                SDUIChildren(node: node, context: context)
+                    .environment(\.sduiInset, 0)
+                if let note = node.string("note"), !note.isEmpty {
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(Color.captionInk)
+                        .multilineTextAlignment(.center)
+                }
+            }
         }
     }
 }

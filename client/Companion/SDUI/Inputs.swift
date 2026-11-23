@@ -48,7 +48,7 @@ struct ButtonNode: View {
         return Button {
             if node.confirmation() != nil { confirming = true } else { press() }
         } label: {
-            SDUIButtonLabel(label: label, icon: node.string("icon"), variant: node.string("variant"), iconOnly: node.bool("iconOnly") == true && node.string("icon") != nil, loading: loading)
+            SDUIButtonLabel(label: label, icon: node.string("icon"), variant: node.string("variant"), iconOnly: node.bool("iconOnly") == true && node.string("icon") != nil, loading: loading, fill: node.bool("fill") == true)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, panelRows == nil ? 0 : inset)
@@ -76,6 +76,7 @@ struct SDUIButtonLabel: View {
     let variant: String?
     let iconOnly: Bool
     let loading: String?
+    var fill = false
 
     private var foreground: Color {
         switch variant {
@@ -114,7 +115,7 @@ struct SDUIButtonLabel: View {
             .font(variant == "primary" ? .headline : .body.weight(.medium))
             .foregroundStyle(foreground)
             .padding(.horizontal, background == .clear ? 4 : 18)
-            .frame(minHeight: 44)
+            .frame(maxWidth: fill ? .infinity : nil, minHeight: 44)
             .background(background, in: .capsule)
             .contentShape(.capsule)
         }

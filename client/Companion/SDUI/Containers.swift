@@ -13,6 +13,8 @@ struct StackNode: View {
     @Environment(\.readingView) private var readingView
     @Environment(\.sduiRowHeight) private var panelRows
 
+    static let footInsets = (top: CGFloat(12), sides: CGFloat(20), bottom: CGFloat(20))
+
     static func chromeBar(_ node: SDUINode) -> Bool {
         node.string("inset") == "bar" && node.children.allSatisfy { ["text", "spacer", "icon"].contains($0.type) || $0.string("clientAction") != nil }
     }
@@ -80,6 +82,13 @@ struct StackNode: View {
             .fixedSize(horizontal: false, vertical: node.children.contains { $0.type == "divider" })
             .environment(\.sduiInset, 0)
             .padding(.horizontal, inset)
+        } else if panelRows != nil, node.string("inset") == "foot" {
+            VStack(alignment: .leading, spacing: gap ?? 6) { SDUIChildren(node: node, context: context) }
+                .environment(\.sduiInset, 0)
+                .padding(.top, Self.footInsets.top)
+                .padding(.horizontal, Self.footInsets.sides)
+                .padding(.bottom, Self.footInsets.bottom)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             VStack(alignment: .leading, spacing: gap ?? 12) { SDUIChildren(node: node, context: context) }
                 .frame(maxWidth: .infinity, alignment: .leading)
