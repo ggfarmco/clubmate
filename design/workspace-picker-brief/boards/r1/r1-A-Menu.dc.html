@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · A · Refined system Menu</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/a3008f026d28b2c59f3362d57348026a">
+<link rel="stylesheet" href="/_blob/a360d4e2acf10ea2a23fe2d15ad74ccc">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+.phone{width:393px;height:852px;border-radius:48px;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.25),0 18px 48px rgba(0,0,0,.18)}
+.bgscr{position:absolute;inset:0;opacity:.42;filter:blur(2px);pointer-events:none}
+.comp .menu{position:absolute;left:16px;top:52px;width:304px;border-radius:30px;overflow:hidden;z-index:6;display:flex;flex-direction:column;padding:6px 0;backdrop-filter:blur(30px) saturate(1.6);-webkit-backdrop-filter:blur(30px) saturate(1.6)}
+.comp.th-cdark .menu{background:rgba(44,44,46,.94);box-shadow:0 14px 44px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.08)}
+.comp.th-clight .menu{background:rgba(255,255,255,.94);box-shadow:0 14px 44px rgba(0,0,0,.14),0 0 0 1px rgba(0,0,0,.05)}
+.comp .mh{font-size:13px;line-height:18px;color:var(--t3);padding:8px 20px 4px}
+.comp .mi{display:flex;align-items:center;gap:14px;width:100%;min-height:46px;padding:8px 20px;text-align:left;color:var(--fg)}
+.comp .mi .mic{width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex:none}
+.comp .mi .mic svg.i{width:20px;height:20px;stroke-width:1.6}
+.comp .mi .mt{flex:1;min-width:0;display:flex;flex-direction:column}
+.comp .mi .ml{font-size:17px;line-height:22px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comp .mi .ms{font-size:13px;line-height:17px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comp .mi .mtr{color:var(--t3);display:flex}
+.comp .mi .mtr svg.i{width:14px;height:14px}
+.comp .msep{height:1px;background:var(--bd);margin:6px 20px;flex:none}
+.comp .mcg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:2px 8px 0}
+.comp .mcgb{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px 8px;font-size:13px;line-height:16px;color:var(--fg)}
+.comp .mcgb+.mcgb{border-left:1px solid var(--bd)}
+.comp .mcgb svg.i{width:22px;height:22px;stroke-width:1.6}
+.comp .mscroll{position:absolute;right:5px;top:250px;width:3px;height:150px;border-radius:2px;background:var(--t4)}
+.comp.th-cdark .mfade{position:absolute;left:0;right:0;bottom:0;height:56px;background:linear-gradient(rgba(44,44,46,0),rgba(44,44,46,.96))}
+.comp.th-clight .mfade{position:absolute;left:0;right:0;bottom:0;height:56px;background:linear-gradient(rgba(255,255,255,0),rgba(255,255,255,.96))}
+.figc{display:flex;flex-direction:column;gap:4px;min-height:92px}
+.figc b{font-size:16px}
+.figc span{font-size:14px;line-height:20px;color:#5B5F5C}
+</style>
+</helmet>
+<div class="doc" style="width: 1372px; height: 1340px; padding: 48px; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="eyebrow">Workspace picker · round 1 · direction A</div>
+<h1>A · Refined system Menu</h1>
+<p class="lead">Stay a system <code>Menu</code>, but give it a shape: Mac actions in a fixed top row, other Macs folded into submenus, one status line per workspace.</p>
+<div style="display: flex; gap: 8px"><span class="tag p0">cost S</span><span class="tag">all system</span><span class="tag b">reads NEW activity</span></div>
+</div>
+
+<div style="display: flex; gap: 48px; align-items: flex-start">
+
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px; width: 393px">
+<figcaption class="figc"><b>1 Mac · 3 workspaces</b><span>Mac Details and Pair a Mac become one ControlGroup row on top: never among the workspaces, never cut. The row glyph is the status; the current one keeps the system checkmark.</span></figcaption>
+<div class="cm comp th-{{theme}} phone">
+<div class="bgscr" aria-hidden="true">
+<div class="top"><span style="flex: 1"></span><div class="gpill glass"><span class="gbtn"><svg class="i" viewBox="0 0 16 16"><path d="M2 9.5 4 3h8l2 6.5V13H2Z"/><path d="M2 9.5h3.5l1 1.5h3l1-1.5H14"/></svg></span><span class="gbtn"><svg class="i" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg></span></div></div>
+<div style="position: absolute; inset: 0; padding-top: 112px">
+<div class="big" style="padding: 0 20px">Agents</div>
+<div class="hdr"><span>Needs you</span><span class="cap">2</span></div>
+<div class="ig"><div class="c"><span class="st wa"><svg class="i" viewBox="0 0 16 16"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><div class="cbody"><span class="w6">Refactor the cart total into its own function</span><span class="cap"><span class="wa-i">Wants to run</span> go test ./…</span></div></div></div>
+<div class="hdr"><span>main</span><span class="cap">2</span></div>
+<div class="ig"><div class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16"><path d="M5.5 3.5v9l7-4.5Z"/></svg></span><div class="cbody"><span>Add stock reservation expiry</span><span class="cap mut">Editing reserve.go · 4 min</span></div></div><div class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-7"/></svg></span><div class="cbody"><span>Bump Go to 1.25</span><span class="cap mut">Done · 1 h</span></div></div></div>
+</div>
+</div>
+<div class="menu" role="menu" aria-label="Workspaces">
+<div class="mcg">
+<button class="mcgb" role="menuitem"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.7M8 5.2v.1"/></svg>Mac Details</button>
+<button class="mcgb" role="menuitem"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 5V1.5H5M11 1.5h3.5V5M14.5 11v3.5H11M5 14.5H1.5V11"/><path d="M5 5h2.5v2.5H5ZM8.5 5H11v2.5H8.5ZM5 8.5h2.5V11H5ZM8.5 8.5H11V11"/></svg>Pair a Mac</button>
+</div>
+<div class="msep"></div>
+<div class="mh">Mac Studio · online</div>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 7.5 8 2.5l6 5"/><path d="M3.5 6.3V13.5h3.2v-4h2.6v4h3.2V6.3"/></svg></span><span class="mt"><span class="ml">Home</span><span class="ms">idle · 1 h</span></span></button>
+<button class="mi" role="menuitemradio" aria-checked="true"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg></span><span class="mt"><span class="ml">shop</span><span class="ms">2 waiting · 1 running</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9l7-4.5Z"/></svg></span><span class="mt"><span class="ml">design-brief</span><span class="ms">1 running</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="mt"><span class="ml">clubmate</span><span class="ms">idle · 3 h</span></span></button>
+</div>
+</div>
+</figure>
+
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px; width: 393px">
+<figcaption class="figc"><b>3 Macs × 10 workspaces · one offline</b><span>Other Macs fold into submenu rows with a one-line summary, so a wait on another Mac is visible. This Mac's 10 workspaces scroll; the top row stays put. Weak spot: the current shop sits below the fold, and a Menu won't scroll to its checkmark.</span></figcaption>
+<div class="cm comp th-{{theme}} phone">
+<div class="bgscr" aria-hidden="true">
+<div class="top"><span style="flex: 1"></span><div class="gpill glass"><span class="gbtn"><svg class="i" viewBox="0 0 16 16"><path d="M2 9.5 4 3h8l2 6.5V13H2Z"/><path d="M2 9.5h3.5l1 1.5h3l1-1.5H14"/></svg></span><span class="gbtn"><svg class="i" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg></span></div></div>
+<div style="position: absolute; inset: 0; padding-top: 112px">
+<div class="big" style="padding: 0 20px">Agents</div>
+<div class="hdr"><span>Needs you</span><span class="cap">2</span></div>
+<div class="ig"><div class="c"><span class="st wa"><svg class="i" viewBox="0 0 16 16"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><div class="cbody"><span class="w6">Refactor the cart total into its own function</span><span class="cap"><span class="wa-i">Wants to run</span> go test ./…</span></div></div></div>
+</div>
+</div>
+<div class="menu" role="menu" aria-label="Workspaces" style="height: 770px">
+<div class="mcg">
+<button class="mcgb" role="menuitem"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.7M8 5.2v.1"/></svg>Mac Details</button>
+<button class="mcgb" role="menuitem"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 5V1.5H5M11 1.5h3.5V5M14.5 11v3.5H11M5 14.5H1.5V11"/><path d="M5 5h2.5v2.5H5ZM8.5 5H11v2.5H8.5ZM5 8.5h2.5V11H5ZM8.5 8.5H11V11"/></svg>Pair a Mac</button>
+</div>
+<div class="msep"></div>
+<div class="mh">Other Macs</div>
+<button class="mi" role="menuitem" aria-haspopup="menu"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10v7H3Z"/><path d="M1.5 12.5h13"/></svg></span><span class="mt"><span class="ml">Vadzim's MacBook Pro 16-inch</span><span class="ms">1 waiting · 1 running</span></span><span class="mtr"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></span></button>
+<button class="mi" role="menuitem" aria-haspopup="menu"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10v7H3Z"/><path d="M1.5 12.5h13"/></svg></span><span class="mt"><span class="ml">MacBook Air</span><span class="ms">offline · as of 09:12</span></span><span class="mtr"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></span></button>
+<div class="msep"></div>
+<div class="mh">Mac Studio · online</div>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 7.5 8 2.5l6 5"/><path d="M3.5 6.3V13.5h3.2v-4h2.6v4h3.2V6.3"/></svg></span><span class="mt"><span class="ml">Home</span><span class="ms">idle · 1 h</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="mt"><span class="ml">analytics</span><span class="ms">idle · 3 w</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="mt"><span class="ml">card-issuing-sandbox</span><span class="ms">idle · 2 w</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="mt"><span class="ml">clubmate</span><span class="ms">idle · 3 h</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9l7-4.5Z"/></svg></span><span class="mt"><span class="ml">design-brief</span><span class="ms">1 running</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="mt"><span class="ml">docs-site</span><span class="ms">idle · 2 d</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="mt"><span class="ml">infra-terraform-staging-eu-west</span><span class="ms">1 waiting</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="mt"><span class="ml">ledger</span><span class="ms">idle · 1 w</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="mt"><span class="ml">mobile-app</span><span class="ms">idle · 5 d</span></span></button>
+<div class="mfade"></div>
+<div class="mscroll"></div>
+</div>
+</div>
+</figure>
+
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px; width: 393px">
+<figcaption class="figc"><b>Submenu: the offline Mac</b><span>Its workspaces stay listed with "as of 09:12". A Menu can only dim a row by disabling it, so rows stay enabled and the text carries the state. Glyph shapes keep their meaning; nothing is coloured.</span></figcaption>
+<div class="cm comp th-{{theme}} phone">
+<div class="bgscr" aria-hidden="true">
+<div class="top"><span style="flex: 1"></span><div class="gpill glass"><span class="gbtn"><svg class="i" viewBox="0 0 16 16"><path d="M2 9.5 4 3h8l2 6.5V13H2Z"/><path d="M2 9.5h3.5l1 1.5h3l1-1.5H14"/></svg></span><span class="gbtn"><svg class="i" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg></span></div></div>
+<div style="position: absolute; inset: 0; padding-top: 112px">
+<div class="big" style="padding: 0 20px">Agents</div>
+<div class="hdr"><span>Needs you</span><span class="cap">2</span></div>
+<div class="ig"><div class="c"><span class="st wa"><svg class="i" viewBox="0 0 16 16"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><div class="cbody"><span class="w6">Refactor the cart total into its own function</span><span class="cap"><span class="wa-i">Wants to run</span> go test ./…</span></div></div></div>
+</div>
+</div>
+<div class="menu" role="menu" aria-label="MacBook Air">
+<button class="mi" role="menuitem" aria-expanded="true"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 6 4.5 4.5L12.5 6"/></svg></span><span class="mt"><span class="ml w6">MacBook Air</span><span class="ms">offline · as of 09:12</span></span></button>
+<div class="msep"></div>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 7.5 8 2.5l6 5"/><path d="M3.5 6.3V13.5h3.2v-4h2.6v4h3.2V6.3"/></svg></span><span class="mt"><span class="ml">Home</span><span class="ms">as of 09:12</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9l7-4.5Z"/></svg></span><span class="mt"><span class="ml">api-gateway</span><span class="ms">as of 09:12 · 1 running</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="mt"><span class="ml">notes</span><span class="ms">as of 09:12</span></span></button>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="mt"><span class="ml">shop-api</span><span class="ms">as of 09:12 · 2 waiting</span></span></button>
+<div class="msep"></div>
+<button class="mi" role="menuitem"><span class="mic"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.7M8 5.2v.1"/></svg></span><span class="mt"><span class="ml">Mac Details</span></span></button>
+</div>
+</div>
+</figure>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; padding-top: 18px; border-top: 1px solid #DAD8CF">
+<p style="font-size: 14px"><b>Glyph = status</b> (SF Symbols, monochrome): <span class="mono">hand.raised</span> waiting · <span class="mono">xmark.circle</span> failed · <span class="mono">play</span> running · <span class="mono">folder</span> idle · <span class="mono">house</span> Home · system <span class="mono">checkmark</span> on the current one.</p>
+<p style="font-size: 14px"><b>Kept as is:</b> order is the Mac's own order; truncation is the system's (tail); light and dark follow the system menu material, so no separate light board.</p>
+<p style="font-size: 14px"><b>Can't do:</b> no Mac colour (the capsule dot keeps it), no amber or red, no dimming, no search. Past ~9 rows the menu scrolls.</p>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"cdark"},"$preview":{"width":1372,"height":1340}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'cdark' };
+}
+}
+</script>
+</body>
+</html>

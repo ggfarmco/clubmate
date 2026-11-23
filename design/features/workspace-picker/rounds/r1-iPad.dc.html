@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · iPad: sidebar and popover</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/a3008f026d28b2c59f3362d57348026a">
+<link rel="stylesheet" href="/_blob/a360d4e2acf10ea2a23fe2d15ad74ccc">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+.pad{width:716px;height:500px;position:relative;overflow:hidden;border-radius:20px;box-shadow:0 0 0 1px rgba(0,0,0,.25),0 18px 48px rgba(0,0,0,.18);flex:none}
+.pad>.cm{width:1194px;height:834px;transform:scale(.6);transform-origin:0 0}
+.comp .sbar{background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;padding:24px 10px 0;min-width:0}
+.comp .sr{display:flex;align-items:center;gap:10px;min-height:36px;padding:6px 10px;border-radius:10px;font-size:15px;line-height:20px;width:100%;text-align:left;color:var(--fg)}
+.comp .sr>svg.i{width:20px;height:20px;stroke-width:1.6}
+.comp .sr .st{width:24px;height:24px}
+.comp .sr .st svg.i{width:13px;height:13px}
+.comp .sr .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comp .sr.sel{background:var(--sel)}
+.comp .sr .amb{color:var(--wa-i);font-weight:600;font-size:13px}
+.comp .sh{display:flex;align-items:center;gap:8px;min-height:40px;padding:10px 4px 4px 10px;font-size:13px;line-height:18px;color:var(--t3);width:100%;text-align:left}
+.comp .sh .nm{font-weight:600;color:var(--fg);font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comp .sh>svg.i{width:13px;height:13px;flex:none}
+.comp .sh .ib2{width:36px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--t2);margin-left:auto;flex:none}
+.comp .sh .ib2 svg.i{width:19px;height:19px;stroke-width:1.6}
+.comp .hdot{display:inline-block;width:9px;height:9px;border-radius:50%;border:1.6px solid var(--id);flex:none}
+.comp .pop{position:absolute;left:20px;top:92px;width:375px;border-radius:26px;z-index:8;display:flex;flex-direction:column;padding-bottom:12px}
+.comp.th-cdark .pop{background:#1C1C1E;box-shadow:0 18px 50px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.1)}
+.comp.th-clight .pop{background:#F2F2F7;box-shadow:0 18px 50px rgba(0,0,0,.18),0 0 0 1px rgba(0,0,0,.06)}
+.comp .shd{display:flex;align-items:center;gap:8px;padding:10px 16px 10px;flex:none}
+.comp .shd .sht{flex:1;text-align:center;font-size:17px;line-height:22px;font-weight:600}
+.comp .shd .gbtn{width:40px;height:40px}
+.comp .shd .gbtn svg.i{width:19px;height:19px}
+.comp .strip{display:flex;gap:8px;padding:0 16px 8px;overflow:hidden;flex:none;white-space:nowrap}
+.comp .chip{display:flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:20px;flex:none;max-width:200px;font-size:15px;line-height:20px;color:var(--fg)}
+.comp.th-cdark .chip{background:#2C2C2E}
+.comp.th-clight .chip{background:#FFFFFF}
+.comp .chip[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--ac)}
+.comp.th-cdark .chip[aria-pressed="true"]{background:color-mix(in srgb,var(--ac) 16%,#2C2C2E)}
+.comp.th-clight .chip[aria-pressed="true"]{background:color-mix(in srgb,var(--ac) 10%,#FFFFFF)}
+.comp .chip .mdot{width:10px;height:10px}
+.comp .chip .count{min-width:20px;height:20px;border-radius:10px;font-size:12px;padding:0 6px;background:var(--wa);color:#1A1300}
+.comp .macln{display:flex;align-items:center;gap:8px;padding:0 6px 4px 20px;min-height:40px}
+.comp .lnk{display:flex;align-items:center;gap:6px;height:40px;padding:0 12px;font-size:15px;color:var(--t2)}
+.comp .lnk svg.i{width:17px;height:17px;stroke-width:1.6}
+.comp .mcard{margin:0 16px;border-radius:20px;overflow:hidden}
+.comp.th-cdark .mcard{background:#2C2C2E}
+.comp.th-clight .mcard{background:#FFFFFF}
+.comp.th-cdark .mcard .st.n{background:#3A3A3C}
+.comp .mcard .c{min-height:44px;padding-top:8px;padding-bottom:8px}
+.comp button.c{width:100%;text-align:left}
+.comp .c .ck{color:var(--ac-i);width:18px;height:18px;stroke-width:2.2}
+.comp .arrow{position:absolute;left:150px;top:80px;width:24px;height:24px;transform:rotate(45deg);border-radius:4px;z-index:7}
+.comp.th-cdark .arrow{background:#1C1C1E}
+.comp.th-clight .arrow{background:#F2F2F7}
+.figc{display:flex;flex-direction:column;gap:4px}
+.figc b{font-size:16px}
+.figc span{font-size:14px;line-height:20px;color:#5B5F5C}
+</style>
+</helmet>
+<div class="doc" style="width: 1580px; height: 1040px; padding: 48px; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="eyebrow">Workspace picker · round 1 · iPad, where it differs</div>
+<h1>iPad · the sidebar is the picker</h1>
+<p class="lead">With <code>.sidebarAdaptable</code> the sidebar already lists workspaces, so it takes the same row rules and the capsule hides. With the sidebar hidden, the capsule opens C as a popover, not a sheet.</p>
+</div>
+
+<div style="display: flex; gap: 52px; align-items: flex-start">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px; width: 716px">
+<figcaption class="figc"><b>Sidebar shown · no capsule</b><span>One collapsible section per Mac: colour, name, presence, (i) Mac Details. The current Mac is open; a folded Mac shows its amber count. Rows: the same status circle at 24pt, trailing amber count only for a wait.</span></figcaption>
+<div class="pad">
+<div class="cm comp th-{{theme}}" style="display: grid; grid-template-columns: 320px minmax(0, 1fr)">
+<nav class="sbar" aria-label="Clubmate">
+<div style="display: flex; align-items: center; gap: 8px; padding: 0 4px 8px 10px"><span class="t20" style="flex: 1">Clubmate</span><button class="gbtn glass" aria-label="Hide sidebar" style="width: 40px; height: 40px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 19px; height: 19px"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button></div>
+<button class="sr ac-i"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="nm w6">Agents</span></button>
+<button class="sr"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 4h8M6.5 12h8"/><path d="m1.5 4 1.5 1.5L5.5 2.5"/><circle cx="3.2" cy="12" r="1.7"/></svg><span class="nm">Backlog</span></button>
+<button class="sr"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4.2C6.5 3 4.3 2.8 1.5 3.2v9.5c2.8-.4 5 0 6.5 1.1 1.5-1.1 3.7-1.5 6.5-1.1V3.2c-2.8-.4-5-.2-6.5 1Z"/><path d="M8 4.2v9.6"/></svg><span class="nm">Wiki</span></button>
+<button class="sr"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M5.2 8h.1M8 8h.1M10.8 8h.1"/></svg><span class="nm">More</span></button>
+<div style="height: 1px; background: var(--bd); margin: 8px 10px 2px"></div>
+<div class="sh id-blue"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 6 4.5 4.5L12.5 6"/></svg><span class="mdot"></span><span class="nm">Mac Studio</span><span>online</span><button class="ib2" aria-label="Mac Details for Mac Studio"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.7M8 5.2v.1"/></svg></button></div>
+<button class="sr"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 7.5 8 2.5l6 5"/><path d="M3.5 6.3V13.5h3.2v-4h2.6v4h3.2V6.3"/></svg></span><span class="nm">Home</span></button>
+<button class="sr"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="nm">analytics</span></button>
+<button class="sr"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="nm">card-issuing-sandbox</span></button>
+<button class="sr"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="nm">clubmate</span></button>
+<button class="sr"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9l7-4.5Z"/></svg></span><span class="nm">design-brief</span></button>
+<button class="sr"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="nm">docs-site</span></button>
+<button class="sr"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="nm">infra-terraform-staging-eu-west</span><span class="amb">1</span></button>
+<button class="sr"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="nm">ledger</span></button>
+<button class="sr"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="nm">mobile-app</span></button>
+<button class="sr"><span class="st er"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m5 5 6 6M11 5l-6 6"/></svg></span><span class="nm">payments-reconciliation-service</span></button>
+<button class="sr sel" aria-current="true"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="nm w6">shop</span><span class="amb">2</span></button>
+<div class="sh id-magenta"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><span class="mdot"></span><span class="nm">Vadzim's MacBook Pro 16-inch (2024)</span><span class="amb" style="color: var(--wa-i); font-weight: 600">1</span><button class="ib2" aria-label="Mac Details for Vadzim's MacBook Pro 16-inch (2024)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.7M8 5.2v.1"/></svg></button></div>
+<div class="sh id-graphite"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><span class="hdot"></span><span class="nm" style="color: var(--t2)">MacBook Air</span><span style="white-space: nowrap">as of 09:12</span><button class="ib2" aria-label="Mac Details for MacBook Air"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.7M8 5.2v.1"/></svg></button></div>
+<button class="sr t2"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg><span class="nm">Pair a Mac</span></button>
+</nav>
+<main style="position: relative; padding: 24px 28px; opacity: .55">
+<div class="big">Agents</div>
+<div class="cap mut" style="padding-top: 2px"><span class="mdot id-blue" style="margin-right: 6px"></span>Mac Studio · shop</div>
+<div class="hdr" style="padding-left: 4px"><span>Needs you</span><span class="cap">2</span></div>
+<div class="ig" style="margin: 0"><div class="c"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><div class="cbody"><span class="w6">Refactor the cart total into its own function</span><span class="cap"><span class="wa-i">Wants to run</span> go test ./…</span></div></div><div class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9l7-4.5Z"/></svg></span><div class="cbody"><span>Add stock reservation expiry</span><span class="cap mut">Editing reserve.go · 4 min</span></div></div></div>
+</main>
+</div>
+</div>
+</figure>
+
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px; width: 716px">
+<figcaption class="figc"><b>Sidebar hidden · capsule opens a popover</b><span>Same content as the phone sheet (C), in a 375pt popover anchored to the capsule. No grabber, no Close: tapping outside dismisses. Pair a Mac stays the leading button.</span></figcaption>
+<div class="pad">
+<div class="cm comp th-{{theme}}">
+<div style="position: absolute; top: 24px; left: 20px; display: flex; gap: 10px; align-items: center; z-index: 6">
+<button class="gbtn glass" aria-label="Show sidebar"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button>
+<button class="gpill glass" aria-expanded="true" style="padding: 0 16px; gap: 8px; font-size: 17px; color: var(--fg)"><span class="mdot id-blue" style="width: 10px; height: 10px"></span>shop<svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px"><path d="m3.5 6 4.5 4.5L12.5 6"/></svg></button>
+</div>
+<main style="position: absolute; inset: 0; padding: 96px 40px 0 440px; opacity: .45">
+<div class="big">Agents</div>
+<div class="hdr" style="padding-left: 4px"><span>Needs you</span><span class="cap">2</span></div>
+<div class="ig" style="margin: 0"><div class="c"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><div class="cbody"><span class="w6">Refactor the cart total into its own function</span><span class="cap"><span class="wa-i">Wants to run</span> go test ./…</span></div></div></div>
+</main>
+<div class="arrow"></div>
+<section class="pop" aria-label="Workspaces">
+<div class="shd"><button class="gbtn glass" aria-label="Pair a Mac"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button><span class="sht">Workspaces</span><span style="width: 40px"></span></div>
+<div class="strip" role="group" aria-label="Macs">
+<button class="chip id-blue" aria-pressed="true"><span class="mdot"></span><span class="ell w6">Mac Studio</span><span class="count">3</span></button>
+<button class="chip id-magenta" aria-pressed="false"><span class="mdot"></span><span class="ell">Vadzim's MacBook Pro 16-inch (2024)</span><span class="count">1</span></button>
+</div>
+<div class="macln"><span class="cap mut" style="flex: 1">online · 10 workspaces</span><button class="lnk"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.7M8 5.2v.1"/></svg>Mac Details</button></div>
+<div class="mcard">
+<button class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 7.5 8 2.5l6 5"/><path d="M3.5 6.3V13.5h3.2v-4h2.6v4h3.2V6.3"/></svg></span><span class="cbody"><span>Home</span></span><span class="val cap">1 h</span></button>
+<button class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="cbody"><span class="ell">analytics</span></span><span class="val cap">3 w</span></button>
+<button class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="cbody"><span class="ell">card-issuing-sandbox</span></span><span class="val cap">2 w</span></button>
+<button class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="cbody"><span class="ell">clubmate</span></span><span class="val cap">3 h</span></button>
+<button class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9l7-4.5Z"/></svg></span><span class="cbody"><span class="ell">design-brief</span><span class="cap mut">1 running</span></span></button>
+<button class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="cbody"><span class="ell">docs-site</span></span><span class="val cap">2 d</span></button>
+<button class="c"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="cbody"><span class="ell">infra-terraform-staging-eu-west</span><span class="cap wa-i">1 waiting</span></span></button>
+<button class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="cbody"><span class="ell">ledger</span></span><span class="val cap">1 w</span></button>
+<button class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><span class="cbody"><span class="ell">mobile-app</span></span><span class="val cap">5 d</span></button>
+<button class="c"><span class="st er"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m5 5 6 6M11 5l-6 6"/></svg></span><span class="cbody"><span class="ell">payments-reconciliation-service</span><span class="cap er-i">1 failed</span></span></button>
+<button class="c" aria-current="true"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="cbody"><span class="w6 ell">shop</span><span class="cap"><span class="wa-i">2 waiting</span><span class="mut"> · 1 running</span></span></span><svg class="i ck" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg></button>
+</div>
+</section>
+</div>
+</div>
+</figure>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; padding-top: 18px; border-top: 1px solid #DAD8CF">
+<p style="font-size: 14px"><b>Sidebar sections</b> are system <code>TabSection</code>s with a custom header (colour dot, presence, info button). Folded state is remembered per Mac; the current Mac always opens.</p>
+<p style="font-size: 14px"><b>Selection:</b> the current workspace gets the accent selection fill in the sidebar, the accent checkmark in the popover. The tab (Agents) keeps the system tab tint.</p>
+<p style="font-size: 14px"><b>With A or B</b> the sidebar is the same; only the popover changes: A stays a system menu, B shows the cards at 375pt.</p>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"cdark"},"$preview":{"width":1580,"height":1040}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'cdark' };
+}
+}
+</script>
+</body>
+</html>

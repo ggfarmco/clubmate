@@ -1,0 +1,21 @@
+{
+  "title": "Workspace picker · round 1",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 23 Nov. iPhone first, iPad where it differs. Three directions for the workspace capsule's list. Each is drawn with 1 Mac and with 3 Macs × 10 workspaces with one Mac offline, long names, dark (B and C also in light).",
+    "A · Refined system Menu (cost S): stay a system Menu, but give it a shape: Mac Details and Pair a Mac in a fixed top row, other Macs folded into submenus, one status line per workspace. The row glyph shows the status (hand = waiting, ✕ = failed, play = running, folder = idle). It cannot show a Mac colour, amber or dimming; with 10 workspaces it scrolls and the current one can be below the fold.",
+    "B · Mac cards sheet (cost L): one card per Mac with its colour, state, workspaces and Mac Details; quiet workspaces fold behind \"Show all 10 workspaces\"; search above 8 workspaces in all.",
+    "C · Mac strip sheet (cost M, designer's pick): one Mac at a time: a strip of Macs on top (colour dot, hollow when offline, amber count only when something waits), that Mac's whole list below. Same shape as the iPad sidebar. Trade-off: a wait on another Mac shows only as a count on its chip.",
+    "Rows in B and C: the 28-pt status circle from the session rows: amber hand = needs you, red ✕ = failed, grey play = running, grey folder = idle with the last-active time, accent checkmark = current. An offline Mac keeps its colour; its rows show at 55% with \"as of 09:12\".",
+    "Plugin fields: all three need one NEW field per workspace in the workspace list: activity {needsYou, running, failed, lastActiveAt}; the Go plugin decides what counts as running or failed, and the picker does not load 30 session lists. Optional NEW mac.model (desktop or laptop glyph) for A and B. \"as of 09:12\" is the phone's own last-received time, no field."
+  ],
+  "boards": [
+    {"file": "r1-A-Menu.dc.html", "w": 1372, "title": "A · Refined system Menu · dark", "caption": "1 Mac; 3 Macs × 10 with other Macs as submenus; the offline Mac's submenu. All system, no light board (the system draws the menu in both modes)."},
+    {"file": "r1-B-Cards.dc.html", "w": 1372, "title": "B · Mac cards sheet · dark", "caption": "1 Mac at the medium detent; 3 Macs × 10 with the fold rule and an offline card; search across Macs."},
+    {"file": "r1-C-Strip.dc.html", "w": 1372, "title": "C · Mac strip sheet · dark · designer's pick", "caption": "1 Mac (no strip); 3 Macs with a chip strip and one Mac's full list; the offline Mac selected."},
+    {"file": "r1-B-Cards-Light.dc.html", "w": 1372, "title": "B · light", "caption": "The same three phones in light."},
+    {"file": "r1-C-Strip-Light.dc.html", "w": 1372, "title": "C · light", "caption": "The same three phones in light."},
+    {"file": "r1-iPad.dc.html", "w": 1580, "title": "iPad · sidebar and popover", "caption": "Sidebar shown: it is the picker, one folding section per Mac with the same rows, capsule hidden. Sidebar hidden: the capsule opens C as a 375-pt popover."},
+    {"file": "r1-Rules.dc.html", "w": 1580, "title": "Rules · A, B, C compared", "caption": "Cost, system vs custom, every text with its VoiceOver label, the status-to-glyph table, the fields each direction reads (NEW marked), the pick."}
+  ]
+}

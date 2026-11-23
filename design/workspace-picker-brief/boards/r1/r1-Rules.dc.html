@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · Rules: A, B, C compared</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/a3008f026d28b2c59f3362d57348026a">
+<link rel="stylesheet" href="/_blob/a360d4e2acf10ea2a23fe2d15ad74ccc">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+.doc td.k{font-weight:600;width:170px}
+.doc td.pk{background:#EEF5EC}
+.doc th.pk{background:#EEF5EC}
+.doc .new{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:16px;padding:0 6px;border-radius:4px;background:#F3E0C3;color:#71440B;font-weight:600}
+.doc .ok{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:16px;padding:0 6px;border-radius:4px;background:#E4E2D9;color:#3A3D3B}
+.doc pre{margin:0;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:20px;background:#1B1D1C;color:#F4F3EE;border-radius:12px;padding:16px 18px;white-space:pre}
+</style>
+</helmet>
+<div class="doc" style="width: 1580px; height: 2700px; padding: 56px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div class="eyebrow">Workspace picker · round 1 · rules</div>
+<h1>A, B, C compared — pick C</h1>
+<p class="lead">C (Mac strip sheet) fixes everything the brief lists, stays one list long with 3 Macs × 10, costs M, and uses the same structure as the iPad sidebar. A is the fallback if we won't build a custom sheet yet; everything it needs carries over to C.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>1 · The directions side by side</h2>
+<table>
+<thead><tr><th style="width: 170px"></th><th>A · Refined system Menu</th><th>B · Mac cards sheet</th><th class="pk">C · Mac strip sheet · picked</th></tr></thead>
+<tbody>
+<tr><td class="k">Pitch</td><td>Stay a system Menu, but give it a shape: Mac actions in a fixed top row, other Macs folded into submenus, one status line per workspace.</td><td>One card per Mac with its colour, state, workspaces and Mac Details; quiet workspaces fold away; search when long.</td><td class="pk">One Mac at a time: a strip of Macs on top, that Mac's whole workspace list below. One list long however many Macs.</td></tr>
+<tr><td class="k">Cost</td><td><span class="tag p0">S</span> Menu restructure, ControlGroup, submenus, subtitle strings.</td><td><span class="tag p0">L</span> Sheet, card header, fold rule, cross-Mac search, popover on iPad, tests for fold changes.</td><td class="pk"><span class="tag p0">M</span> Sheet/popover, chip strip, one list, 1-Mac header; search only past 12 per Mac.</td></tr>
+<tr><td class="k">System</td><td>Everything: <code>Menu</code>, <code>Section</code>, <code>ControlGroup</code>, nested <code>Menu</code>, <code>Label</code> + one subtitle line, <code>Picker</code> checkmark.</td><td><code>.sheet</code> with <code>.medium</code>/<code>.large</code> detents, <code>List</code>, <code>.searchable</code>, toolbar buttons, popover on iPad.</td><td class="pk"><code>.sheet</code> with detents, <code>List</code>, <code>.searchable</code> (past 12), toolbar buttons, <code>.popover</code> on iPad.</td></tr>
+<tr><td class="k">Custom</td><td>Nothing.</td><td>Card header (colour glyph, name, state, info button), 28pt status circle row, fold rule, "Show all" row.</td><td class="pk">Chip strip (dot, name, amber count, selection ring), Mac line (state + Mac Details), 28pt status circle row.</td></tr>
+<tr><td class="k">Mac header</td><td>Section header text "Mac Studio · online"; count dropped. No colour (only the capsule dot).</td><td>Card header: Mac glyph in its C5 colour, name in 17 semibold, "online · 3 waiting".</td><td class="pk">Chip: C5 dot (hollow when offline), name, amber count when something waits. Line below: "online · 10 workspaces".</td></tr>
+<tr><td class="k">Per workspace</td><td>Glyph shape = status, subtitle = "2 waiting · 1 running". Monochrome.</td><td>Status circle (amber wait, red failed, grey otherwise) + state line only with activity; idle shows last-active time.</td><td class="pk">Same row as B.</td></tr>
+<tr><td class="k">Current</td><td>System checkmark replaces the glyph; status stays in the subtitle.</td><td>Accent checkmark at the trailing edge, glyph kept, name semibold.</td><td class="pk">Same as B; opens scrolled so the current row shows.</td></tr>
+<tr><td class="k">Offline Mac</td><td>Submenu subtitle "offline · as of 09:12"; rows say "as of 09:12 · …". Rows stay enabled and are not dimmed (a Menu dims only by disabling).</td><td>Card keeps its colour; rows at 55%; amber and red go grey; header "offline · as of 09:12".</td><td class="pk">Hollow dot on the chip; "offline · as of 09:12" + "Answers wait until it's back."; rows at 55%, grey glyphs, still open read-only.</td></tr>
+<tr><td class="k">Long names</td><td>System tail truncation; no control.</td><td>Tail ellipsis on one line; VoiceOver reads the full name.</td><td class="pk">Same; chip names stop at 214pt.</td></tr>
+<tr><td class="k">3 Macs × 10</td><td>Other Macs: 2 rows. This Mac: 11 rows, the menu scrolls past ~9; the current one may sit below the fold.</td><td>Fold: Home, current and active rows, then "Show all 10". Search above 8 in all. Still scrolls with 3 cards.</td><td class="pk">11 rows of one Mac fit on screen. Strip scrolls sideways past 2–3 chips. Nothing folds, rows never move.</td></tr>
+<tr><td class="k">Mac Details</td><td>ControlGroup button (current Mac); last item of each other Mac's submenu.</td><td>(i) on every card header.</td><td class="pk">"Mac Details" on the Mac line, for the selected chip; (i) on the 1-Mac header.</td></tr>
+<tr><td class="k">Pair a Mac</td><td>ControlGroup button, always on top.</td><td>Sheet's leading + button.</td><td class="pk">Sheet's leading + button.</td></tr>
+<tr><td class="k">Light / dark</td><td>System menu material; no extra board.</td><td>Custom tokens: see the light board.</td><td class="pk">Custom tokens: see the light board.</td></tr>
+<tr><td class="k">iPad</td><td>Same menu from the capsule when the sidebar is hidden.</td><td>Cards in a 375pt popover.</td><td class="pk">Strip + list in a 375pt popover. The sidebar uses the same row rules in all three.</td></tr>
+<tr><td class="k">Weak spot</td><td>Can't show colour, amber, red or dimming; "looks better" only in part.</td><td>Most code; rows appear and disappear as activity changes.</td><td class="pk">A wait on another Mac is a count on a chip, not a row; one more tap to see it. The Inbox stays the place to answer across Macs.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: grid; grid-template-columns: 560px minmax(0, 1fr); gap: 48px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>2 · Status: one glyph, one tone</h2>
+<table>
+<thead><tr><th>Status</th><th>SF Symbol</th><th>Tone (B, C)</th></tr></thead>
+<tbody>
+<tr><td>Needs you</td><td class="mono">hand.raised.fill</td><td>amber circle, amber text</td></tr>
+<tr><td>Failed</td><td class="mono">xmark</td><td>red-tint circle, red text</td></tr>
+<tr><td>Running</td><td class="mono">play.fill</td><td>grey circle, grey text (running is not green)</td></tr>
+<tr><td>Idle</td><td class="mono">folder</td><td>grey circle, last-active time on the right</td></tr>
+<tr><td>Home</td><td class="mono">house</td><td>grey circle; status in the text only</td></tr>
+<tr><td>Offline Mac</td><td>same shape</td><td>all grey, row at 55%</td></tr>
+<tr><td>Current</td><td class="mono">checkmark</td><td>accent, trailing</td></tr>
+</tbody>
+</table>
+<p style="font-size: 14px">Several at once: needs you › failed › running › idle picks the glyph; the text lists them in that order. A has the same shapes, all monochrome.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>3 · Fields each one reads</h2>
+<table>
+<thead><tr><th style="width: 290px">Field</th><th style="width: 90px">State</th><th style="width: 90px">Read by</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td class="mono">mac.name, mac.online</td><td><span class="ok">today</span></td><td>A B C</td><td>Presence word and hollow dot.</td></tr>
+<tr><td class="mono">mac.color</td><td><span class="ok">today</span></td><td>B C</td><td>C5 identity colour. A can't draw it.</td></tr>
+<tr><td class="mono">mac.model</td><td><span class="new">NEW</span></td><td>A B</td><td>desktop vs laptop glyph. Optional: without it, <span class="mono">desktopcomputer</span> for all. C doesn't need it.</td></tr>
+<tr><td>"as of 09:12"</td><td>phone</td><td>A B C</td><td>Time the phone last received that Mac's state. Phone-local, no plugin field.</td></tr>
+<tr><td class="mono">workspace.name, .home</td><td><span class="ok">today</span></td><td>A B C</td><td>Order = the order the Mac sends.</td></tr>
+<tr><td class="mono">agents.sessions[].needsYou, .status</td><td><span class="ok">today</span></td><td>fallback</td><td>Today the phone sums "n waiting" from these. Keep only as a fallback for old plugins.</td></tr>
+<tr><td class="mono">workspace.activity.needsYou</td><td><span class="new">NEW</span></td><td>A B C</td><td>"2 waiting", amber glyph, chip count (summed per Mac on the phone).</td></tr>
+<tr><td class="mono">workspace.activity.running</td><td><span class="new">NEW</span></td><td>A B C</td><td>"1 running", play glyph.</td></tr>
+<tr><td class="mono">workspace.activity.failed</td><td><span class="new">NEW</span></td><td>A B C</td><td>"1 failed", red glyph. Go decides what counts (e.g. stopped with an error and not yet opened).</td></tr>
+<tr><td class="mono">workspace.activity.lastActiveAt</td><td><span class="new">NEW</span></td><td>A B C</td><td>"3 h" on idle rows. No source today.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 560px minmax(0, 1fr); gap: 48px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>4 · The NEW field</h2>
+<pre>workspaces: [{
+  "name": "shop",
+  "home": false,
+  "activity": {
+    "needsYou": 2,
+    "running": 1,
+    "failed": 0,
+    "lastActiveAt": "2026-11-23T08:38:00Z"
+  }
+}]</pre>
+<p style="font-size: 14px">Why in the workspace list: the picker shows 30 workspaces at once and should not load 30 session lists; what counts as running, waiting or failed is decided once in Go; and idle time has no source today. Mac totals are plain sums on the phone; they add no meaning.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>5 · Every text</h2>
+<table>
+<thead><tr><th style="width: 330px">String</th><th style="width: 90px">Where</th><th>Use</th></tr></thead>
+<tbody>
+<tr><td>Workspaces</td><td>B C</td><td>Sheet and popover title; the Menu's accessibility label in A.</td></tr>
+<tr><td>Pair a Mac</td><td>A B C</td><td>ControlGroup button (A); + button label (B, C); last sidebar row (iPad).</td></tr>
+<tr><td>Mac Details · Mac Details for {Mac}</td><td>A B C</td><td>Button title; the long form is the accessibility label of every (i).</td></tr>
+<tr><td>Close · Cancel</td><td>B C</td><td>Sheet close button label; search cancel.</td></tr>
+<tr><td>Other Macs</td><td>A</td><td>Section header above the submenu rows.</td></tr>
+<tr><td>{Mac} · online</td><td>A</td><td>This Mac's section header.</td></tr>
+<tr><td>online · {n} waiting</td><td>B C</td><td>Mac header state line; "{n} waiting" in amber.</td></tr>
+<tr><td>online · {n} workspaces</td><td>C</td><td>Mac line under the strip.</td></tr>
+<tr><td>offline · as of {HH:mm}</td><td>A B C</td><td>Offline Mac's state line.</td></tr>
+<tr><td>Answers wait until it's back.</td><td>C</td><td>Second line for an offline Mac.</td></tr>
+<tr><td>Home</td><td>A B C</td><td>Home workspace row.</td></tr>
+<tr><td>{n} waiting · {n} failed · {n} running</td><td>A B C</td><td>State line; only parts above zero, in this order.</td></tr>
+<tr><td>idle · {age} / {age}</td><td>A / B C</td><td>Idle row: subtitle in A, trailing value in B and C. Age: now, 5 min, 3 h, 2 d, 1 w.</td></tr>
+<tr><td>as of {HH:mm} · {state}</td><td>A B C</td><td>Row on an offline Mac.</td></tr>
+<tr><td>Search {n} workspaces</td><td>B C</td><td>Placeholder. B above 8 in all; C above 12 on that Mac.</td></tr>
+<tr><td>{n} results · Show all {n} workspaces</td><td>B</td><td>Search header; fold row.</td></tr>
+<tr><td>shop, current workspace, 2 waiting, 1 running</td><td>A B C</td><td>VoiceOver for a row.</td></tr>
+<tr><td>Mac Studio, online, 3 need you</td><td>C</td><td>VoiceOver for a chip; offline: "MacBook Air, offline as of 09:12".</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<h2>6 · Why C</h2>
+<ul style="font-size: 16px; line-height: 24px; display: flex; flex-direction: column; gap: 6px; max-width: 1200px">
+<li><b>Fixes each problem in the brief.</b> Plain menu → one list with status per row; same folder glyph → shape is status; Mac Details among workspaces → beside the strip; grey Mac header → coloured chip plus a state line; no activity → waiting, running, failed and last-active per row; cut-off Pair a Mac → leading button in the sheet.</li>
+<li><b>Scales by Mac, not by the total.</b> 3 Macs × 10 shows 11 rows that fit on screen; no fold rule, so rows never jump.</li>
+<li><b>Costs M, not L.</b> One list, one strip, and the session row's status circle from C3.</li>
+<li><b>Same shape on iPad.</b> The sidebar is "Mac → its workspaces" too; the popover is the same view.</li>
+<li><b>Trade-off we accept:</b> a wait on another Mac is a count on a chip, not a row. Answering across Macs stays the Inbox's job.</li>
+<li><b>If the custom sheet must wait:</b> ship A first (S). Its glyph rules, strings and the <span class="mono">activity</span> field carry over to C unchanged.</li>
+</ul>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1580,"height":2700}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

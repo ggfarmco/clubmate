@@ -1,0 +1,21 @@
+{
+  "title": "Workspace picker · ruling A",
+  "fit": 1200,
+  "intro": [
+    "Claude Design round 1, 23 Nov 2026. The user picked A · Refined system Menu (cost S, all system). Rules: rules.md beside this page."
+  ],
+  "boards": [
+    {
+      "file": "r1-A-Menu.dc.html",
+      "w": 1372,
+      "title": "A · Refined system Menu · dark",
+      "caption": "1 Mac; 3 Macs × 10 with other Macs as submenus; the offline Mac's submenu. All system, no light board (the system draws the menu in both modes)."
+    },
+    {
+      "file": "r1-Rules.dc.html",
+      "w": 1580,
+      "title": "Rules · A, B, C compared",
+      "caption": "Cost, system vs custom, every text with its VoiceOver label, the status-to-glyph table, the fields each direction reads (NEW marked), the pick."
+    }
+  ]
+}
