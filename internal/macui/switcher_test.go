@@ -20,9 +20,9 @@ func TestSwitcherClosesAWorkspaceByItsCrossAndByDelete(t *testing.T) {
 	}
 	in.json(&opened, "workspace", "open", other)
 	require.NotEmpty(t, opened.ID)
-	in.eventually("the second workspace is shown", func() bool {
+	in.eventually("the second workspace is shown on Agents", func() bool {
 		w := in.snapshot().main()
-		return w != nil && strings.HasPrefix(w.Title, "other") && strings.Contains(w.Responder, "TerminalSurfaceView")
+		return w != nil && strings.HasPrefix(w.Title, "other") && w.has("agents.main/empty")
 	})
 
 	in.cm("ui", "present", "switcher")
