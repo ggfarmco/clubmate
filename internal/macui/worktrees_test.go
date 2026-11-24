@@ -82,14 +82,20 @@ func TestWorktreePicker(t *testing.T) {
 	side := app.worktree(other, "side", "2026-11-03T10:00:00")
 	app.addFolder(other)
 	row := func(path string) string { return "worktrees#worktree:" + path }
+	closed := func(in *instance) func() bool {
+		return func() bool { return !in.snapshot().main().has("worktrees") }
+	}
 	open := func(in *instance) {
 		in.t.Helper()
 		in.eventually("the pill shows", func() bool { return in.snapshot().main().has("worktree.pill") })
 		in.pointer("click", "worktree.pill")
 		in.eventually("a click on the pill opens the picker", func() bool { return in.snapshot().main().has(row(newer)) })
-	}
-	closed := func(in *instance) func() bool {
-		return func() bool { return !in.snapshot().main().has("worktrees") }
+		in.t.Cleanup(func() {
+			if !closed(in)() {
+				in.key("esc")
+				in.eventually("esc closes the picker the test left open", closed(in))
+			}
+		})
 	}
 
 	t.Run("hover tints a row", func(t *testing.T) {
@@ -109,6 +115,7 @@ func TestWorktreePicker(t *testing.T) {
 	})
 	t.Run("a click on a row switches and closes", func(t *testing.T) {
 		in := app.at(t)
+		open(in)
 		in.pointer("click", row(older))
 		in.eventually("the picker closes", closed(in))
 		in.eventually("the pill names the picked worktree", func() bool {
@@ -118,7 +125,7 @@ func TestWorktreePicker(t *testing.T) {
 	t.Run("a click outside closes", func(t *testing.T) {
 		in := app.at(t)
 		open(in)
-		in.pointer("click", "editor-nvim.main/surface", "--at", "1000,600")
+		in.pointer("click", "agents.main/empty")
 		in.eventually("the picker closes", closed(in))
 	})
 	t.Run("a click on the pill closes an open picker and it stays closed", func(t *testing.T) {
