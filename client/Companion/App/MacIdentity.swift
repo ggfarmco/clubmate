@@ -147,7 +147,9 @@ struct MacDetailsView: View {
         .confirmationDialog("Forget \(tag.name)?", isPresented: $forgetting, titleVisibility: .visible) {
             Button("Forget", role: .destructive) {
                 if navigation.isTop(.macDetails(computer: computerID)) { navigation.pop() }
-                try? model.remove(computerID)
+                if (try? model.remove(computerID)) != nil {
+                    navigation.forget(computerID)
+                }
                 navigation.follow(model)
             }
         } message: {

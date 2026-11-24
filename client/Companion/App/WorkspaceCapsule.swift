@@ -18,7 +18,10 @@ struct WorkspaceCapsule: View {
             }
             if otherMacs.count > 0 {
                 Section("Other Macs") {
-                    ForEach(otherMacs, id: \.computer.id) { connection in
+                    ForEach(Array(otherMacs.enumerated()), id: \.element.computer.id) { index, connection in
+                        if index > 0 {
+                            Divider()
+                        }
                         Menu {
                             workspaceRows(connection, now: now)
                             Button("Mac Details", systemImage: "info.circle") {
@@ -29,6 +32,9 @@ struct WorkspaceCapsule: View {
                             if let subtitle = macSubtitle(connection, now: now) {
                                 Text(subtitle)
                             }
+                        }
+                        if let workspace = navigation.workspace(for: connection) {
+                            workspaceRow(workspace, in: connection, now: now)
                         }
                     }
                 }
@@ -83,17 +89,21 @@ struct WorkspaceCapsule: View {
     @ViewBuilder
     private func workspaceRows(_ connection: ComputerConnection, now: Date) -> some View {
         ForEach(Workspace.homeFirst(connection.workspaces)) { workspace in
-            let key = WorkspaceKey(computer: connection.computer.id, workspace: workspace.id)
-            let state = summary(workspace, in: connection)
-            Toggle(isOn: Binding {
-                context.navigation.workspaceKey == key
-            } set: { _ in
-                context.navigation.switchWorkspace(computer: key.computer, workspace: key.workspace)
-            }) {
-                Label(WorkspaceSummary.rowName(workspace.name), systemImage: state.glyph(home: workspace.home == true))
-                if let subtitle = state.subtitle(now: now, asOf: connection.lastSeen, offline: connection.isOffline) {
-                    Text(subtitle)
-                }
+            workspaceRow(workspace, in: connection, now: now)
+        }
+    }
+
+    private func workspaceRow(_ workspace: Workspace, in connection: ComputerConnection, now: Date) -> some View {
+        let key = WorkspaceKey(computer: connection.computer.id, workspace: workspace.id)
+        let state = summary(workspace, in: connection)
+        return Toggle(isOn: Binding {
+            context.navigation.workspaceKey == key
+        } set: { _ in
+            context.navigation.switchWorkspace(computer: key.computer, workspace: key.workspace)
+        }) {
+            Label(WorkspaceSummary.rowName(workspace.name), systemImage: state.glyph(home: workspace.home == true))
+            if let subtitle = state.subtitle(now: now, asOf: connection.lastSeen, offline: connection.isOffline) {
+                Text(subtitle)
             }
         }
     }

@@ -65,4 +65,14 @@ final class WorkspacePickerTests: XCTestCase {
         XCTAssertEqual(WorkspaceSummary.rowName("infra-terraform-staging-eu-central-1-migration"), "infra-terraform-s…")
         XCTAssertEqual(WorkspaceSummary.rowName("infra-terraform-st"), "infra-terraform-st")
     }
+
+    func testLastUsedWorkspaceFallsBackToHomeWhenNoneOrGone() {
+        let list = [Workspace(id: "shop", name: "shop"), Workspace(id: "home", name: "Home", home: true), Workspace(id: "blog", name: "blog")]
+        let last = LastWorkspaces(["studio": "blog", "pro": "gone"])
+
+        XCTAssertEqual(last.workspace(for: "studio", in: list)?.id, "blog")
+        XCTAssertEqual(last.workspace(for: "pro", in: list)?.id, "home")
+        XCTAssertEqual(last.workspace(for: "air", in: list)?.id, "home")
+        XCTAssertEqual(last.workspace(for: "air", in: [Workspace(id: "infra", name: "infra")])?.id, "infra")
+    }
 }

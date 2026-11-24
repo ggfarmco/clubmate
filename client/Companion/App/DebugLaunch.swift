@@ -56,6 +56,9 @@ enum DebugLaunch {
                 scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight))
             }
         }
+        if defaults.string(forKey: "fixtures") != nil, navigation.workspace(FixtureMac.studio.id) == nil {
+            navigation.workspaces[FixtureMac.studio.id] = FixtureMac.studio.workspaces[0].id
+        }
         if let link = defaults.string(forKey: "pair") {
             pairing.received(link, from: .link, model: model, navigation: navigation)
         }

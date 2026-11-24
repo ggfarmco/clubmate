@@ -38,20 +38,24 @@ final class AppNavigation {
         didSet {
             guard stacks != oldValue else { return }
             publish()
-            if persists { stacks.save(to: .standard) }
+            if persists { stacks.save(to: defaults) }
         }
     }
     private(set) var workspaceKey: WorkspaceKey?
     private(set) var shownTab: CompanionTab = .agents
     private let paths = Dictionary(uniqueKeysWithValues: CompanionTab.allCases.map { ($0, TabPath()) })
     private(set) var knownTabs: KnownTabs {
-        didSet { if persists, knownTabs != oldValue { knownTabs.save(to: .standard) } }
+        didSet { if persists, knownTabs != oldValue { knownTabs.save(to: defaults) } }
     }
     var connectionSheet: ConnectionSheet?
     var reportSheet: ReportSheet?
     var usageSheet: UsageSheet?
-    var workspaces: [String: String] = [:] {
-        didSet { if workspaces != oldValue { follow() } }
+    var workspaces = LastWorkspaces() {
+        didSet {
+            guard workspaces != oldValue else { return }
+            if persists { workspaces.save(to: defaults) }
+            follow()
+        }
     }
     var newTaskWorkspaces: [String: String] = [:]
     var showingAddComputer = false
@@ -60,6 +64,7 @@ final class AppNavigation {
     @ObservationIgnored private var pairedUnderSheet: String?
     @ObservationIgnored private var pending: (computer: String, workspace: String?, tab: CompanionTab, destination: Destination?)?
     @ObservationIgnored private let persists: Bool
+    @ObservationIgnored private let defaults: UserDefaults
     var sectionItem: String?
     private(set) var voiceDocks: [VoiceDockFrame] = []
     private(set) var searchRequests = 0
@@ -80,11 +85,13 @@ final class AppNavigation {
 
     var voiceDock: CGRect? { voiceDocks.last?.frame }
 
-    init(restore: Bool = AppNavigation.restores) {
+    init(restore: Bool = AppNavigation.restores, defaults: UserDefaults = .standard) {
         persists = restore
-        UserDefaults.standard.removeObject(forKey: "sidebarHidden")
-        stacks = restore ? TabStacks.restore(from: .standard) : TabStacks()
-        knownTabs = restore ? KnownTabs.restore(from: .standard) : KnownTabs()
+        self.defaults = defaults
+        defaults.removeObject(forKey: "sidebarHidden")
+        stacks = restore ? TabStacks.restore(from: defaults) : TabStacks()
+        knownTabs = restore ? KnownTabs.restore(from: defaults) : KnownTabs()
+        workspaces = restore ? LastWorkspaces.restore(from: defaults) : LastWorkspaces()
         if let key = stacks.workspace { workspaces[key.computer] = key.workspace }
         publish()
     }
@@ -558,8 +565,11 @@ final class AppNavigation {
     }
 
     func workspace(for connection: ComputerConnection) -> Workspace? {
-        let list = connection.workspaces
-        return list.first { $0.id == workspaces[connection.computer.id] } ?? list.first
+        workspaces.workspace(for: connection.computer.id, in: connection.workspaces)
+    }
+
+    func forget(_ computer: String) {
+        workspaces.forget(computer: computer)
     }
 }
 

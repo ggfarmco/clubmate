@@ -455,6 +455,19 @@ final class CompanionUITests: XCTestCase {
         XCTAssertFalse(long.isSelected)
     }
 
+    func testLastUsedWorkspaceOfAnotherMacIsOneTap() {
+        let app = launch(open: "agents", ["-macs", "3", "-activity", "YES"])
+        XCTAssertTrue(capsuleShows(app, "shop"))
+        switchWorkspace(app, "infra", on: "MacBook Pro")
+        switchWorkspace(app, "clubmate", on: "Mac Studio")
+        openCapsule(app)
+        menuItem(app, "infra").tap()
+        XCTAssertTrue(capsuleShows(app, "infra"))
+        openCapsule(app)
+        menuItem(app, "clubmate").tap()
+        XCTAssertTrue(capsuleShows(app, "clubmate"))
+    }
+
     func testCapsuleMenuRowsTap() {
         let app = launch(open: "agents")
         XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))
