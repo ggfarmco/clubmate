@@ -46,6 +46,29 @@ class BuildRowsTest(unittest.TestCase):
         self.assertEqual((rows["shared"]["branch"], rows["shared"]["part_of"]), ("", ""))
 
 
+class SubtreesTest(unittest.TestCase):
+    def test_subtree_cost_per_landing_and_parallel(self):
+        sessions = [
+            dict(id="orch", title="o", createdAt="2026-11-18T00:00:00Z", worktree="/repo"),
+            session("a", "2026-11-18T01:00:00Z", WT + "feat/a"),
+            session("b", "2026-11-18T01:30:00Z", WT + "feat/b"),
+            dict(id="rev", title="r", createdAt="2026-11-18T02:00:00Z", gateFor={"lander": "a", "tree": "t1"}),
+            dict(id="solo", title="s", createdAt="2026-11-18T05:00:00Z", worktree="/repo"),
+            dict(id="rev2", title="r2", createdAt="2026-11-18T06:00:00Z", gateFor={"lander": "solo", "tree": "t2"}),
+            dict(id="idle", title="i", createdAt="2026-11-18T07:00:00Z", worktree="/repo"),
+        ]
+        m = {k: metrics(c) for k, c in {"orch": 2.0, "a": 3.0, "b": 4.0, "rev": 1.0, "solo": 5.0, "rev2": 1.0, "idle": 9.0}.items()}
+        rows = [
+            {"session": "a", "branch": "feat/a", "part_of": "", "created": "2026-11-18T01:00:00Z", "finished": "2026-11-18T02:00:00Z"},
+            {"session": "b", "branch": "feat/b", "part_of": "", "created": "2026-11-18T01:30:00Z", "finished": "2026-11-18T03:00:00Z"},
+        ]
+        got = {r["root"]: r for r in co.build_subtrees(sessions, m, rows, {"t1": "c1", "t2": "c2"})}
+        self.assertEqual(set(got), {"orch", "solo"})
+        o, s = got["orch"], got["solo"]
+        self.assertEqual((o["builders"], o["landed"], o["subtree_cost"], o["cost_per_landing"], o["parallel"]), (2, 1, 10.0, 10.0, 1.25))
+        self.assertEqual((s["builders"], s["landed"], s["cost_per_landing"], s["parallel"]), (0, 1, 6.0, ""))
+
+
 class ParseTest(unittest.TestCase):
     def test_exp_tag_after_clubmate_preamble(self):
         text = '[From Clubmate agent session "x" (agt_1), not from the user]\n\n[exp kind=fix size=S arm=sonnet/high]\n\nGoal'

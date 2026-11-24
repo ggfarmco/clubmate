@@ -46,6 +46,11 @@ COLUMNS = [
     "created", "finished", "wall_min", "calls", "cost", "advisor_cost", "cost_source",
     "branch", "part_of", "parts", "reviewers", "gate_rounds", "changes", "squash", "cost_to_landing",
 ]
+SUBTREE_COLUMNS = [
+    "root", "title", "created", "children", "builders", "landed",
+    "root_cost", "children_cost", "reviewers_cost", "subtree_cost", "cost_per_landing",
+    "busy_min", "union_min", "parallel",
+]
 
 
 def cm(*args):
@@ -349,6 +354,84 @@ def build_rows(sessions, metrics, verdicts, trees):
     return rows
 
 
+def root_of(sid, by_id):
+    seen = set()
+    s = by_id.get(sid)
+    while s and s.get("parentSession") in by_id and s["id"] not in seen:
+        seen.add(s["id"])
+        s = by_id[s["parentSession"]]
+    return s["id"] if s else sid
+
+
+def union_seconds(intervals):
+    total = 0.0
+    end = None
+    for a, b in sorted(intervals):
+        if end is None or a > end:
+            total += b - a
+            end = b
+        elif b > end:
+            total += b - end
+            end = b
+    return total
+
+
+def build_subtrees(sessions, metrics, rows, trees):
+    by_id = {s["id"]: s for s in sessions}
+    subs = {}
+    for s in sessions:
+        gf = s.get("gateFor")
+        if gf:
+            if gf.get("lander"):
+                subs.setdefault(root_of(gf["lander"], by_id), {"members": [], "reviewers": []})["reviewers"].append(s)
+        elif s.get("parentSession"):
+            subs.setdefault(root_of(s["id"], by_id), {"members": [], "reviewers": []})["members"].append(s["id"])
+    builders = {}
+    intervals = {}
+    for r in rows:
+        if r["branch"] and not r["part_of"]:
+            root = root_of(r["session"], by_id)
+            builders[root] = builders.get(root, 0) + 1
+            if r["created"] and r["finished"]:
+                intervals.setdefault(root, []).append((parse_ts(r["created"]), parse_ts(r["finished"])))
+
+    def total(ids):
+        return sum(c for c in (cost_of(metrics.get(i, {}))[0] for i in ids) if c is not None)
+
+    out = []
+    for root, t in subs.items():
+        s = by_id.get(root)
+        if not s or s.get("gateFor"):
+            continue
+        landed = len({trees[g["gateFor"]["tree"]] for g in t["reviewers"] if g["gateFor"].get("tree") in trees})
+        if not t["members"] and not landed:
+            continue
+        root_cost = cost_of(metrics.get(root, {}))[0]
+        children_cost = total(t["members"])
+        reviewers_cost = total(g["id"] for g in t["reviewers"])
+        subtree = (root_cost or 0) + children_cost + reviewers_cost
+        iv = intervals.get(root, [])
+        busy = sum(b - a for a, b in iv)
+        union = union_seconds(iv)
+        out.append({
+            "root": root,
+            "title": EMAIL_RE.sub("<email>", s.get("title", "")),
+            "created": s.get("createdAt", ""),
+            "children": len(t["members"]),
+            "builders": builders.get(root, 0),
+            "landed": landed,
+            "root_cost": money(root_cost),
+            "children_cost": money(children_cost),
+            "reviewers_cost": money(reviewers_cost),
+            "subtree_cost": money(subtree),
+            "cost_per_landing": money(subtree / landed) if landed else "",
+            "busy_min": round(busy / 60, 1),
+            "union_min": round(union / 60, 1),
+            "parallel": round(busy / union, 2) if union > 0 else "",
+        })
+    return sorted(out, key=lambda r: r["created"])
+
+
 def collect_verdicts(path):
     seen = set()
     if os.path.exists(path):
@@ -410,7 +493,35 @@ def median(xs):
     return round(statistics.median(xs), 2) if xs else ""
 
 
-def write_report(path, rows, verdicts):
+def subtree_lines(subtrees):
+    buckets = [("0", 0, 0), ("1", 1, 1), ("2–3", 2, 3), ("4+", 4, 10**9)]
+    lines = [
+        "",
+        "## Subtrees",
+        "",
+        "A subtree is a top-level session, all its descendants and the reviewers of their landings. "
+        "This table counts only subtrees that landed into main through the land gate; subtrees.csv also lists those with children and no landing. "
+        "builders = children with a branch of their own; parallel = summed builder wall time / time at least one builder ran (1 = one at a time), from the builders that ended a turn. "
+        "Costs are pooled: the sum over the bucket divided by its landings. Not randomised: a bigger task gets more builders.",
+        "",
+        "| builders | roots | landings | $ per landing | root share | reviewers share | parallel |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for name, lo, hi in buckets:
+        rs = [r for r in subtrees if r["landed"] and lo <= r["builders"] <= hi]
+        if not rs:
+            continue
+        landed = sum(r["landed"] for r in rs)
+        cost = sum(r["subtree_cost"] for r in rs)
+        share = lambda col: f"{round(100 * sum(r[col] or 0 for r in rs) / cost)}%" if cost else ""
+        lines.append(
+            f"| {name} | {len(rs)} | {landed} | {round(cost / landed, 2)} | {share('root_cost')} | "
+            f"{share('reviewers_cost')} | {median([r['parallel'] for r in rs])} |"
+        )
+    return lines
+
+
+def write_report(path, rows, verdicts, subtrees):
     groups = {}
     for r in rows:
         if r["part_of"] or not r["branch"]:
@@ -437,6 +548,7 @@ def write_report(path, rows, verdicts):
             f"{median([r['cost_to_landing'] for r in landed])} | {median([r['gate_rounds'] for r in landed])} | "
             f"{median([r['changes'] for r in landed])} |"
         )
+    lines += subtree_lines(subtrees)
     ats = sorted(v.get("at", "") for v in verdicts if v.get("at"))
     if ats:
         lines += ["", f"Verdicts kept: {len(verdicts)}, {ats[0][:16]} – {ats[-1][:16]}."]
@@ -468,13 +580,16 @@ def run(out_dir, skip_fetch):
         json.dump({"version": CACHE_VERSION, "sessions": cache}, f)
     os.replace(tmp, cache_path)
     verdicts = load_verdicts(vpath, sessions)
-    rows = build_rows(sessions, metrics, verdicts, main_trees())
-    with open(os.path.join(out_dir, "children.csv"), "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=COLUMNS)
-        w.writeheader()
-        w.writerows(rows)
-    write_report(os.path.join(out_dir, "report.md"), rows, verdicts)
-    print(f"verdicts +{added}, children {len(rows)}, out {out_dir}")
+    trees = main_trees()
+    rows = build_rows(sessions, metrics, verdicts, trees)
+    subtrees = build_subtrees(sessions, metrics, rows, trees)
+    for name, cols, data in (("children.csv", COLUMNS, rows), ("subtrees.csv", SUBTREE_COLUMNS, subtrees)):
+        with open(os.path.join(out_dir, name), "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=cols)
+            w.writeheader()
+            w.writerows(data)
+    write_report(os.path.join(out_dir, "report.md"), rows, verdicts, subtrees)
+    print(f"verdicts +{added}, children {len(rows)}, subtrees {len(subtrees)}, out {out_dir}")
 
 
 def main():
