@@ -66,6 +66,7 @@ struct RequestBannerView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens the session")
+        .accessibilityIdentifier("requestBanner")
         .background(Color.surface1, in: .rect(cornerRadius: 20))
         .overlay {
             RoundedRectangle(cornerRadius: 20).strokeBorder(Color(.separator), lineWidth: 1)

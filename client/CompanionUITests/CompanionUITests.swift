@@ -917,6 +917,8 @@ final class CompanionUITests: XCTestCase {
         let show = app.buttons["Show done"]
         XCTAssertTrue(show.waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["Extract cartTotal"].exists)
+        XCTAssertTrue(wait(for: app.buttons["Allow once"], "enabled == true"))
+        clearOfBanner(show, in: app)
         show.tap()
         XCTAssertTrue(app.staticTexts["Extract cartTotal"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Hide done"].exists)
@@ -1664,6 +1666,17 @@ final class CompanionUITests: XCTestCase {
         for _ in 0..<5 where !(element.exists && element.isHittable && clearOfTabBar(element, in: app)) {
             app.swipeUp()
         }
+    }
+
+    private func clearOfBanner(_ element: XCUIElement, in app: XCUIApplication) {
+        let banner = app.buttons["requestBanner"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 5))
+        let window = app.windows.firstMatch
+        for _ in 0..<4 where banner.exists && element.frame.minY < banner.frame.maxY {
+            let start = window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 100)), withVelocity: .slow, thenHoldForDuration: 0.5)
+        }
+        XCTAssertFalse(banner.exists && element.frame.minY < banner.frame.maxY, "the request banner covers \(element)")
     }
 
     private func clearOfTabBar(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
