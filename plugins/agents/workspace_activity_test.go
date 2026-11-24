@@ -41,4 +41,7 @@ func TestActivityCountsEachWorkspaceOnce(t *testing.T) {
 		"docs": {"lastActiveAt": "2026-11-23T07:00:00Z"},
 		"graphs": {"needsYou": 1}
 	}`, string(raw))
+	for _, ws := range []string{"shop", "docs", "voice-only", "graphs"} {
+		assert.Equal(t, activityOf(a.infos(ws)), out.(map[string]workspaceActivity)[ws], ws)
+	}
 }

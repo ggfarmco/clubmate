@@ -111,9 +111,12 @@ func (n *trustNeeds) swap(workspace string, now map[string]bool) map[string]bool
 }
 
 func (a *app) trustWaiting(workspace string) []trustNeed {
+	return trustNeedsOf(a.list(workspace))
+}
+
+func trustNeedsOf(recs []record) []trustNeed {
 	byGate := map[string]*trustNeed{}
-	for _, s := range a.workspaceSessions(workspace) {
-		rec := s.snapshot()
+	for _, rec := range recs {
 		for _, h := range trustHolds(rec) {
 			since := cmp.Or(h.Since, rec.UpdatedAt)
 			n := byGate[h.Gate]

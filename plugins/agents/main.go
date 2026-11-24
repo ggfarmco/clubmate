@@ -497,21 +497,32 @@ func (a *app) lookup(workspaceID, id string) (*session, error) {
 	return s, nil
 }
 
+func (a *app) presented(s *session, rec record) record {
+	rec.AsksParent = a.asksParent(s, rec)
+	return a.reminders.present(rec)
+}
+
 func (a *app) list(workspaceID string) []record {
-	a.mu.Lock()
-	all := make([]*session, 0, len(a.sessions))
-	for _, s := range a.sessions {
-		all = append(all, s)
-	}
-	a.mu.Unlock()
 	out := []record{}
-	for _, s := range all {
+	for _, s := range a.allSessions() {
 		if rec := s.snapshot(); rec.Workspace == workspaceID {
-			rec.AsksParent = a.asksParent(s, rec)
-			out = append(out, a.reminders.present(rec))
+			out = append(out, a.presented(s, rec))
 		}
 	}
 	slices.SortFunc(out, startedFirst)
+	return out
+}
+
+func (a *app) listByWorkspace() map[string][]record {
+	out := map[string][]record{}
+	for _, s := range a.allSessions() {
+		if rec := s.snapshot(); rec.Workspace != "" {
+			out[rec.Workspace] = append(out[rec.Workspace], a.presented(s, rec))
+		}
+	}
+	for _, recs := range out {
+		slices.SortFunc(recs, startedFirst)
+	}
 	return out
 }
 
@@ -524,17 +535,8 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 	out := make([]sessionInfo, 0, len(recs))
 	for _, rec := range recs {
 		rec.DocIndex = nil
-		info := sessionInfo{record: rec, NotifyEffective: a.effectiveNotify(rec), ChildStatus: children[rec.ID]}
-		if n, ok := nest[rec.ID]; ok {
-			round := n.Round
-			info.GateRound, info.Hidden = &round, !n.Shown
-			if n.Tracked {
-				info.NestUnder = n.Lander
-			}
-			if n.Shown && n.Open {
-				info.RowUnder = n.Lander
-			}
-		}
+		info := baseInfo(rec, nest)
+		info.NotifyEffective, info.ChildStatus = a.effectiveNotify(rec), children[rec.ID]
 		if s := a.session(rec.ID); s != nil {
 			info.Pending = s.pending()
 			info.Asks = s.asks()
@@ -553,14 +555,12 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		if share := a.usage.sessionShare(tree.of(rec.ID)); len(share) > 0 {
 			info.LimitShare, info.ShareLabel, info.ShareWords, info.ShareDetail = share, shareLabel(share), shareWords(share), shareDetail(share)
 		}
-		info.NeedsYou = needsYou(info.record)
 		info.Gate = a.gateState(info.record)
 		info.Landing = a.landing(info.record)
 		info.Ungated = a.ungated(info.record)
 		info.TurnHeld = a.turnHeld(info.record)
 		info.Calls = a.callViews(info.record)
 		info.HeldRound = a.heldRound(info.record)
-		info.Service = rec.restricted()
 		info.Aside = asideViewOf(rec)
 		info.CanAside = a.canAside(rec)
 		info.Suggestion = a.suggestionFor(rec)
@@ -614,18 +614,12 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		}
 		out = append(out, info)
 	}
-	askers := a.gateAskers(recs)
-	for _, n := range a.runNeeds.list(workspaceID) {
-		info := runInfo(workspaceID, n)
-		if lander, ok := askers[n.Run]; ok {
-			info.RowUnder, info.NestUnder = lander.ID, lander.ID
-			if l := a.landing(lander); l != nil {
-				info.GateRound = &gateRound{Round: l.Round, Label: fmt.Sprintf(reviewRoundLabel, l.Round), Verdict: gateStateReview}
-				info.Title = info.GateRound.Label
-			}
+	out = append(out, a.runRows(workspaceID, recs, func(info *sessionInfo, lander record) {
+		if l := a.landing(lander); l != nil {
+			info.GateRound = &gateRound{Round: l.Round, Label: fmt.Sprintf(reviewRoundLabel, l.Round), Verdict: gateStateReview}
+			info.Title = info.GateRound.Label
 		}
-		out = append(out, info)
-	}
+	})...)
 	for _, n := range a.trustWaiting(workspaceID) {
 		n.Name, n.Point = a.trustGate(n.Gate)
 		out = append(out, trustInfo(workspaceID, n))
@@ -633,6 +627,41 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 	setGroups(out)
 	a.inbox.apply(workspaceID, out)
 	return out
+}
+
+func baseInfo(rec record, nest map[string]reviewerNest) sessionInfo {
+	info := sessionInfo{record: rec, NeedsYou: needsYou(rec), Service: rec.restricted()}
+	if n, ok := nest[rec.ID]; ok {
+		info.applyNest(n)
+	}
+	return info
+}
+
+func (a *app) runRows(workspaceID string, recs []record, under func(*sessionInfo, record)) []sessionInfo {
+	askers := a.gateAskers(recs)
+	var out []sessionInfo
+	for _, n := range a.runNeeds.list(workspaceID) {
+		info := runInfo(workspaceID, n)
+		if lander, ok := askers[n.Run]; ok {
+			info.RowUnder, info.NestUnder = lander.ID, lander.ID
+			if under != nil {
+				under(&info, lander)
+			}
+		}
+		out = append(out, info)
+	}
+	return out
+}
+
+func (i *sessionInfo) applyNest(n reviewerNest) {
+	round := n.Round
+	i.GateRound, i.Hidden = &round, !n.Shown
+	if n.Tracked {
+		i.NestUnder = n.Lander
+	}
+	if n.Shown && n.Open {
+		i.RowUnder = n.Lander
+	}
 }
 
 func decode(raw json.RawMessage, v any) error {

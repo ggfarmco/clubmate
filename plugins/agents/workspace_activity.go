@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"slices"
 	"time"
 
 	"clubmate/pkg/pluginsdk"
@@ -16,29 +15,33 @@ type workspaceActivity struct {
 }
 
 func (a *app) activityCommand(context.Context, pluginsdk.CommandRun) (any, error) {
+	byWS := a.listByWorkspace()
+	for _, id := range a.runNeeds.workspaces() {
+		if _, ok := byWS[id]; !ok {
+			byWS[id] = nil
+		}
+	}
 	out := map[string]workspaceActivity{}
-	for _, id := range a.workspaceIDs() {
-		if act := activityOf(a.infos(id)); act != (workspaceActivity{}) {
+	for id, recs := range byWS {
+		if act := activityOf(a.activityInfos(id, recs)); act != (workspaceActivity{}) {
 			out[id] = act
 		}
 	}
 	return out, nil
 }
 
-func (a *app) workspaceIDs() []string {
-	a.mu.Lock()
-	all := make([]*session, 0, len(a.sessions))
-	for _, s := range a.sessions {
-		all = append(all, s)
+func (a *app) activityInfos(workspaceID string, recs []record) []sessionInfo {
+	nest := reviewNests(recs)
+	out := make([]sessionInfo, 0, len(recs))
+	for _, rec := range recs {
+		out = append(out, baseInfo(rec, nest))
 	}
-	a.mu.Unlock()
-	ids := a.runNeeds.workspaces()
-	for _, s := range all {
-		if id := s.snapshot().Workspace; id != "" && !slices.Contains(ids, id) {
-			ids = append(ids, id)
-		}
+	out = append(out, a.runRows(workspaceID, recs, nil)...)
+	for _, n := range trustNeedsOf(recs) {
+		out = append(out, trustInfo(workspaceID, n))
 	}
-	return ids
+	setGroups(out)
+	return out
 }
 
 func activityOf(infos []sessionInfo) workspaceActivity {
