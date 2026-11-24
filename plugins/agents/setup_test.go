@@ -197,3 +197,12 @@ func TestSetupFixExitRunsTheCheckAgain(t *testing.T) {
 	a.setupFixExited(exited("sess_fix"))
 	testutil.Never(t, func() bool { return runs.Load() > 1 }, 200*time.Millisecond)
 }
+
+func TestSetupFixEventRefusesAgents(t *testing.T) {
+	t.Parallel()
+	loaded := make(chan struct{})
+	close(loaded)
+	a := &app{registry: newRegistry(), uiState: newUIState(), loaded: loaded}
+	_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws", Slot: mainSlot, NodeID: "main/setup-fix", Action: actSetupFix, Agent: true})
+	assert.ErrorIs(t, err, errUserAction)
+}

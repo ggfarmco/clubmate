@@ -644,7 +644,7 @@ func (a *app) regateHold(ctx context.Context, r holdRef, gates []gateConfig, gat
 func (a *app) regateUnread(ctx context.Context, r holdRef, rec record, gates []gateConfig, by string) bool {
 	s := r.s
 	h := r.of(rec)
-	g := unreadGate(stillHolding(gates, h), rec, h)
+	g := unreadGate(ctx, stillHolding(gates, h), rec, h)
 	switch {
 	case g == nil:
 		a.releaseHold(r, h.Key, by)
@@ -655,7 +655,7 @@ func (a *app) regateUnread(ctx context.Context, r holdRef, rec record, gates []g
 	n := *h
 	n.Gate = g.ID
 	if _, err := primaryRead(ctx, rec.Worktree); err != nil {
-		n.ReadRepo, n.Reason = readRepoName(rec.Worktree), causeOf(err)
+		n.ReadRepo, n.Reason = readRepoName(ctx, rec.Worktree), causeOf(err)
 	}
 	if n.Request != "" {
 		facts := a.heldAskOf(ctx, g)

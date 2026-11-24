@@ -461,7 +461,7 @@ func mayHoldDone(ctx context.Context, gates []gateConfig, rec record) bool {
 	case err == nil || errors.Is(err, gitrepo.ErrNotRepo):
 		return false
 	}
-	return doneHoldable(rec) && unreadGate(gates, rec, nil) != nil
+	return doneHoldable(rec) && unreadGate(ctx, gates, rec, nil) != nil
 }
 
 func (s *session) queueDoc(doc gatedDoc, toParent bool) bool {

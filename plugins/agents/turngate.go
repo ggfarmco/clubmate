@@ -228,11 +228,11 @@ func (a *app) unreadPlan(ctx context.Context, prior *heldTurn, rec record, read 
 	_, inRepo := gitrepo.RepoRoot(gitrepo.Canonical(rec.Worktree))
 	switch {
 	case read != nil:
-		g = unreadGate(*read, rec, prior)
+		g = unreadGate(ctx, *read, rec, prior)
 	case prior != nil && inRepo:
 		g = &gateConfig{ID: prior.Gate}
 	case inRepo:
-		g = a.knownGate(rec)
+		g = a.knownGate(ctx, rec)
 	}
 	if g == nil {
 		return donePlan{release: releasedBy(prior, byUnmatched)}
@@ -245,7 +245,7 @@ func (a *app) unreadPlan(ctx context.Context, prior *heldTurn, rec record, read 
 	}
 	h.Gate, h.ReadRepo, h.Reason = g.ID, "", causeOf(cause)
 	if repoUnread {
-		h.ReadRepo = readRepoName(rec.Worktree)
+		h.ReadRepo = readRepoName(ctx, rec.Worktree)
 	}
 	switch {
 	case h.Request != "" || len(h.Tried) < len(a.recheckDelays()):
@@ -257,7 +257,7 @@ func (a *app) unreadPlan(ctx context.Context, prior *heldTurn, rec record, read 
 	return donePlan{from: prior, held: h}
 }
 
-func (a *app) knownGate(rec record) *gateConfig {
+func (a *app) knownGate(ctx context.Context, rec record) *gateConfig {
 	if rec.HeldGate != "" {
 		return &gateConfig{ID: rec.HeldGate}
 	}
@@ -266,7 +266,7 @@ func (a *app) knownGate(rec record) *gateConfig {
 			return &gateConfig{ID: c.Hold.Gate}
 		}
 	}
-	repo := sessionRepo(rec.Worktree)
+	repo := sessionRepo(ctx, rec.Worktree)
 	if repo == "" || a.stateDir == "" {
 		return nil
 	}
@@ -281,11 +281,11 @@ func (a *app) knownGate(rec record) *gateConfig {
 	return &gateConfig{ID: rules[0].ID}
 }
 
-func unreadGate(gates []gateConfig, rec record, prior *heldTurn) *gateConfig {
+func unreadGate(ctx context.Context, gates []gateConfig, rec record, prior *heldTurn) *gateConfig {
 	if _, ok := gitrepo.RepoRoot(gitrepo.Canonical(rec.Worktree)); !ok {
 		return nil
 	}
-	repo := sessionRepo(rec.Worktree)
+	repo := sessionRepo(ctx, rec.Worktree)
 	first := -1
 	for i, g := range gates {
 		switch {
@@ -302,8 +302,8 @@ func unreadGate(gates []gateConfig, rec record, prior *heldTurn) *gateConfig {
 	return &gates[first]
 }
 
-func readRepoName(worktree string) string {
-	if repo := sessionRepo(worktree); repo != "" {
+func readRepoName(ctx context.Context, worktree string) string {
+	if repo := sessionRepo(ctx, worktree); repo != "" {
 		return filepath.Base(repo)
 	}
 	if top, ok := gitrepo.RepoRoot(gitrepo.Canonical(worktree)); ok {
@@ -312,7 +312,7 @@ func readRepoName(worktree string) string {
 	return filepath.Base(worktree)
 }
 
-func sessionRepo(worktree string) string {
+func sessionRepo(ctx context.Context, worktree string) string {
 	top, ok := gitrepo.RepoRoot(gitrepo.Canonical(worktree))
 	if !ok {
 		return ""
@@ -329,7 +329,7 @@ func sessionRepo(worktree string) string {
 	gitdir = absUnder(top, strings.TrimSpace(gitdir))
 	common, err := os.ReadFile(filepath.Join(gitdir, "commondir"))
 	if err != nil {
-		if checkout := moduleCheckout(gitdir); checkout != "" && checkout == gitrepo.Canonical(top) {
+		if checkout := moduleCheckout(ctx, gitdir); checkout != "" && checkout == gitrepo.Canonical(top) {
 			return checkout
 		}
 		return ""
@@ -342,14 +342,16 @@ func sessionRepo(worktree string) string {
 	if filepath.Base(dir) == ".git" {
 		return gitrepo.Canonical(filepath.Dir(dir))
 	}
-	if checkout := moduleCheckout(dir); checkout != "" {
+	if checkout := moduleCheckout(ctx, dir); checkout != "" {
 		return checkout
 	}
 	return gitrepo.Canonical(dir)
 }
 
-func moduleCheckout(gitdir string) string {
-	out, err := exec.Command("git", "config", "--file", filepath.Join(gitdir, "config"), "--get", "core.worktree").Output()
+func moduleCheckout(ctx context.Context, gitdir string) string {
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "git", "config", "--file", filepath.Join(gitdir, "config"), "--get", "core.worktree").Output()
 	worktree := strings.TrimSpace(string(out))
 	if err != nil || worktree == "" {
 		return ""

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -114,6 +115,47 @@ func TestClosedLanderWaitsForTheLandingBeingStartedAndForgetsItsRun(t *testing.T
 	assert.Equal(t, landReview{Into: "main", Source: "feat", Gate: "gt_1"}, lander.landReview("main", "feat"))
 	require.Len(t, removed, 1)
 	assert.Equal(t, "lt_1", <-removed)
+}
+
+func TestClosedLanderKeepsTheTreeKeyUntilTheRemoveSucceeds(t *testing.T) {
+	t.Parallel()
+	a := landingApp(t)
+	var fail atomic.Bool
+	fail.Store(true)
+	var removed atomic.Int32
+	a.gateTreeRun = func(_ context.Context, _ string, args map[string]any, _ any) error {
+		if fail.Load() {
+			return errors.New("git plugin is restarting")
+		}
+		removed.Add(1)
+		return nil
+	}
+	lander := newSession(record{ID: "agt_l", Workspace: "ws", Status: statusClosed}, nil, true, func(string, bool) {})
+	lander.putLandReview(landReview{Into: "main", Source: "feat", Gate: "gt_1", TreeKey: "lt_1"})
+	a.sessions = map[string]*session{"agt_l": lander}
+
+	a.landerClosed(t.Context(), lander)
+	assert.Equal(t, landReview{Into: "main", Source: "feat", Gate: "gt_1", TreeKey: "lt_1"}, lander.landReview("main", "feat"))
+
+	fail.Store(false)
+	a.dropClosedGateTrees()
+	assert.Equal(t, landReview{Into: "main", Source: "feat", Gate: "gt_1"}, lander.landReview("main", "feat"))
+	assert.EqualValues(t, 1, removed.Load())
+}
+
+func TestClosedLanderDropsTheTreeKeyWhenTheRepoIsGone(t *testing.T) {
+	t.Parallel()
+	a := landingApp(t)
+	a.gateTreeRun = func(context.Context, string, map[string]any, any) error {
+		return errors.New("not a git repository")
+	}
+	lander := newSession(record{ID: "agt_l", Workspace: "ws", Status: statusClosed}, nil, true, func(string, bool) {})
+	lander.putLandReview(landReview{Into: "main", Source: "feat", Repo: filepath.Join(t.TempDir(), "gone"), Gate: "gt_1", TreeKey: "lt_1"})
+	a.sessions = map[string]*session{"agt_l": lander}
+
+	a.dropClosedGateTrees()
+
+	assert.Empty(t, lander.landReview("main", "feat").TreeKey)
 }
 
 func TestClosingAGateNodeDoesNotWaitForTheLandingBeingStarted(t *testing.T) {

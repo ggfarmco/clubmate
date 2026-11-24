@@ -236,6 +236,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	go a.texts.warm(a.stateDir, recs)
 	go a.reconcileLimitWaits()
 	go a.seedGateRuns()
+	go a.dropClosedGateTrees()
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
 	if err != nil {
 		return err

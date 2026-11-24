@@ -1148,11 +1148,13 @@ func (a *app) gateTree(ctx context.Context, workspaceID string, g gateConfig, ke
 	return out.Path, nil
 }
 
-func (a *app) dropGateTree(ctx context.Context, workspaceID string, st landReview) {
+func (a *app) dropGateTree(ctx context.Context, workspaceID string, st landReview) error {
 	if st.TreeKey == "" || st.Gate == "" {
-		return
+		return nil
 	}
-	logError("remove gate worktree", a.runGateTree(context.WithoutCancel(ctx), workspaceID, map[string]any{"repo": st.Repo, "gate": st.Gate, "key": st.TreeKey, "remove": true}, nil))
+	err := a.runGateTree(context.WithoutCancel(ctx), workspaceID, map[string]any{"repo": st.Repo, "gate": st.Gate, "key": st.TreeKey, "remove": true}, nil)
+	logError("remove gate worktree", err)
+	return err
 }
 
 func (a *app) landerClosed(ctx context.Context, s *session) {
@@ -1164,7 +1166,7 @@ func (a *app) landerClosed(ctx context.Context, s *session) {
 	for _, st := range s.snapshot().LandReviews {
 		if st.Run != "" || st.TreeKey != "" {
 			drop = append(drop, st)
-			st.Run, st.TreeKey = "", ""
+			st.Run = ""
 			s.putLandReview(st)
 		}
 	}
@@ -1175,8 +1177,50 @@ func (a *app) landerClosed(ctx context.Context, s *session) {
 	a.saveNow(ctx, s)
 	for _, st := range drop {
 		a.stopLanding(ctx, s.snapshot(), st)
-		a.dropGateTree(ctx, s.snapshot().Workspace, st)
 	}
+	a.clearGateTrees(ctx, s, drop)
+}
+
+func (a *app) clearGateTrees(ctx context.Context, s *session, reviews []landReview) {
+	cleared := false
+	for _, st := range reviews {
+		if st.TreeKey == "" {
+			continue
+		}
+		if err := a.dropGateTree(ctx, s.snapshot().Workspace, st); err != nil && !repoGone(st.Repo) {
+			continue
+		}
+		a.gateMu.Lock()
+		if cur := s.landReview(st.Into, st.Source); st.TreeKey != "" && cur.TreeKey == st.TreeKey {
+			cur.TreeKey = ""
+			s.putLandReview(cur)
+			cleared = true
+		}
+		a.gateMu.Unlock()
+	}
+	if cleared {
+		a.saveNow(ctx, s)
+	}
+}
+
+func (a *app) dropClosedGateTrees() {
+	for _, s := range a.allSessions() {
+		rec := s.snapshot()
+		if !rec.closed() || !slices.ContainsFunc(rec.LandReviews, func(st landReview) bool { return st.TreeKey != "" }) {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), cleanupLimit)
+		a.clearGateTrees(ctx, s, rec.LandReviews)
+		cancel()
+	}
+}
+
+func repoGone(repo string) bool {
+	if !filepath.IsAbs(repo) {
+		return false
+	}
+	_, err := os.Stat(repo)
+	return errors.Is(err, os.ErrNotExist)
 }
 
 func (a *app) gateRunOpen(run string) bool {
