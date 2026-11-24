@@ -103,7 +103,7 @@ func newServiceIn(t *testing.T, dirs paths.Dirs, opts ...core.Option) *core.Serv
 		opts = append([]core.Option{core.WithHomeDir(filepath.Join(t.TempDir(), "home"))}, opts...)
 	}
 	svc := core.NewService(store, session.NewManager(dirs, bin), tracker, proc.Snapshot, append(opts, core.WithKillGrace(testKillGrace))...)
-	t.Cleanup(func() { killLeftovers(svc) })
+	t.Cleanup(func() { killLeftovers(t, svc) })
 	return svc
 }
 
@@ -229,19 +229,35 @@ func StartOrphanSession(t *testing.T, svc *core.Service, workspaceID string) int
 	return orphan
 }
 
-func killLeftovers(svc *core.Service) {
+func killLeftovers(t testing.TB, svc *core.Service) {
 	ctx := context.Background()
 	sessions, _ := svc.ListSessions(ctx, session.ListFilter{})
 	nodes, _ := svc.ProcessTree(ctx, core.TreeFilter{})
+	var hosts []int
+	for _, s := range sessions {
+		if s.State == session.StateRunning && s.HostPID > 1 {
+			hosts = append(hosts, s.HostPID)
+			_ = unix.Kill(s.HostPID, unix.SIGKILL)
+		}
+	}
 	for _, n := range nodes {
 		_ = unix.Kill(n.Process.PID, unix.SIGKILL)
 	}
 	for _, s := range sessions {
-		if s.State != session.StateRunning || s.PGID <= 1 || s.HostPID <= 1 {
-			continue
+		if s.State == session.StateRunning && s.PGID > 1 {
+			_ = unix.Kill(-s.PGID, unix.SIGKILL)
 		}
-		_ = unix.Kill(-s.PGID, unix.SIGKILL)
-		_ = unix.Kill(s.HostPID, unix.SIGKILL)
+	}
+	dead := Poll(func() bool {
+		for _, pid := range hosts {
+			if Alive(pid) {
+				return false
+			}
+		}
+		return true
+	}, 5*time.Second)
+	if !dead {
+		t.Logf("session hosts %v still alive after SIGKILL", hosts)
 	}
 }
 
