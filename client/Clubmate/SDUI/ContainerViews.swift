@@ -97,6 +97,8 @@ struct StackNodeView: View {
                 }
             }
             .frame(maxWidth: .infinity)
+        } else if node.string("direction") == "horizontal", node.bool("twoRows") == true, node.children.count == 2 {
+            twoRows
         } else if node.string("direction") == "horizontal" {
             HStack(alignment: .center, spacing: gap) {
                 ForEach(node.identifiedChildren) { child in
@@ -119,6 +121,26 @@ struct StackNodeView: View {
                         .padding(.horizontal, gutter && insetButtons && node.string("inset") == nil && Self.filled(child.node) ? theme.gutter : 0)
                         .layoutPriority(child.node.bool("dock") == true ? 1 : 0)
                 }
+            }
+        }
+    }
+
+    private var twoRows: some View {
+        let first = node.children[0]
+        let second = node.children[1]
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: max(gap, theme.spacing.m)) {
+                SDUINodeView(node: first).equatable()
+                    .lineLimit(1)
+                    .fixedSize()
+                SDUINodeView(node: second).equatable()
+            }
+            VStack(alignment: .leading, spacing: theme.spacing.xs) {
+                SDUINodeView(node: first).equatable()
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                SDUINodeView(node: second).equatable()
+                    .padding(.leading, theme.indent)
             }
         }
     }

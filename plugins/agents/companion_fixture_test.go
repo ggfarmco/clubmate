@@ -35,7 +35,7 @@ var (
 	timeRe      = regexp.MustCompile(`"\d{4}-\d{2}-\d{2}T[0-9:.]+(Z|[+-]\d{2}:\d{2})"`)
 	shaRe       = regexp.MustCompile(`\b[0-9a-f]{40}\b`)
 	fakeIDRe    = regexp.MustCompile(`fake-\d+-(\d+)`)
-	cursorRe    = regexp.MustCompile(`"cursor":"([0-9]+):([0-9]+):[0-9a-z]+:[0-9a-f]*"`)
+	cursorRe    = regexp.MustCompile(`"cursor":"([0-9]+):([0-9]+):[0-9a-z]+:[0-9a-f.]*"`)
 	headerRevRe = regexp.MustCompile(`"headerRev":"[0-9a-z]+"`)
 	listKeyRe   = regexp.MustCompile(`"([01]?)\d{8}T\d{6}\.\d{9}Z `)
 	sessionIDs  = regexp.MustCompile(`agt_[0-9a-f]{16}`)

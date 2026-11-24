@@ -91,7 +91,7 @@ private struct GateMessageView: View {
                 ForEach(Array(message.groups.enumerated()), id: \.offset) { _, group in
                     Label(group.title, systemImage: "checkmark.shield")
                         .font(theme.uiSmall)
-                        .foregroundStyle(theme.accentInk)
+                        .foregroundStyle(message.captionTitles ? theme.muted : theme.accentInk)
                     ForEach(Array(group.findings.enumerated()), id: \.offset) { _, finding in
                         Text("· \(finding)")
                             .font(theme.ui)

@@ -151,9 +151,11 @@ final class AgentsTests: XCTestCase {
         XCTAssertTrue(one.isHeldBlock)
         XCTAssertEqual([block.title, block.caption, block.tool, block.input], ["Held by a gate", "shop · git push · round 1 of 2", "Bash", "git push origin fix/cart"])
         XCTAssertEqual(block.lines.map(\.text), ["Fable review → approved / changes"])
-        XCTAssertEqual(block.reviewOnTitle, "agt_rev")
+        XCTAssertEqual(block.lines.map(\.review), ["agt_rev"])
         XCTAssertEqual(two.gate?.lines.map(\.state), ["approved · waits for gh pr create", "reviewing · <1 min"])
-        XCTAssertNil(two.gate?.reviewOnTitle)
+        XCTAssertFalse(block.neutral)
+        guard case .tool(let refused) = entries[2].content else { return XCTFail("t3 is not a tool") }
+        XCTAssertTrue(try XCTUnwrap(refused.gate).neutral)
         XCTAssertEqual(agent.held.map(\.id), ["s1"])
         XCTAssertEqual(agent.held.first?.gate?.title, "Held by a gate")
     }
@@ -172,6 +174,7 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(message.groups.map(\.findings), [["total.go:5 — discount first"]])
         XCTAssertEqual(message.groups.map(\.deferred), [["naming"]])
         XCTAssertEqual([message.tail, message.call], ["The next git push goes through the gate again, as round 2.", "t3"])
+        XCTAssertTrue(message.captionTitle)
         guard case .user(let text, _, _, _) = try gateCalls()[6].content else { return XCTFail("a message with no groups is not a user message") }
         XCTAssertEqual(text, "[Clubmate] From the gate · shop · git push · round 1 of 2 · changes")
     }
@@ -318,6 +321,20 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(store.session("held")).composerPlaceholder, "Held by a gate — messages queue")
         XCTAssertTrue(try XCTUnwrap(store.session("held")).turnHeld)
         XCTAssertEqual(try XCTUnwrap(store.session("held")).heldRound, HeldRound(text: "Plan pipeline · round 1 reviewing", run: "gr_1"))
+    }
+
+    func testHeldCallSessionTakesItsHeaderHintAndGlyphFromThePlugin() throws {
+        let json = #"""
+        {"id":"call","status":"running","group":"running","turnStartedAt":"2026-11-23T10:00:00Z","callHeld":true,"landing":{"round":1,"of":2,"verdict":"reviewing","words":"held","tone":"accent","badge":"held · git push","held":"git push","line":"Held · git push · Fable review…","hint":"Held by a gate — messages queue","phoneHint":"Messages queue while it's held","header":"Held by 2 gates · fix/cart","headerAccent":"Held","glyph":"shield","glyphTone":"accent"}}
+        """#
+        let session = try JSONDecoder.clubmate.decode(AgentSession.self, from: Data(json.utf8))
+        XCTAssertTrue(session.callHeld)
+        XCTAssertEqual(session.glyph, .held)
+        XCTAssertEqual(session.stateLine(now: .now).text, "Held · git push · Fable review…")
+        let header = try XCTUnwrap(session.landing?.headerParts)
+        XCTAssertEqual([header.lead, header.accent, header.rest], ["", "Held", " by 2 gates · fix/cart"])
+        XCTAssertEqual(session.composerHint, "Messages queue while it's held")
+        XCTAssertEqual(session.composerPlaceholder, "Queue a message")
     }
 
     func testUngatedSessionReadsAPlainLineAndKeepsItsHeaderBadge() async throws {

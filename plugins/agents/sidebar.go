@@ -968,6 +968,9 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	if display == statusError && rec.LimitWait.pausing() {
 		icon, tone = pausedIcon, ""
 	}
+	if l := row.Landing; l != nil && l.Glyph != "" && display != statusError && display != statusAsks && !needsYou(rec) {
+		icon, tone = l.Glyph, l.GlyphTone
+	}
 	act := rowActivity(row, now)
 	var badges []sdui.HeaderBadge
 	if rec.OpenCount > 0 && (display == statusDone || display == statusReview) {

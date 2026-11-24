@@ -17,7 +17,10 @@ import (
 	"clubmate/plugins/agents/acp"
 )
 
-const cursorSep = ":"
+const (
+	cursorSep  = ":"
+	callKeySep = "."
+)
 
 var transcriptEpoch = strconv.FormatInt(time.Now().UnixNano(), 36)
 

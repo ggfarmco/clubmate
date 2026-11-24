@@ -43,7 +43,16 @@ struct StackNode: View {
 
     private var horizontal: some View {
         Group {
-            if node.children.contains(where: { $0.props["lines"]?.numberValue == 1 }) {
+            if node.bool("twoRows") == true, node.children.count == 2 {
+                ViewThatFits(in: .horizontal) {
+                    row
+                    VStack(alignment: .leading, spacing: 4) {
+                        SDUINodeView(node: node.children[0], context: context)
+                        SDUINodeView(node: node.children[1], context: context)
+                            .padding(.leading, 16)
+                    }
+                }
+            } else if node.children.contains(where: { $0.props["lines"]?.numberValue == 1 }) {
                 row
             } else {
                 ViewThatFits(in: .horizontal) {

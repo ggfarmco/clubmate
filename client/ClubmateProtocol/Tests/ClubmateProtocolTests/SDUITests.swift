@@ -72,7 +72,7 @@ final class SDUITests: XCTestCase {
         let json = """
         {"type": "tree", "id": "sessions", "props": {"items": [], "dock": [{"id": "gates", "label": "Gates", "cap": 6, "rows": [
           {"id": "gate-help", "label": "How gates work"},
-          {"id": "gate-repo:/src/shop", "label": "shop", "children": [{"id": "gate:gt_1", "label": "into main"}, {"id": "gate:gt_2", "label": "into the base"}]},
+          {"id": "gate-repo:/src/shop", "label": "shop", "children": [{"id": "gate:gt_1", "label": "into main"}, {"id": "gate:gt_2", "label": "into the parent's branch"}]},
           {"id": "run:gr_1", "label": "Review", "hasChildren": true, "expanded": true, "children": [{"id": "agt_1", "label": "Coder"}]}
         ]}]}}
         """

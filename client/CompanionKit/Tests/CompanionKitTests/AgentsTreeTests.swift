@@ -64,6 +64,12 @@ final class AgentsTreeTests: XCTestCase {
         XCTAssertEqual(AgentsTree.sections(all, filter: .needs).flatMap(\.nodes).filter { $0.id == "gt_1" }.count, 1)
     }
 
+    func testARunWithNoNodeSessionYetKeepsItsGroupRowUnderAll() throws {
+        let run = #"{"id":"gr_1","status":"waiting","kind":"run","group":"needsYou","needsYou":true,"pending":["step-squash"],"listKey":"t9 gr_1","listFilters":["all","needs"],"inboxKey":"0 t9 gr_1"}"#
+        let all = try sessions(String(Self.tree.dropLast()) + ",\(run)]")
+        XCTAssertEqual(AgentsTree.sections(all).filter { $0.nodes.contains { $0.id == "gr_1" } }.map(\.id), ["inbox", "wt:~"])
+    }
+
     func testLoneHomeGroupIsHeadedOnlyUnderAnInbox() throws {
         let home = #"{"id":"m1","status":"done","group":"done","listKey":"t1 m1","listGroupKey":"0","listGroupLabel":"main","listFilters":["all"]}"#
         let open = #"{"id":"m2","status":"done","group":"open","openCount":1,"listOpen":1,"listKey":"t2 m2","listGroupKey":"0","listGroupLabel":"main","listFilters":["all","open"],"inboxKey":"1 t2 m2"}"#

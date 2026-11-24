@@ -54,6 +54,7 @@ const (
 	actGateSave      = "gateSave"
 	actGateTrust     = "gateTrust"
 	actGateOpenGraph = "gateOpenGraph"
+	actGateOpenTaken = "gateOpenTaken"
 
 	gateIcon           = "shield"
 	gateLandIcon       = "arrow.triangle.merge"
@@ -92,8 +93,9 @@ const (
 	gateNoCalls        = "No calls held yet. The next call this gate holds waits for %s."
 	gateNoCallsShort   = "no calls yet"
 	gateDeleteToolText = "Delete the gate %s on %s? Calls it holds then run without a review. Its verdict history goes too."
-	gateTrustToolText  = "Until you trust it, the gate runs nothing: a held call stays held and its review runs on the new version once you trust it."
+	gateTrustToolText  = "Until you trust it, the gate runs nothing. Calls it holds wait, and their review runs on the new version once you trust it."
 	gatePausedHeld     = "%s · %s"
+	gateWaitsWidth     = 230
 	gateRanUngated     = "ran ungated"
 )
 
@@ -203,7 +205,7 @@ func (r gateRow) look(now time.Time) gateLook {
 	asking, landing := r.landingCounts()
 	switch {
 	case r.State == gateStateTrust:
-		return gateLook{Text: "trust?", Tone: "warning"}
+		return gateLook{Text: gateToTrust, Tone: "warning"}
 	case asking > 0:
 		return gateLook{Text: strconv.Itoa(asking) + " asking", Tone: tonePlain}
 	case landing > 0 && heldPoint(r.Point):
@@ -259,6 +261,19 @@ func (r gateRow) holdCount() string {
 		return heldCount(landing)
 	}
 	return landingCount(landing)
+}
+
+func (r gateRow) newCalls(seen map[string]bool) int {
+	n := 0
+	for _, l := range r.Landings {
+		key := cmp.Or(l.held, l.Lander)
+		if l.State != gateStateReview || seen[key] {
+			continue
+		}
+		seen[key] = true
+		n++
+	}
+	return n
 }
 
 func (r gateRow) landingCounts() (asking, landing int) {
@@ -366,10 +381,13 @@ func gateMain(sc gateScreen) sdui.Node {
 		badges[0].Text = gateStatePaused
 		if held := r.holdCount(); held != "" {
 			badges[0].Text = r.pausedBeside(held)
+			if heldPoint(r.Point) {
+				badges[0].Tone = toneAccent
+			}
 		}
 	}
 	if r.State == gateStateTrust {
-		badges = append(badges, sdui.HeaderBadge{Text: "trust?", Tone: "warning"})
+		badges = append(badges, sdui.HeaderBadge{Text: gateToTrust, Tone: "warning"})
 	}
 	if asking, _ := r.landingCounts(); asking > 0 {
 		badges = append(badges, sdui.HeaderBadge{Text: "needs you", Tone: "warning"})
@@ -404,7 +422,11 @@ func gateMain(sc gateScreen) sdui.Node {
 		{ID: "into", Title: "Into", Width: 120, Truncate: "middle", Priority: 1},
 	}
 	if heldPoint(r.Point) {
-		columns = []sdui.Column{columns[0], columns[1], {ID: "landing", Title: "Held", Truncate: "tail"}}
+		verdict := columns[1]
+		if slices.ContainsFunc(r.Landings, func(l gateLanding) bool { return l.Wait != "" }) {
+			verdict.Width = gateWaitsWidth
+		}
+		columns = []sdui.Column{columns[0], verdict, {ID: "landing", Title: "Held", Truncate: "tail"}}
 	}
 	body = append(body, sdui.MutedText(weekLine(sc.History, sc.Now, r.Point)), sdui.WithAction(sdui.Table(gateVerdictsID, columns, rows, picked, sdui.Sort{}), "select"))
 	if card, ok := liveCard(sc, picked); ok {
@@ -529,7 +551,7 @@ func gateMeta(sc gateScreen) string {
 	}
 	reviewing := 0
 	for _, l := range sc.Row.Landings {
-		if l.State == gateStateReview {
+		if l.State == gateStateReview && l.WaitsOn == "" {
 			reviewing++
 		}
 	}
@@ -605,19 +627,24 @@ func gateTableRows(sc gateScreen) ([]sdui.TableRow, string) {
 	}
 	for _, l := range sc.Row.Landings {
 		landing := landingWords(l.Title, l.Source, l.Round, len(l.Findings))
-		if tool {
-			landing = heldCallWords(l.Title, l.Call, l.Caption)
+		switch {
+		case tool:
+			landing = roundFirst(l.Round, heldCallWords(l.Title, l.Call, l.Caption))
+		case done:
+			landing = roundFirst(l.Round, landingWords(l.Title, l.Source, 0, len(l.Findings)))
 		}
-		word, link, open := "reviewing", "Open review", l.open()
+		word, tone, link, open := "reviewing", "warn", "Open review", l.open()
 		switch {
 		case l.State == gateStateNeedsMe && done:
 			word, link = landingAsking, "Open session"
 		case l.State == gateStateNeedsMe:
 			word, link = "needs you", "Open landing"
+		case l.WaitsOn != "":
+			word, tone = l.Wait, ""
 		case l.Wait != "":
 			word = l.Wait
 		}
-		add(l.rowID(), []sdui.Cell{{Text: when(l.Since)}, {Text: word, Tone: "warn"}, sessionLink(sc, landing, open, link, l.State == gateStateNeedsMe), {Text: l.Into}})
+		add(l.rowID(), []sdui.Cell{{Text: when(l.Since)}, {Text: word, Tone: tone}, sessionLink(sc, landing, open, link, l.State == gateStateNeedsMe), {Text: l.Into}})
 	}
 	for _, v := range sc.History {
 		look := verdictLook(v, sc.Row.Point)
@@ -628,9 +655,11 @@ func gateTableRows(sc gateScreen) ([]sdui.TableRow, string) {
 		landing := landingWords(v.Title, v.Source, round, len(v.Findings))
 		switch {
 		case tool:
-			landing = heldCallWords(v.Title, v.Call)
+			landing = roundFirst(round, heldCallWords(v.Title, v.Call))
 		case v.By == landgate.ByUser && v.Outcome == gateApproved && v.Round > 0:
 			landing = cmp.Or(v.Title, v.Source, "the staged change") + " · after " + counted(v.Round, "round")
+		case done:
+			landing = roundFirst(round, landingWords(v.Title, v.Source, 0, len(v.Findings)))
 		}
 		add(gateRowID(v.At, v.Reviewer), []sdui.Cell{{Text: when(v.At)}, {Text: look.Word, Tone: look.Cell}, sessionLink(sc, landing, v.Reviewer, "Open review", false), {Text: v.Into}})
 		if v.Summary != "" && v.Outcome == gateApproved && v.By == landgate.ByReviewer {
@@ -659,6 +688,13 @@ func landingWords(title, source string, round, findings int) string {
 		parts = append(parts, counted(findings, "finding"))
 	}
 	return strings.Join(parts, " · ")
+}
+
+func roundFirst(round int, text string) string {
+	if round < 2 {
+		return text
+	}
+	return "round " + strconv.Itoa(round) + " · " + text
 }
 
 func heldCallWords(title, call string, more ...string) string {
@@ -748,6 +784,8 @@ func liveCard(sc gateScreen, picked string) (sdui.Node, bool) {
 	switch {
 	case l.Ask != "":
 		state, tone = landingAsking, toneWarning
+	case l.WaitsOn != "":
+		state, tone = l.Wait, "neutral"
 	case l.Wait != "":
 		state, tone = l.Wait, toneWarning
 	}
@@ -768,8 +806,12 @@ func liveCard(sc gateScreen, picked string) (sdui.Node, bool) {
 		lines = append(lines, sdui.WithTone(sdui.Text(l.Ask), toneWarning))
 	case sc.Lines[l.Reviewer] != "":
 		lines = append(lines, sdui.Text(sc.Lines[l.Reviewer]))
+	case l.WaitsOn != "":
+		for _, f := range l.Findings {
+			lines = append(lines, sdui.Text("· "+f))
+		}
 	}
-	if !asks {
+	if !asks && l.WaitsOn == "" {
 		note := gateLiveNote
 		if heldPoint(sc.Row.Point) {
 			note = gateLiveNoteDone

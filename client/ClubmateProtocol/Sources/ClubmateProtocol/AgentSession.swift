@@ -24,6 +24,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let notify: NotificationPolicy?
     public let error: String?
     public let pending: [String]
+    public let cardRequests: [String]
     public let pendingSummary: PendingSummary?
     public let question: String?
     public let turnStartedAt: Date?
@@ -82,13 +83,14 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let inboxKey: String?
     public let older: Bool
     public var suggestion: String?
+    public var callHeld = false
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
         parentSession: String? = nil, advisor: String? = nil, fork: String? = nil, handoffFrom: String? = nil, handoffTo: String? = nil, importedFrom: String? = nil,
         title: String = "", titleSet: Bool = false, status: AgentSessionStatus = .other, mode: String = "", finish: AgentFinish = .ask, afk: Bool = false,
         createdAt: Date = .distantPast, updatedAt: Date? = nil, asks: Bool = false,
-        notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all,
+        notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], cardRequests: [String] = [], notifyEffective: NotificationPolicy = .all,
         childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil, needsYou: Bool? = nil,
         needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, reopen: FailureAction? = nil, modeLabel: String? = nil,
         autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, paused: Bool = false, pausedUntil: Date? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
@@ -122,6 +124,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.notify = notify
         self.error = error
         self.pending = pending
+        self.cardRequests = cardRequests
         self.pendingSummary = pendingSummary
         self.question = question
         self.turnStartedAt = turnStartedAt
@@ -185,11 +188,11 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
-        case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
+        case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, cardRequests, notifyEffective, childStatus
         case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, paused, pausedUntil, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns, rowDetail
         case limitShare, shareLabel, shareWords, shareDetail, listKey
         case hidden, rowUnder, gateRound, landing, ungated, turnHeld, heldRound
-        case aside, canAside, forkedFrom, composerDraft, suggestion
+        case aside, canAside, forkedFrom, composerDraft, suggestion, callHeld
         case listGroupKey, listGroupLabel, listFilters, listOpen, inboxKey, older
     }
 
@@ -224,6 +227,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             notify: try optional(.notify).map(NotificationPolicy.init),
             error: try optional(.error),
             pending: try c.decodeIfPresent([String].self, forKey: .pending) ?? [],
+            cardRequests: try c.decodeIfPresent([String].self, forKey: .cardRequests) ?? [],
             notifyEffective: try c.decodeIfPresent(NotificationPolicy.self, forKey: .notifyEffective) ?? .all,
             childStatus: try c.decodeIfPresent(AgentSessionStatus.self, forKey: .childStatus),
             pendingSummary: try? c.decodeIfPresent(PendingSummary.self, forKey: .pendingSummary),
@@ -283,6 +287,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             older: try flag(.older)
         )
         suggestion = try optional(.suggestion)
+        callHeld = try flag(.callHeld)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -312,6 +317,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(notify, forKey: .notify)
         try c.encodeIfPresent(error, forKey: .error)
         try c.encode(pending, forKey: .pending)
+        if !cardRequests.isEmpty { try c.encode(cardRequests, forKey: .cardRequests) }
         try c.encode(notifyEffective, forKey: .notifyEffective)
         try c.encodeIfPresent(childStatus, forKey: .childStatus)
         try c.encodeIfPresent(pendingSummary, forKey: .pendingSummary)
@@ -368,6 +374,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(landing, forKey: .landing)
         try c.encodeIfPresent(ungated, forKey: .ungated)
         if turnHeld { try c.encode(turnHeld, forKey: .turnHeld) }
+        if callHeld { try c.encode(callHeld, forKey: .callHeld) }
         try c.encodeIfPresent(heldRound, forKey: .heldRound)
         if older { try c.encode(older, forKey: .older) }
     }
@@ -397,13 +404,23 @@ public struct SessionLanding: Codable, Sendable, Hashable {
     public let tone: String?
     public var line: String?
     public var hint: String?
+    public var phoneHint: String?
+    public var header: String?
+    public var headerAccent: String?
+    public var glyph: String?
+    public var glyphTone: String?
 
-    public init(verdict: String, words: String, tone: String? = nil, line: String? = nil, hint: String? = nil) {
+    public init(verdict: String, words: String, tone: String? = nil, line: String? = nil, hint: String? = nil, phoneHint: String? = nil, header: String? = nil, headerAccent: String? = nil, glyph: String? = nil, glyphTone: String? = nil) {
         self.verdict = verdict
         self.words = words
         self.tone = tone
         self.line = line
         self.hint = hint
+        self.phoneHint = phoneHint
+        self.header = header
+        self.headerAccent = headerAccent
+        self.glyph = glyph
+        self.glyphTone = glyphTone
     }
 }
 

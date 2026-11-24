@@ -560,6 +560,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		info.Landing = a.landing(info.record)
 		info.Ungated = a.ungated(info.record)
 		info.TurnHeld = a.turnHeld(info.record)
+		info.CallHeld = info.record.callHeld()
 		info.Calls = a.callViews(info.record)
 		info.HeldRound = a.heldRound(info.record)
 		info.Aside = asideViewOf(rec)
@@ -591,7 +592,8 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			}
 		}
 		if rec.gateWaits() {
-			info.Pending = append(info.Pending, rec.gateRequests()...)
+			info.CardRequests = rec.gateRequests()
+			info.Pending = append(info.Pending, info.CardRequests...)
 			if info.PendingSummary == nil {
 				info.PendingSummary = rec.gatePending()
 			}

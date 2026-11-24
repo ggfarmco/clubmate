@@ -169,7 +169,7 @@ public enum AgentsTree {
 
 extension AgentSession {
     var inboxOnly: Bool {
-        kind != nil && inboxKey != nil && listGroupKey == nil
+        kind == GateEntry.kind && inboxKey != nil && listGroupKey == nil
     }
 }
 

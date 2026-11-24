@@ -84,11 +84,15 @@ extension AgentSession {
     public var composerPlaceholder: String {
         switch state {
         case .askingYou: "Answer \(agentName)…"
-        case _ where landing?.hint?.isEmpty == false: landing?.hint ?? ""
+        case _ where landing?.hint?.isEmpty == false && landing?.phoneHint == nil: landing?.hint ?? ""
         case _ where isTurnActive: "Queue a message"
         case _ where isAside: "Ask aside…"
         default: "Message \(agentName)"
         }
+    }
+
+    public var composerHint: String? {
+        landing?.phoneHint?.nilIfEmpty
     }
 
     public func composerCaption(stopInHeader: Bool = false) -> String? {

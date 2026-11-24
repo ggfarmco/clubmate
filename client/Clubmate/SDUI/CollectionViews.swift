@@ -869,6 +869,7 @@ private struct ItemNoteView: View {
         if note.attention {
             BadgeLabel(text: note.text, tone: theme.warning)
                 .lineLimit(1)
+                .fixedSize()
                 .help(note.text)
         } else {
             Text("· " + note.text)

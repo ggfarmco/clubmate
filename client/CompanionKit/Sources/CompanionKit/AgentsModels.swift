@@ -708,6 +708,7 @@ public struct CallBlock: Decodable, Sendable, Equatable {
 
     public let state: String
     public let word: String?
+    public let tone: String?
     public let title: String?
     public let caption: String?
     public let tool: String?
@@ -716,13 +717,14 @@ public struct CallBlock: Decodable, Sendable, Equatable {
     public let note: String?
 
     enum CodingKeys: String, CodingKey {
-        case state, word, title, caption, tool, input, lines, note
+        case state, word, tone, title, caption, tool, input, lines, note
     }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         state = (try? c.decodeIfPresent(String.self, forKey: .state)) ?? ""
         word = try? c.decodeIfPresent(String.self, forKey: .word)
+        tone = try? c.decodeIfPresent(String.self, forKey: .tone)
         title = try? c.decodeIfPresent(String.self, forKey: .title)
         caption = try? c.decodeIfPresent(String.self, forKey: .caption)
         tool = try? c.decodeIfPresent(String.self, forKey: .tool)
@@ -731,8 +733,8 @@ public struct CallBlock: Decodable, Sendable, Equatable {
         note = try? c.decodeIfPresent(String.self, forKey: .note)
     }
 
-    public var reviewOnTitle: String? {
-        lines.count == 1 ? lines[0].review?.nilIfEmpty : nil
+    public var neutral: Bool {
+        tone == "neutral"
     }
 }
 
@@ -757,9 +759,10 @@ public struct GateMessage: Decodable, Sendable, Equatable {
     public let groups: [Group]
     public let tail: String
     public let call: String
+    public let titleTone: String?
 
     enum CodingKeys: String, CodingKey {
-        case groups, tail, call
+        case groups, tail, call, titleTone
     }
 
     public init(from decoder: any Decoder) throws {
@@ -767,6 +770,11 @@ public struct GateMessage: Decodable, Sendable, Equatable {
         groups = (try? c.decodeIfPresent([Group].self, forKey: .groups)) ?? []
         tail = (try? c.decodeIfPresent(String.self, forKey: .tail)) ?? ""
         call = (try? c.decodeIfPresent(String.self, forKey: .call)) ?? ""
+        titleTone = try? c.decodeIfPresent(String.self, forKey: .titleTone)
+    }
+
+    public var captionTitle: Bool {
+        titleTone == "caption"
     }
 }
 

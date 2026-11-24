@@ -31,7 +31,7 @@ func TestGateItemSaysTheGateStateByPriority(t *testing.T) {
 		detail string
 		tone   string
 	}{
-		{"trust over asking", gateRow{gateConfig: paused, State: gateStateTrust, Landings: asking}, "trust?", "warning"},
+		{"trust over asking", gateRow{gateConfig: paused, State: gateStateTrust, Landings: asking}, gateToTrust, "warning"},
 		{"asking over landing", gateRow{gateConfig: paused, State: gateStateNeedsMe, Landings: asking}, "1 asking", tonePlain},
 		{"landing over paused", gateRow{gateConfig: paused, State: gateStatePaused, Landings: asking[1:]}, "paused · 1 landing", tonePlain},
 		{"paused over last", gateRow{gateConfig: paused, State: gateStatePaused, Last: last(gateApproved, landgate.ByReviewer)}, gateStatePaused, ""},
@@ -211,8 +211,8 @@ func TestTrustCardFoldsUnchangedStepsAndUsesDiffLines(t *testing.T) {
 	for _, b := range nodesOf(mac, "header")[0].Props["badges"].([]sdui.HeaderBadge) {
 		badges = append(badges, b.Text)
 	}
-	assert.Equal(t, []string{"paused · 1 held", "trust?", "needs you"}, badges)
-	assert.Equal(t, "trust?", gateItem(sc.Row, sc.Now, sc.Row.Name).Detail)
+	assert.Equal(t, []string{"paused · 1 held", "to trust", "needs you"}, badges)
+	assert.Equal(t, "to trust", gateItem(sc.Row, sc.Now, sc.Row.Name).Detail)
 }
 
 func TestPhoneTrustCardHasTrustAndRunWithConfirm(t *testing.T) {
@@ -333,8 +333,9 @@ func TestOnlyAChangedGraphCountsAsWaitingForTrust(t *testing.T) {
 	both := held(graphs.ErrGateGraphChanged.Error())
 	both.Calls = []*callHold{{Hold: &heldTurn{Gate: "gt_0", Wait: graphs.ErrGateGraphChanged.Error()}}}
 	assert.Equal(t, []string{"gt_0", "gt_1"}, waitsForTrust(both))
-	waits := []gateLanding{{Wait: heldWaitsTrust}, {Wait: heldWaitsTrust, Trust: true, Call: "git push"}}
-	assert.Equal(t, "Until you trust it, the gate runs nothing. 1 call waits: git push.", trustWaitsText(gateRow{gateConfig: gateConfig{Point: gatePointTool}, State: gateStateTrust, Landings: waits}))
+	waits := []gateLanding{{Wait: heldWaitsTrust}, {Wait: heldWaitsTrust, Trust: true, Title: "Ship the cart fix", Call: "git push origin main"}}
+	push := gateConfig{Point: gatePointTool, Tool: "Bash", How: "command", Text: "git push"}
+	assert.Equal(t, "Until you trust it, the gate runs nothing. 1 call waits: git push in Ship the cart fix.", trustWaitsText(gateRow{gateConfig: push, State: gateStateTrust, Landings: waits}))
 	assert.Equal(t, "Graph changed · 1 waits", gateRow{State: gateStateTrust, Landings: waits}.trustRowWords())
 	assert.Equal(t, "Graph can't be read", gateRow{State: gateStateTrust, Unreadable: true, Landings: waits}.trustRowWords())
 }
@@ -348,15 +349,15 @@ func TestTrustDiffWithoutAPinnedCopyShowsTheWholeGraph(t *testing.T) {
 	assert.Subset(t, lines, []string{"  " + current.Head, "  Review.", "  " + current.Nodes[0].Other, "  " + current.Edges})
 }
 
-func TestTrustDiffShowsAnAddedNodesSettings(t *testing.T) {
+func TestTrustDiffShowsAnAddedStepInWordsNotJSON(t *testing.T) {
 	t.Parallel()
 	pinned := graphs.GateGraphInfo{Nodes: []graphs.GateNodeInfo{{ID: "a", Title: "A"}}}
 	current := pinned
-	current.Nodes = append(slices.Clone(pinned.Nodes), graphs.GateNodeInfo{ID: "b", Title: "B", Step: true, Command: "make ship", Other: `{"id":"b","in":"main"}`})
+	current.Nodes = append(slices.Clone(pinned.Nodes), graphs.GateNodeInfo{ID: "b", Title: "B", Prompt: "Sum it up.\nShort.", Other: `{"id":"b","in":"main"}`})
 
 	lines := cardLines(sdui.VStack(gateGraphDiff("gt_1", &pinned, &current).Nodes...))
 
-	assert.Equal(t, []string{"B · step · added as step 2", "+ step · make ship", "+ " + current.Nodes[1].Other}, lines)
+	assert.Equal(t, []string{"B · agent · added", "+ agent", "+ Sum it up.", "+ Short."}, lines)
 }
 
 func TestTrustDiffKeepsEveryChangedLineAndFoldsOnlyUnchangedOnes(t *testing.T) {
@@ -394,7 +395,7 @@ func TestHeldTurnHistorySaysStoppedAndReleased(t *testing.T) {
 	history := []gateVerdict{
 		{Outcome: gateStopped, By: landgate.ByUser, Title: "Plan the cache", Round: 1, At: now.Add(-time.Minute)},
 		{Outcome: gateReleased, By: byGatePaused, Title: "Plan the cache", Round: 1, At: now.Add(-2 * time.Minute)},
-		{Outcome: gateReleased, By: byGateChanged, Title: "Plan the cache", Round: 1, At: now.Add(-3 * time.Minute)},
+		{Outcome: gateReleased, By: byGateChanged, Title: "Plan the cache", Round: 2, At: now.Add(-3 * time.Minute)},
 	}
 	sc := gateScreen{Row: gateRow{gateConfig: gateConfig{ID: "gt_1", Repo: "/src/clubmate", Point: gatePointTurn, Rounds: 2}}, History: history, Now: now, Loc: time.UTC}
 
@@ -405,9 +406,9 @@ func TestHeldTurnHistorySaysStoppedAndReleased(t *testing.T) {
 		got = append(got, []string{r.Cells[1].Text, r.Cells[1].Tone, r.Cells[2].Text})
 	}
 	assert.Equal(t, [][]string{
-		{"stopped by you", "", "Plan the cache · round 1"},
-		{"released: gate paused", "warn", "Plan the cache · round 1"},
-		{"released: gate changed", "warn", "Plan the cache · round 1"},
+		{"stopped by you", "", "Plan the cache"},
+		{"released: gate paused", "warn", "Plan the cache"},
+		{"released: gate changed", "warn", "round 2 · Plan the cache"},
 	}, got)
 }
 
@@ -440,7 +441,7 @@ func TestGatePageFactsForDone(t *testing.T) {
 	}
 	assert.Equal(t, []string{"When", "Verdict", "Held"}, titles)
 	row := table.Props["rows"].([]sdui.TableRow)[0]
-	assert.Equal(t, []string{"reviewing", "Write the inbox plan · round 1", "Open review"}, []string{row.Cells[1].Text, row.Cells[2].Text, row.Cells[2].Label})
+	assert.Equal(t, []string{"reviewing", "Write the inbox plan", "Open review"}, []string{row.Cells[1].Text, row.Cells[2].Text, row.Cells[2].Label})
 }
 
 func TestDoneGatesSortAfterLandingGatesAndShowTheirMatch(t *testing.T) {
@@ -520,6 +521,37 @@ func TestGatesDockRowShowsHeldTurnsOnlyWithoutALanding(t *testing.T) {
 	assert.Equal(t, []string{"2", "2 landing", "into main"}, []string{both.Detail, both.State, both.Which})
 }
 
+func TestGatesDockCountsCallsNotHolds(t *testing.T) {
+	t.Parallel()
+	push := gateRow{gateConfig: gateConfig{ID: "gt_push", Point: gatePointTool}, Name: "Tool call · git push", Landings: []gateLanding{{State: gateStateReview, held: "agt_1/c1"}, {State: gateStateReview, held: "agt_1/c2"}}}
+	origin := gateRow{gateConfig: gateConfig{ID: "gt_origin", Point: gatePointTool}, Name: "Tool call · origin", Landings: []gateLanding{{State: gateStateReview, held: "agt_1/c1"}}}
+	now := time.Date(2026, 11, 23, 13, 0, 0, 0, time.UTC)
+
+	gates := dockRows(nil, gateCounts([]gateRow{push, origin}, 0), nil)[1]
+
+	assert.Equal(t, []string{"2 held", ""}, []string{gates.State, gates.Which})
+	assert.Equal(t, []string{"2 held", "1 held"}, []string{gateItem(push, now, "git push").Detail, gateItem(origin, now, "origin").Detail})
+}
+
+func TestGateThatSaidChangesWaitsInPlainInk(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 23, 13, 0, 0, 0, time.UTC)
+	g := gateConfig{ID: "gt_push", Repo: "/src/shop", Point: gatePointTool, Tool: "Bash", How: "command", Text: "git push", Rounds: 2}
+	waits := gateLanding{Lander: "agt_l", Title: "Ship it", Call: "git push origin main", State: gateStateReview, Round: 1, Since: now, WaitsOn: "origin", Wait: "changes · waits for origin", Findings: []string{"Run the tests."}}
+	row := gateRow{gateConfig: g, Name: toolGateName(g), State: gateStateReview, Landings: []gateLanding{waits}}
+
+	tree := gateMain(gateScreen{Row: row, Sessions: map[string]bool{"agt_l": true}, Now: now, Loc: time.UTC})
+
+	require.NoError(t, internalsdui.Validate(tree))
+	cells := nodesOf(tree, "table")[0].Props["rows"].([]sdui.TableRow)[0].Cells
+	assert.Equal(t, []string{"changes · waits for origin", "", ""}, []string{cells[1].Text, cells[1].Tone, cells[2].Action})
+	assert.InDelta(t, gateWaitsWidth, nodesOf(tree, "table")[0].Props["columns"].([]sdui.Column)[1].Width, 0)
+	card := nodesOf(tree, "card")[0]
+	assert.Equal(t, "neutral", card.Props["tone"])
+	assert.Contains(t, cardLines(card), "· Run the tests.")
+	assert.Equal(t, "1 held", gateItem(row, now, "git push").Detail)
+}
+
 func TestHeldTurnWaitingForTrustSaysSo(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 11, 17, 13, 0, 0, 0, time.UTC)
@@ -530,10 +562,12 @@ func TestHeldTurnWaitingForTrustSaysSo(t *testing.T) {
 		Loc:      time.UTC,
 	}
 
-	row := nodesOf(gateMain(sc), "table")[0].Props["rows"].([]sdui.TableRow)[0]
+	table := nodesOf(gateMain(sc), "table")[0]
+	row := table.Props["rows"].([]sdui.TableRow)[0]
 	block := heldNode("agt_l", heldBlock{Graph: "Fable review", Round: 1, Wait: "waits for trust"})
 
 	assert.Equal(t, heldWaitsTrust, row.Cells[1].Text)
+	assert.InDelta(t, gateWaitsWidth, table.Props["columns"].([]sdui.Column)[1].Width, 0)
 	assert.Equal(t, []string{"Gate · Fable review · round 1", "Round 1 · waits for trust"}, textsOf(block))
 	assert.Empty(t, nodesOf(block, "button"))
 }
@@ -577,7 +611,8 @@ func TestSheetHoldsToolCall(t *testing.T) {
 	assert.Contains(t, textsOf(sheets[1]), "= Bash · a command that starts with make deploy")
 	assert.NotContains(t, strings.Join(textsOf(sheets[1]), "\n"), "mid-turn")
 
-	assert.Contains(t, textsOf(sheets[2]), "Tool call · git push is there already")
+	assert.Contains(t, textsOf(sheets[2]), "shop already has Tool call · git push")
+	assert.Equal(t, "Open it", buttonByAction(t, sheets[2], actGateOpenTaken).Props["label"])
 	assert.Equal(t, true, saveButton(t, sheets[2]).Props["disabled"])
 }
 
@@ -593,10 +628,11 @@ func TestSheetOffersOnlyContainsAndRegexForOtherTools(t *testing.T) {
 	assert.Equal(t, []string{"contains", "regex"}, ids2(how.Props["items"].([]sdui.Item)))
 	assert.Equal(t, "contains", how.Props["selected"])
 	assert.Contains(t, textsOf(sheet), "= Write · the input contains secrets")
+	assert.Equal(t, "Holds an agent's Write call in shop when the input contains secrets; Fable review decides.", nodesOf(sheet, "sheet")[0].Props["note"])
 	assert.Nil(t, saveButton(t, sheet).Props["disabled"])
 }
 
-func TestSheetCustomHowTabsHaveARowOfTheirOwn(t *testing.T) {
+func TestSheetCustomRowHasToolAndHowAboveTheText(t *testing.T) {
 	t.Parallel()
 	d := gateDraft{Point: gatePointTool, Repo: "/src/shop", Call: gateCallCustom, Text: "make deploy", Graph: "fable-review", Rounds: 2, Choices: []graphs.GateGraphInfo{fableChoice()}}
 
@@ -605,7 +641,9 @@ func TestSheetCustomHowTabsHaveARowOfTheirOwn(t *testing.T) {
 	})
 
 	require.Len(t, rows, 1)
-	assert.Empty(t, nodesOf(rows[0], "textField"))
+	fields := nodesOf(rows[0], "textField")
+	require.Len(t, fields, 1)
+	assert.Equal(t, gateSheetID+"/tool", fields[0].ID)
 }
 
 func TestGatePageFactsForToolCall(t *testing.T) {
@@ -651,16 +689,16 @@ func TestGatePageFactsForToolCall(t *testing.T) {
 	}
 	assert.Equal(t, [][]string{
 		{"reviewing", "warn", "Ship the cart fix · git push origin fix/cart"},
-		{landingAsking, "warn", "Open the PR · git push -u origin pr"},
+		{landingAsking, "warn", "round 2 · Open the PR · git push -u origin pr"},
 		{"ran ungated", "warn", "Fix the cart · git push origin fix/cart"},
-		{"you: run", "", "Fix the cart · git push"},
+		{"you: run", "", "round 2 · Fix the cart · git push"},
 		{"released: gate deleted", "warn", "Fix the cart · git push"},
 		{"stopped by you", "", "Fix the cart · git push"},
 	}, got)
 	assert.Equal(t, []string{"git push", "terminal", "paused · 1 held", toneAccent}, []string{item.Label, item.Icon, item.Detail, item.DetailTone})
 	assert.Equal(t, "no calls yet", fresh.Detail)
 	assert.Equal(t, "Delete the gate Tool call · git push on shop? Calls it holds then run without a review. Its verdict history goes too.", confirm)
-	assert.Contains(t, trustText(gatePointTool), "a held call stays held and its review runs on the new version once you trust it")
+	assert.Equal(t, "Until you trust it, the gate runs nothing. Calls it holds wait, and their review runs on the new version once you trust it.", trustText(gatePointTool))
 }
 
 func ids2(items []sdui.Item) []string {
@@ -682,6 +720,6 @@ func TestPausedGateShowsWhatItStillHolds(t *testing.T) {
 
 	require.NoError(t, internalsdui.Validate(tree))
 	badges := nodesOf(tree, "header")[0].Props["badges"].([]sdui.HeaderBadge)
-	assert.Equal(t, "paused · 1 held", badges[0].Text)
+	assert.Equal(t, []string{"paused · 1 held", toneAccent}, []string{badges[0].Text, badges[0].Tone})
 	assert.Equal(t, []string{"paused · 1 held", toneAccent}, []string{item.Detail, item.DetailTone})
 }

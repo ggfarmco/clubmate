@@ -238,6 +238,7 @@ func TestChangesRoundsCapWaitsForUser(t *testing.T) {
 	require.Len(t, lander.Pending, 1)
 
 	req := lander.Pending[0]
+	assert.Equal(t, []string{req}, lander.CardRequests)
 	assert.Equal(t, req, g.f.phoneTranscript(t, g.workspace, g.lander).Request.Props["request"])
 	assert.Equal(t, []string{req}, g.f.phoneSession(t, g.workspace, g.lander).Requests)
 	require.NoError(t, g.f.cardEvent(t, g.workspace, g.lander+"/landgate/"+req, "landAnswer", map[string]any{"request": req, "action": "merge"}))

@@ -44,7 +44,7 @@ struct CardNodeView: View {
         return HStack(alignment: .firstTextBaseline, spacing: theme.spacing.l) {
             if let icon = node.string("icon") {
                 Image(systemName: icon)
-                    .foregroundStyle(tone ?? theme.text2)
+                    .foregroundStyle(tone ?? (node.string("tone") == "neutral" ? theme.muted : theme.text2))
             }
             VStack(alignment: .leading, spacing: theme.spacing.l) {
                 SDUIChildren(node: node)

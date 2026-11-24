@@ -23,6 +23,12 @@ type branchCache struct {
 	names map[string]map[string]string
 }
 
+func (c *branchCache) cached(workspace, root string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.names[workspace][root]
+}
+
 func (c *branchCache) name(ctx context.Context, workspace, root string) string {
 	c.mu.Lock()
 	name, ok := c.names[workspace][root]

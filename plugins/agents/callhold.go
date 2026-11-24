@@ -27,6 +27,8 @@ const (
 	callStateHeld    = "held"
 	callStateRefd    = "refused"
 	callHint         = "Held by a gate — messages queue"
+	callPhoneHint    = "Messages queue while it's held"
+	callHeaderWord   = "Held"
 	callBadgeMore    = "held · %s +%d"
 	callLineMore     = "Held · %s +%d · %d graphs reviewing"
 	optionAllow      = "allow_once"
@@ -114,12 +116,14 @@ type callSpare struct {
 }
 
 type gateMessage struct {
-	Groups []gateFindings `json:"groups"`
-	Tail   string         `json:"tail"`
-	Call   string         `json:"call"`
+	Groups    []gateFindings `json:"groups"`
+	Tail      string         `json:"tail"`
+	Call      string         `json:"call"`
+	TitleTone string         `json:"titleTone,omitempty"`
 }
 
 type gateFindings struct {
+	Gate     string   `json:"gate,omitempty"`
 	Head     string   `json:"head"`
 	Title    string   `json:"title,omitempty"`
 	Findings []string `json:"findings,omitempty"`
@@ -348,6 +352,7 @@ func (a *app) takeCall(ctx context.Context, s *session, c *heldCall) {
 	a.settleTold(s)
 	a.resetStale(s, time.Now())
 	rec := s.snapshot()
+	a.branchOf(ctx, rec)
 	tree, head, err := gitrepo.Snapshot(ctx, cmp.Or(c.tree, rec.Worktree))
 	if err != nil {
 		logError(callTakeLog, err)
@@ -1093,7 +1098,7 @@ func callMessage(gates []gateConfig, call string, holds []*callHold) gateMessage
 			g = gates[i]
 		}
 		round, match := max(h.Round, 1), clipRunes(toolMatchName(g), callLineMax)
-		m.Groups = append(m.Groups, gateFindings{Head: fmt.Sprintf(callChangesHead, filepath.Base(g.Repo), match, round, max(g.Rounds+h.Extra, round)), Findings: h.Findings, Deferred: h.Deferred})
+		m.Groups = append(m.Groups, gateFindings{Gate: h.Gate, Head: fmt.Sprintf(callChangesHead, filepath.Base(g.Repo), match, round, max(g.Rounds+h.Extra, round)), Findings: h.Findings, Deferred: h.Deferred})
 		if m.Tail == "" {
 			m.Tail = fmt.Sprintf(callChangesTail, match, round+1)
 		}
@@ -1687,6 +1692,7 @@ func (a *app) callKeyNow(ctx context.Context, r holdRef, g gateConfig) (string, 
 }
 
 func (a *app) callPrompts(ctx context.Context, r holdRef, rec record, g gateConfig, h *heldTurn) (string, string) {
+	a.branchOf(ctx, rec)
 	c := rec.call(r.gate)
 	if c == nil {
 		return "", ""
@@ -1805,9 +1811,11 @@ func (s *session) refuseCallsLocked() {
 
 func (s *session) refuseLocked(c *heldCall, reply chan callAnswer) {
 	reasons := make([]string, 0, len(c.hits))
+	var holds []callMark
 	for _, h := range c.hits {
-		reason := fmt.Sprintf(callNoTurn, c.repo, toolMatchName(gateConfig{Tool: h.Tool, How: h.How, Text: h.Text}))
-		reasons = append(reasons, reason)
+		match := toolMatchName(gateConfig{Tool: h.Tool, How: h.How, Text: h.Text})
+		reason := fmt.Sprintf(callNoTurn, c.repo, match)
+		reasons, holds = append(reasons, reason), append(holds, callMark{Gate: h.ID, Name: match, Repo: c.repo})
 		round := 0
 		if hold := s.rec.call(h.ID); hold != nil {
 			round = max(hold.Hold.Round, 1)
@@ -1815,7 +1823,7 @@ func (s *session) refuseLocked(c *heldCall, reply chan callAnswer) {
 		s.refusals = append(s.refusals, callRefusal{gate: h.ID, reason: reason, call: clipRunes(c.text, callLineMax), round: round})
 	}
 	s.owed = append(s.owed, owedFindings{dir: s.hookDir, call: c.id, text: strings.Join(reasons, "\n"), reply: reply})
-	s.markCallLocked(c.agent, c.id, &gateMark{State: callStateRefd, Round: s.rec.callRound(c.id), Reason: strings.Join(reasons, "\n")})
+	s.markCallLocked(c.agent, c.id, &gateMark{State: callStateRefd, Round: s.rec.callRound(c.id), Reason: strings.Join(reasons, "\n"), Holds: holds})
 	if c.taken {
 		s.rec.Calls = clearedCalls(s.rec.Calls, c.id, time.Now().UTC())
 	}
@@ -2047,10 +2055,10 @@ func (a *app) callViews(rec record) []callView {
 }
 
 func (a *app) callLanding(rec record) (landingView, bool) {
-	i := slices.IndexFunc(rec.Calls, func(c *callHold) bool { return c.Call != "" })
-	if i < 0 || rec.closed() {
+	if !rec.callHeld() {
 		return landingView{}, false
 	}
+	i := slices.IndexFunc(rec.Calls, func(c *callHold) bool { return c.Call != "" })
 	call := rec.Calls[i].Call
 	var held []*callHold
 	for _, c := range rec.Calls {
@@ -2077,7 +2085,22 @@ func (a *app) callLanding(rec record) (landingView, bool) {
 	if slices.ContainsFunc(held, func(c *callHold) bool { return c.Hold.Wait != "" }) {
 		l.Words, l.Tone, l.Line = heldWaitsTrust, toneWarning, fmt.Sprintf(heldLineWaits, match)
 	}
+	l.PhoneHint, l.HeaderKey = callPhoneHint, callHeaderWord
+	l.Header = blockHeldOne
+	if len(held) > 1 {
+		l.Header = fmt.Sprintf(blockHeldMany, len(held))
+	}
+	if branch := branchLabel(a.branches.cached(rec.Workspace, rec.Worktree)); branch != "" {
+		l.Header += blockSep + branch
+	}
+	if !slices.ContainsFunc(held, func(c *callHold) bool { return c.Hold.Request != "" }) {
+		l.Glyph, l.GlyphTone = landingIcon, toneAccent
+	}
 	return l, true
+}
+
+func (r record) callHeld() bool {
+	return !r.closed() && slices.ContainsFunc(r.Calls, func(c *callHold) bool { return c.Call != "" })
 }
 
 func (r record) call(gate string) *callHold {

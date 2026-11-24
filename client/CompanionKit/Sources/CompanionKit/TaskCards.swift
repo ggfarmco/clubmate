@@ -139,6 +139,7 @@ public struct LandCard: Decodable, Sendable, Equatable, Identifiable {
         public let id: String
         public let label: String
         public var kind: String?
+        public var tone: String?
     }
 
     public static let merge = "merge"
@@ -163,6 +164,10 @@ public struct LandCard: Decodable, Sendable, Equatable, Identifiable {
 
     public var leaveLabel: String? {
         options.first { $0.id == Self.leave }?.label
+    }
+
+    public var leaveTone: String? {
+        options.first { $0.id == Self.leave }?.tone
     }
 
     public var reviewLabel: String {

@@ -19,6 +19,7 @@ public enum SessionGlyph: Sendable, Equatable {
     case closed
     case aside
     case gate
+    case held
 
     public var needsYou: Bool {
         self == .connect || self == .permission || self == .question || self == .step || self == .cap || self == .gate
@@ -64,6 +65,7 @@ extension AgentSession {
         if isAside { return .aside }
         if asksParent { return .asksParent }
         if childStatus == .waiting { return .childWaiting }
+        if status != .error, landing?.glyph == SessionLanding.shield { return .held }
         if displayStatus == .running { return .running }
         if status == .error { return paused ? .paused : .stopped }
         if openLabel != nil { return .open }
@@ -93,10 +95,14 @@ extension AgentSession {
         if let rowDetail {
             return SessionStateLine(text: rowDetail, tone: needsYou ? .needsYou : status == .error ? .danger : .secondary)
         }
-        if let landing, !needsYou, status != .error {
-            return SessionStateLine(text: landing.line ?? landing.words, tone: landing.lineTone, age: landing.verdict == "reviewing" ? nil : age(updatedAt))
+        let shown = glyph(waitingChildren: waitingChildren)
+        let landingLine = { (landing: SessionLanding) in
+            SessionStateLine(text: landing.line ?? landing.words, tone: landing.lineTone, age: landing.verdict == "reviewing" ? nil : age(self.updatedAt))
         }
-        switch glyph(waitingChildren: waitingChildren) {
+        if let landing, !needsYou, status != .error, shown != .held {
+            return landingLine(landing)
+        }
+        switch shown {
         case .connect:
             guard let summary = pendingSummary, let subject = summary.subject else {
                 return SessionStateLine(text: pendingSummary?.text ?? SessionState.waitingForYou.label, tone: .needsYou, age: pendingSummary.map { age($0.at) })
@@ -130,6 +136,8 @@ extension AgentSession {
             let count = max(waitingChildren, 1)
             if waitingAsides >= count { return SessionStateLine(text: count == 1 ? "An aside asks you" : "\(count) asides ask you") }
             return SessionStateLine(text: count == 1 ? "1 subagent waiting" : "\(count) subagents waiting")
+        case .held:
+            return landing.map(landingLine) ?? SessionStateLine(text: SessionState.running.label, age: age(turnStartedAt ?? updatedAt))
         case .running:
             if status != .running { return SessionStateLine(text: "Waiting for subagents") }
             if let activity, !activity.title.isEmpty { return SessionStateLine(text: activity.title, age: age(activity.at)) }
@@ -156,6 +164,14 @@ extension AgentSession {
 }
 
 extension SessionLanding {
+    public static let shield = "shield"
+
+    public var headerParts: (lead: String, accent: String, rest: String)? {
+        guard let header = header?.nilIfEmpty else { return nil }
+        guard let accent = headerAccent?.nilIfEmpty, let range = header.range(of: accent) else { return (header, "", "") }
+        return (String(header[..<range.lowerBound]), accent, String(header[range.upperBound...]))
+    }
+
     var lineTone: SessionStateLine.Tone {
         switch tone {
         case "accent": .accent

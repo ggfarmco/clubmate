@@ -36,12 +36,15 @@ const (
 	gateCallCustom       = "custom"
 	gateCallCustomLabel  = "Custom…"
 	gateToolTextHint     = "make deploy"
-	gateToolCallWord     = "%s call"
+	gateToolSentence     = "Holds an agent's %s call in %s when the input %s %s; %s decides."
+	gateToolAnySentence  = "Holds an agent's %s call in %s; %s decides."
+	gateToolTaken        = "%s already has %s"
+	gateOpenTaken        = "Open it"
 	gateUnhookedMany     = "%d sessions mid-turn pick this gate up when their turn ends"
 	gateUnhookedOne      = "1 session mid-turn picks this gate up when its turn ends"
 	gateUndecidedTool    = "%s can't decide a tool call: no node reports approved and changes"
 	gatePausedLine       = "a paused gate holds nothing new; what it holds stays held"
-	gatePausedToolLine   = "a paused gate takes no new call; what it holds stays held"
+	gatePausedToolLine   = "Paused: holds no new calls; calls it already holds stay held until their review ends."
 )
 
 var gateCallPresets = []string{"git push", "gh pr create"}
@@ -300,7 +303,7 @@ func gateSentenceOf(d gateDraft) string {
 		return doneSentenceOf(d, cmp.Or(chosen.Title, chosen.Name), filepath.Base(d.primary()))
 	case gatePointTool:
 		g, _ := d.toolConfig()
-		return fmt.Sprintf(gateSentence, toolSentenceWhat(g), filepath.Base(d.primary()), cmp.Or(chosen.Title, chosen.Name))
+		return toolSentence(g, filepath.Base(d.primary()), cmp.Or(chosen.Title, chosen.Name))
 	}
 	what := "l" + strings.TrimPrefix(gateNameOf(d.Into, d.branch()), "L")
 	return fmt.Sprintf(gateSentence, what, filepath.Base(d.primary()), cmp.Or(chosen.Title, chosen.Name))
@@ -358,11 +361,18 @@ func gateCallOf(g gateConfig) string {
 	return gateCallCustom
 }
 
-func toolSentenceWhat(g gateConfig) string {
-	if g.Tool == toolgate.Bash {
-		return toolMatchName(g)
+func toolSentence(g gateConfig, repo, graph string) string {
+	switch {
+	case g.Tool == toolgate.Bash:
+		return fmt.Sprintf(gateSentence, toolMatchName(g), repo, graph)
+	case g.Text == "":
+		return fmt.Sprintf(gateToolAnySentence, g.Tool, repo, graph)
 	}
-	return fmt.Sprintf(gateToolCallWord, g.Tool)
+	how := "contains"
+	if g.How == toolgate.HowRegex {
+		how = "matches"
+	}
+	return fmt.Sprintf(gateToolSentence, g.Tool, repo, how, g.Text, graph)
 }
 
 func gateToolFields(d gateDraft) ([]sdui.Node, bool) {
@@ -377,24 +387,21 @@ func gateToolFields(d gateDraft) ([]sdui.Node, bool) {
 	taken, isTaken := d.takenTool()
 	if d.call() == gateCallCustom {
 		text := sdui.WithAction(sdui.WithLive(sdui.TextField(gateSheetID+"/text", d.Text, gateToolTextHint)), actGateText)
-		switch {
-		case err != nil && (strings.TrimSpace(d.Text) != "" || d.customTool() != toolgate.Bash):
+		if err != nil && (strings.TrimSpace(d.Text) != "" || d.customTool() != toolgate.Bash) {
 			text = sdui.WithError(text, err.Error())
-		case isTaken:
-			text = sdui.WithError(text, fmt.Sprintf(gateMatchTaken, toolGateName(taken)))
 		}
 		tool := sdui.WithAction(sdui.WithLive(sdui.TextField(gateSheetID+"/tool", d.Tool, toolgate.Bash)), actGateTool)
 		how := sdui.WithAction(sdui.WithSegmented(sdui.Tabs(gateSheetID+"/how", gateHowItems(d), d.customHow())), actGateHow)
-		out = append(out, sdui.HStack(sdui.MutedText(""), how), sdui.HStack(sdui.MutedText(""), tool, text))
+		out = append(out, sdui.HStack(sdui.MutedText(""), tool, how), sdui.HStack(sdui.MutedText(""), text))
 	}
 	if ok {
 		out = append(out, sdui.MutedText("= "+toolMatchWords(g)))
 	}
 	if isTaken {
 		ok = false
-		if d.call() != gateCallCustom {
-			out = append(out, sdui.WithTone(sdui.Text(fmt.Sprintf(gateMatchTaken, toolGateName(taken))), toneWarning))
-		}
+		warning := sdui.WithTone(sdui.Text(fmt.Sprintf(gateToolTaken, filepath.Base(d.primary()), toolGateName(taken))), toneWarning)
+		open := automation.ActionNode(gateSheetID+"/"+taken.ID, automation.DetailAction{Action: actGateOpenTaken, Label: gateOpenTaken, Variant: sdui.VariantGhost})
+		out = append(out, sdui.HStack(warning, open))
 	}
 	switch {
 	case d.Unhooked == 1:

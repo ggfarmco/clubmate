@@ -17,7 +17,7 @@ import (
 	"clubmate/plugins/internal/automation"
 )
 
-var gateSheetActions = []string{actGateRepo, actGateHolds, actGateSession, actGateWrote, actGateWroteLike, actGateInto, actGateLike, actGateCall, actGateTool, actGateHow, actGateText, actGatePick, actGateRounds, actGatePaused, actGateCancel, actGateSave}
+var gateSheetActions = []string{actGateRepo, actGateHolds, actGateSession, actGateWrote, actGateWroteLike, actGateInto, actGateLike, actGateCall, actGateTool, actGateHow, actGateText, actGatePick, actGateRounds, actGatePaused, actGateCancel, actGateSave, actGateOpenTaken}
 
 func isGateSheetAction(action string) bool {
 	return slices.Contains(gateSheetActions, action)
@@ -355,6 +355,13 @@ func (a *app) gateSheetAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		p.gateSheet = nil
 		a.uiMu.Unlock()
 		return nil
+	case actGateOpenTaken:
+		target, _ := automation.ActionTarget(ev.NodeID, ev.Action)
+		id := strings.TrimPrefix(target, gateSheetID+"/")
+		a.uiMu.Lock()
+		p.gateSheet, p.gate, p.gatePick = nil, id, ""
+		a.uiMu.Unlock()
+		return a.selectPage(ctx, ev.WorkspaceID, gatePrefix+id)
 	case actGateRepo:
 		if err := json.Unmarshal(ev.Value, &d.Repo); err != nil {
 			return fmt.Errorf("%s value: %w", ev.Action, err)

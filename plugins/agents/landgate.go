@@ -77,9 +77,9 @@ const (
 	gatePreparingText   = "review pending: the gate is preparing the worktree for this change's review. End your turn; Clubmate prompts you with the verdict."
 	gatePrepFailedText  = "[Clubmate] The land review of %s did not start: %v"
 	gatePrepAgainText   = ". Call git_land again."
-	gateWaitsUserText   = "the review asked for changes %d times, so this landing waits for the user's answer. End your turn; Clubmate prompts you with it."
+	gateWaitsUserText   = "the review asked for changes %s, so this landing waits for the user's answer. End your turn; Clubmate prompts you with it."
 	gateChangesResult   = "the review asked for changes; fix them and call git_land again:\n%s"
-	gateCardCaption     = "The review asked for changes %d times"
+	gateCardCaption     = "The review asked for changes %s"
 	gateAgainCaption    = "; asked again because the change or its target moved after the last answer"
 	gateCardRule        = "Land anyway squashes it into %s as it is. One more round runs the review again after the agent fixes the findings. Stop tells the agent not to land it."
 	gateLandLabel       = "Land anyway"
@@ -970,7 +970,7 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 	made := st
 	st.Repo, st.Cap, st.Gate = args.Target, g.Rounds+st.Extra, g.ID
 	if st.Request != "" {
-		return landGateResult{State: gateUser, Text: fmt.Sprintf(gateWaitsUserText, st.Rounds)}, nil
+		return landGateResult{State: gateUser, Text: fmt.Sprintf(gateWaitsUserText, times(st.Rounds))}, nil
 	}
 	if st.Rounds >= st.Cap {
 		st.Request, st.ReqOld, st.ReqTree, st.Since = id.New(gateRequestPrefix), args.Old, args.Tree, time.Now().UTC()
@@ -978,7 +978,7 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 		st.Moved = st.Answered != "" && st.Answered != args.Old+"-"+args.Tree
 		lander.putLandReview(st)
 		a.saveNow(ctx, lander)
-		return landGateResult{State: gateUser, Text: fmt.Sprintf(gateWaitsUserText, st.Rounds)}, nil
+		return landGateResult{State: gateUser, Text: fmt.Sprintf(gateWaitsUserText, times(st.Rounds))}, nil
 	}
 	live := a.gateRunLive(ctx, workspaceID, st.Run)
 	if running := a.session(st.Reviewer).runningGate(); live && running != nil {
@@ -1744,7 +1744,7 @@ func roundsCard(rec record, request, pass, more string, p sdui.LandRequestProps)
 	p.Options = []sdui.PermissionOption{
 		{ID: landActionMerge, Label: pass, Kind: "allow_once", Shortcut: "opt+1", Short: passShorts[pass]},
 		{ID: landActionMore, Label: more, Shortcut: "opt+2", Short: moreShorts[more]},
-		{ID: landActionLeave, Label: gateStopLabel, Kind: "reject_once", Shortcut: "opt+3", Short: gateStopShort},
+		{ID: landActionLeave, Label: gateStopLabel, Kind: "reject_once", Shortcut: "opt+3", Short: gateStopShort, Tone: toneDanger},
 	}
 	return sdui.WithDock(sdui.LandRequestCard(rec.ID+"/"+gateCardNode+"/"+request, request, p))
 }
@@ -1754,7 +1754,7 @@ func gateCardTitle(st landReview) string {
 }
 
 func gateCaption(st landReview) string {
-	text := fmt.Sprintf(gateCardCaption, st.Rounds)
+	text := fmt.Sprintf(gateCardCaption, times(st.Rounds))
 	if st.Moved {
 		text += gateAgainCaption
 	}

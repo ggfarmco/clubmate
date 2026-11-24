@@ -28,7 +28,7 @@ Into: the default branch (its name, e.g. `main`) · the parent's branch · any b
 
 ## Dock
 
-Gates → repos → gates. Row detail by priority: `trust?` amber (graph changed; counts once in Needs you) › `N asking` (the card is on the lander) › `N landing` plain (a paused gate still holding something: `paused · N landing`, `paused · N held` for Done and Tool call) › `paused` muted › last verdict and age. The Gates row shows the highest of these across all gates, after its label, with the gate count staying in the count column (`design/features/dock-state`, 18 Nov). Up to 6 rows, then it scrolls.
+Gates → repos → gates. Row detail by priority: `to trust` amber (graph changed; counts once in Needs you) › `N asking` (the card is on the lander) › `N landing` plain (a paused gate still holding something: `paused · N landing`, `paused · N held` for Done and Tool call) › `paused` muted › last verdict and age. "N held" counts calls, not holds (S8, 19 Nov): the Gates row counts distinct held calls, so a call two gates hold counts once; each gate's own row counts the calls it holds. The Gates row shows the highest of these across all gates, after its label, with the gate count staying in the count column (`design/features/dock-state`, 18 Nov). Up to 6 rows, then it scrolls.
 
 ## Sheet (`GT-Sheet-*`)
 
@@ -110,7 +110,7 @@ Boards: `TR-Rules`, `C-TR-A-Gate-Light`, `C-TR-A-Confirm-Dark` (in `boards.html`
 - **iPad.** The same card in the detail column.
 - **SDUI.** A `diffLines` node (mono − / + lines, tinted; `fold` folds only runs of unchanged lines into "N unchanged lines") and a button `confirm` with `confirmMessage` (title, message; Cancel and the button's label).
 - **Graph put back.** When the graph's file again matches the pin (put back), the gate is no longer waiting for trust: what waited resumes its review and the Needs you row goes, as after Trust (the held turn checks again every 30 s).
-- **Every hashed change shows** (second ruling, 18 Nov). An added step says where it went ("‹step› · ‹kind› · added as step N"); a change in the steps' order reads "Order changed:" then the new order, the moved steps in full ink, with " · ‹id›" after a title two steps share.
+- **Every hashed change shows** (second ruling, 18 Nov). An added step is an entry of its own, "‹step› · ‹kind› · added", with what it does and its prompt as + lines, never its raw JSON (R3, 19 Nov; "Order changed:" says where it went); a change in the steps' order reads "Order changed:" then the new order, the moved steps in full ink, with " · ‹id›" after a title two steps share.
 
 ## Rulings (Claude Design, 18 Nov, the trust entry; TR-Rules, GT-Rules, C-GT-A-Gates-Light redrawn)
 
@@ -138,3 +138,36 @@ The user ruled 18 Nov: a session whose agent process runs a background command k
 - Sheet (`GT-Sheet-640-MateLight`): Holds Landing · Done · Tool call; under it "An agent's tool call. The agent waits inside it while the graph runs."; **Call** chips git push · gh pr create · Custom…, then the match in words ("= Bash · a git push command"). Custom… adds Tool (text, empty reads Bash) · starts with / contains / regex (segmented) · the text, with its words line ("= Bash · a command that starts with make deploy"); a tool other than Bash offers only contains and regex, contains chosen, and the line reads "= ‹tool› · the input contains …" (ruling 4). A taken match: "Tool call · git push is there already", Create gate disabled. With sessions mid-turn: a muted "N sessions mid-turn pick this gate up when their turn ends". Sentence "Holds an agent's git push in shop; Fable review decides." Edit shows Holds as text and changes Call, Decided by, Rounds, Paused. No 7-day count, no repo presets (#859): the board's "Deploy (make deploy)" chip is not built.
 - Dock and page: Tool call gates sit after the repo's Done gates; detail "N held" (accent), "no calls yet" before the first; a paused gate still holding a call reads "paused · N held". Facts: Holds "an agent's tool call", Match in words. Table When · Verdict · Held ("‹session title› · ‹call›"), rows `reviewing`, `asking`, "waits for trust", "you: run", "released: gate deleted", "stopped by you", "ran ungated" (warning ink). Trust card: a held call stays held; its review runs on the new version once trusted. Delete's confirm: calls it holds then run without a review.
 - Builder's nearest builds where the boards are silent (open look questions for Claude Design): Custom… keeps the Call chips above its three fields, so a preset can be picked again (the board draws the fields "instead of the chips"); a taken preset is a warning line under the chips, since chips carry no field error; the paused-and-holding dock detail "paused · N held" in accent; the sentence for a tool other than Bash "Holds an agent's ‹tool› call in ‹repo›"; Edit's Paused line for a Tool call gate "a paused gate takes no new call; what it holds stays held" (ruling 11).
+
+## Look round, slice 3 (Claude Design, 19 Nov; table in `GT-Rules.dc.html`, built in Gates Slice 4 task 4.1)
+
+- **S3 taken preset.** A warning line under the chips, "‹repo› already has Tool call · ‹match›", with an **Open it** link that closes the sheet and opens that gate; Create stays disabled. Custom… shows the same line, no field error.
+- **S4 Custom… row.** Tool and how on the first row (starts with / contains / regex for Bash; contains / regex for other tools, contains by default), the text full width on the row below.
+- **S5 sentence, other tools.** "Holds an agent's ‹tool› call in ‹repo› when the input ‹contains / matches› ‹text›; ‹graph› decides." Bash keeps "Holds an agent's git push in shop; Fable review decides."
+- **S6 Edit's Paused line** (Tool call): "Paused: holds no new calls; calls it already holds stay held until their review ends."
+- **S8 dock.** "N held" counts calls, not holds.
+- **S9 Held cell.** "‹session title› · ‹call›"; from round 2 the round goes first: "round 2 · ‹session title› · ‹call›" (Done gates: "round 2 · ‹title›").
+- **S10 one of two gates said changes.** Its live row reads "changes · waits for ‹other match›" in plain ink, no Open review; its dock row still counts the call as held. "approved · waits for ‹match›" is not built: an approving gate lets go of its hold at once, so its page has no live row to carry it.
+- **R1 trust card, Tool call.** "1 call waits: ‹match› in ‹session title›", "N calls wait: ‹match› in ‹session title› +N−1"; nothing held: "Until you trust it, the gate runs nothing. Calls it holds wait, and their review runs on the new version once you trust it."
+- **R2 paused and waiting for trust.** Header "paused · N held" plus an amber "to trust" badge; the dock row shows only its highest state, "to trust".
+- **R3 added step.** See "Every hashed change shows" above.
+- **S7 page header** (visual check 4.5, 23 Nov): "paused · N held" is an accent badge while a Tool call or Done gate holds something, as its dock row.
+- **History Verdict column** (visual check 4.5): it widens while a live row carries a wait word ("changes · waits for ‹match›", "waits for trust"), so the word is never cut (`gateWaitsWidth` in `plugins/agents/gates_view.go`).
+- **P5 phone gate line** (built in task 4.6). Each gate line is a surface-2 row of at least 44 pt; the whole row opens the gate's review and ends in a chevron. The phone has no "Open review" link on the title row or on the lines, so the row is the only target. The state sits beside the line while it fits (iPad), else under it (iPhone).
+
+### Pending Claude Design (phone check, 23 Nov)
+
+- **P5 affordance.** The ruling names no sign that the row opens the review; the builder chose a trailing chevron in caption ink (`design/check/gates-s4/phone/iphone-light-bb.png`, `iphone-light-bc.png`).
+- **Header of a held Done turn.** P2 covers a held call; a held Done turn still reads "Running · 6 min · ‹branch›" in the phone header (`iphone-light-b9.png`). Should it read "Held by a gate · ‹branch›" too? A change goes into the plugin (`landing.header` for a held turn).
+
+### Pending Claude Design (visual check 4.5, 23 Nov; shots in `design/check/gates-s4/mac/`; backlog #1220)
+
+- **Dock gate rows at the default sidebar width (248 pt).** A gate row sits two levels deep, and the row drops its detail when the detail can't keep 6 em beside the label (`RowFit`). So "paused · 1 held" never shows, and "git push · changes now" drops while "origin · changes now" shows (`S7-dock-paused-held-*`, `T2-T6-refused-3gates-*`). The same cut gives "Deploy it · waits for tr…" in the session tree (`R1-R4-trust-card-1-waits-*`). Needs a ruling: a shorter dock word ("paused · 1"), a smaller label-to-detail gap for nested rows, or the label truncating first.
+- **Live row and verdict row for one call.** While a gate that said changes waits for another gate, its history shows the live row "changes · waits for ‹match›" and, under it, the stored "changes" verdict of the same call (`S10-gate-page-changes-waits-*`). Keep both, or fold the verdict into the live row until the call settles?
+
+### Pending Claude Design (visual check 4.5b, 23 Nov; shots in `design/check/gates-s4/mac-b/`; backlog #1221)
+
+- **Ran-ungated notice.** The transcript notice "git push ran ungated — Clubmate's hook didn't see it; the turn is stopped." is plain caption ink with no icon, between the tool card and the turn line (`F-ran-ungated-session-*`). The gate page row is in warning ink. Should the notice have a warning icon or a call block?
+- **Gate page card while a reviewer waits on its own permission.** A landing's reviewer that asks for a permission shows "asks you" in the tree and the lander is in Needs you, but the gate page's live card still reads "Round 1 · reviewing" in accent (`H-asking-gate-page-*`). The card says "asking" only for a graph run's own need (`runNeed`). Should the card follow the reviewer's request too?
+- **Dock gate row for the parent's branch at 248 pt.** "into the parent's b…" is cut (`G-base-gate-page-*`); same rule as the dock rows above. A shorter row name for the dock ("into parent") or the Pending ruling on `RowFit`.
+- **Reviewer row detail.** Under a lander, the Tool call or Done reviewer row shows the notification label "Input only…" as detail, cut at 248 pt (`C-tool-reviewer-session-*`). Should a reviewer row show a detail at all while it only reviews?

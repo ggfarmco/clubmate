@@ -229,3 +229,19 @@ func TestGateRunAskRowsUnderItsLander(t *testing.T) {
 	assert.Equal(t, []string{"run:gr_1", "Round 1 review", "shield", "warning", "where wants to run pwd", "warning"}, []string{asks.ID, asks.Label, asks.Icon, asks.Tone, asks.Detail, asks.DetailTone})
 	assert.Equal(t, "1", nodesOf(tree, "tabs")[0].Props["items"].([]sdui.Item)[1].Badge)
 }
+
+func TestUntrackedReviewerRowNamesItsPoint(t *testing.T) {
+	t.Parallel()
+	lander := record{ID: "agt_l", Title: "Ship"}
+	review := func(id, point string) record {
+		return record{ID: id, GateFor: &gateFor{Point: point, Lander: "agt_l"}}
+	}
+	nests := reviewNests([]record{lander, review("agt_t", gatePointTool), review("agt_d", gatePointTurn), review("agt_p", "")})
+	assert.Equal(t, []string{"Tool call review", "Done review", "Land review"}, []string{nests["agt_t"].Round.Label, nests["agt_d"].Round.Label, nests["agt_p"].Round.Label})
+}
+
+func TestGateCaptionCountsRoundsInWords(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "The review asked for changes once", gateCaption(landReview{Rounds: 1}))
+	assert.Equal(t, "The review asked for changes 2 times", gateCaption(landReview{Rounds: 2}))
+}

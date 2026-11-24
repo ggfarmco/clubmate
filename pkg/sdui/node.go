@@ -182,8 +182,9 @@ type ToolCardProps struct {
 }
 
 type GateMessage struct {
-	Groups []GateGroup `json:"groups"`
-	Tail   string      `json:"tail,omitempty"`
+	Groups    []GateGroup `json:"groups"`
+	Tail      string      `json:"tail,omitempty"`
+	TitleTone string      `json:"titleTone,omitempty"`
 }
 
 type GateGroup struct {
@@ -198,6 +199,7 @@ type PermissionOption struct {
 	Kind      string `json:"kind,omitempty"`
 	Shortcut  string `json:"shortcut,omitempty"`
 	Short     string `json:"short,omitempty"`
+	Tone      string `json:"tone,omitempty"`
 	Menu      bool   `json:"menu,omitempty"`
 	Rule      string `json:"rule,omitempty"`
 	Scope     string `json:"scope,omitempty"`
@@ -1269,6 +1271,10 @@ func WithPopover(n Node, form Node) Node {
 
 func WithShort(n Node, text string) Node {
 	return withProp(n, "short", text)
+}
+
+func WithTwoRows(n Node) Node {
+	return withProp(n, "twoRows", true)
 }
 
 func WithInline(n Node) Node {

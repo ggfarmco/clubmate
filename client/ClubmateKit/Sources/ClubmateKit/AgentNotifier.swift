@@ -41,7 +41,7 @@ public struct AgentNotifier: Sendable {
 
     public static func requests(_ sessions: [AgentSession]) -> [AgentAlert] {
         sessions.filter { $0.status == .waiting && $0.needsYou }.flatMap { session in
-            session.pending.enumerated().map { index, request in
+            session.pending.filter { !session.cardRequests.contains($0) }.enumerated().map { index, request in
                 let summary = index == 0 ? session.pendingSummary : nil
                 return AgentAlert(
                     workspace: session.workspace,

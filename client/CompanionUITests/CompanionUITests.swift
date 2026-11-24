@@ -211,15 +211,21 @@ final class CompanionUITests: XCTestCase {
         add(screenshot(app, "trusted"))
     }
 
-    func testAHeldCallIsAnUnfoldedBlockWithItsGateAndTheComposerSaysMessagesQueue() {
+    func testAHeldCallIsAnUnfoldedBlockWithNoSpinnerAndAHintAboveTheComposer() {
         let app = launch(open: "agents/agt_00000000000000bb", ["-landReview", "YES"])
         let block = app.descendants(matching: .any)["held.call-push"]
         XCTAssertTrue(block.waitForExistence(timeout: 10))
         XCTAssertTrue(block.staticTexts["Held by a gate"].exists)
         XCTAssertTrue(block.staticTexts["shop · git push · round 1 of 2"].exists)
-        XCTAssertTrue(block.buttons["Open review"].exists)
-        XCTAssertTrue(app.staticTexts["Held by a gate — messages queue"].exists)
+        XCTAssertEqual(app.staticTexts["composer.hint"].label, "Messages queue while it's held")
+        XCTAssertFalse(app.staticTexts["Working…"].exists)
+        XCTAssertFalse(app.staticTexts["Held by a gate — messages queue"].exists)
+        let line = block.buttons["held.line.0"]
+        XCTAssertGreaterThanOrEqual(line.frame.height, 44)
+        XCTAssertGreaterThan(line.frame.width, block.frame.width * 0.8)
         add(screenshot(app, "held-call"))
+        line.tap()
+        XCTAssertTrue(app.staticTexts["Review: git push"].waitForExistence(timeout: 10))
     }
 
     func testAHeldChangeNeverMovesTheRowAboutToBeTappedAndLandsOnThePill() {

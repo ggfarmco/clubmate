@@ -327,3 +327,24 @@ func TestPlaceOfAWorktreeIsItsRepo(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, toolgate.Place{Repo: primary, Tree: tree}, got)
 }
+
+func TestGateThatApprovedStaysOnTheHeldCallsLines(t *testing.T) {
+	t.Parallel()
+	s := newSession(record{ID: "s"}, newEventLog(filepath.Join(t.TempDir(), "s.jsonl")), true, func(string, bool) {})
+	approved := &callHold{Call: "c", Hold: &heldTurn{Gate: "gt_main", Graph: "Opus review", Last: gateApproved}}
+	s.calls = []*heldCall{{id: "c", taken: true, decided: map[string]*callHold{"gt_main": approved}}}
+	a := &app{sessions: map[string]*session{"s": s}}
+
+	live := a.callLives(s.rec)["c"]
+	live["gt_push"] = callLive{Graph: "Opus review"}
+	live["gt_origin"] = callLive{Graph: "Opus review", Last: gateChanges}
+	holds := []callMark{{Gate: "gt_push", Name: "git push", Repo: "shop", Round: 1, Of: 2}, {Gate: "gt_origin", Name: "origin", Repo: "shop", Round: 1, Of: 2}, {Gate: "gt_main", Name: "main", Repo: "shop", Round: 1, Of: 2}}
+	b := callBlockOf(gatedTool(t, "c", 1, &gateMark{State: callStateHeld, Holds: holds}), live, nil, "Claude", time.Now())
+
+	require.NotNil(t, b)
+	assert.Equal(t, []callBlockLine{
+		{Text: "git push · Opus review · round 1 of 2", State: gateStateReview, Round: 1},
+		{Text: "origin · Opus review · round 1 of 2", State: "changes · waits for git push", Round: 1},
+		{Text: "main · Opus review · round 1 of 2", State: "approved · waits for git push", Round: 1},
+	}, b.Lines)
+}

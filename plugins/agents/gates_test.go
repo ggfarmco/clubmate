@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/agentcall"
 )
@@ -40,6 +41,8 @@ type gateHistory struct {
 		State    string `json:"state"`
 		Round    int    `json:"round"`
 		Reviewer string `json:"reviewer"`
+		Wait     string `json:"wait"`
+		WaitsOn  string `json:"waitsOn"`
 	} `json:"landings"`
 	Verdicts []gateVerdictRow `json:"verdicts"`
 }
@@ -268,4 +271,48 @@ func TestSheetLeavesOutSessionsThatCannotTakeTheHook(t *testing.T) {
 	assert.False(t, slices.ContainsFunc(sheetNodes(sheet, "text"), func(x sdui.Node) bool {
 		return x.Props["text"] == "1 session mid-turn picks this gate up when its turn ends"
 	}))
+}
+
+func TestGateThatSaidChangesWaitsForTheOtherGate(t *testing.T) {
+	t.Parallel()
+	f := start(t, callScript(bashSteps("push", "push1", "git push origin main", false)))
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	push := f.addPushGate(t, workspace, repo)
+	f.addContainsGate(t, workspace, repo, "Bash", "origin")
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "push")
+	f.waitHeldCall(t, workspace, session, 2)
+
+	f.callChanges(t, workspace, f.callReviewer(t, workspace, session, push.ID, ""), "p")
+
+	var h gateHistory
+	testutil.Eventually(t, func() bool {
+		require.NoError(t, f.run(t, workspace, "agents.gate-verdicts", map[string]any{"id": push.ID}, &h))
+		return len(h.Landings) == 1 && h.Landings[0].WaitsOn != ""
+	}, wait)
+	l := h.Landings[0]
+	assert.Equal(t, []string{"reviewing", "changes · waits for origin", "origin", ""}, []string{l.State, l.Wait, l.WaitsOn, l.Reviewer})
+}
+
+func TestOpenItInTheSheetOpensTheGateThatHasTheMatch(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{})
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	push := f.addPushGate(t, workspace, repo)
+	f.addCommandGate(t, workspace, repo, "gh pr create")
+	require.NoError(t, f.run(t, workspace, "agents.gates.new", map[string]any{}, nil))
+	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return len(sheetNodes(n, "sheet")) == 1 })
+	f.h.Event(t, workspace, "agents.sheet", "gateSheet/holds", "gateHolds", "tool")
+	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool {
+		return slices.ContainsFunc(sheetNodes(n, "button"), func(b sdui.Node) bool { return b.ID == "gateSheet/"+push.ID+"/gateOpenTaken" })
+	})
+
+	f.h.Event(t, workspace, "agents.sheet", "gateSheet/"+push.ID+"/gateOpenTaken", "gateOpenTaken", nil)
+
+	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return len(sheetNodes(n, "sheet")) == 0 })
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		return slices.ContainsFunc(sheetNodes(n, "header"), func(h sdui.Node) bool { return h.Props["title"] == "Tool call · git push" })
+	})
 }

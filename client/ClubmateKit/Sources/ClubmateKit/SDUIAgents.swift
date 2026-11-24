@@ -74,11 +74,13 @@ public struct SDUIGateGroup: Sendable, Equatable {
 public struct SDUIGateMessage: Sendable, Equatable {
     public let groups: [SDUIGateGroup]
     public let tail: String?
+    public let captionTitles: Bool
 
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let groups = fields["groups"]?.arrayValue?.compactMap(SDUIGateGroup.init), !groups.isEmpty else { return nil }
         self.groups = groups
         tail = fields["tail"]?.stringValue
+        captionTitles = fields["titleTone"]?.stringValue == "caption"
     }
 }
 
@@ -143,6 +145,7 @@ public struct SDUIPermissionOption: Sendable, Equatable, Identifiable {
     public let kind: PermissionKind
     public let shortcut: KeyCombo?
     public let short: String?
+    public let tone: String?
     public let menu: Bool
     public let rule: String?
     public let scope: String?
@@ -150,12 +153,13 @@ public struct SDUIPermissionOption: Sendable, Equatable, Identifiable {
 
     public var confirms: Bool { kind == .allowAlways }
 
-    public init(id: String, label: String, kind: PermissionKind, shortcut: String? = nil, short: String? = nil, menu: Bool = false, rule: String? = nil, scope: String? = nil, workspace: String? = nil) {
+    public init(id: String, label: String, kind: PermissionKind, shortcut: String? = nil, short: String? = nil, tone: String? = nil, menu: Bool = false, rule: String? = nil, scope: String? = nil, workspace: String? = nil) {
         self.id = id
         self.label = label
         self.kind = kind
         self.shortcut = shortcut.flatMap(KeyCombo.init)
         self.short = short
+        self.tone = tone
         self.menu = menu
         self.rule = rule
         self.scope = scope
@@ -165,7 +169,7 @@ public struct SDUIPermissionOption: Sendable, Equatable, Identifiable {
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
         let text = { (key: String) in fields[key]?.stringValue.flatMap { $0.isEmpty ? nil : $0 } }
-        self.init(id: id, label: label, kind: PermissionKind(fields["kind"]?.stringValue), shortcut: text("shortcut"), short: text("short"), menu: fields["menu"]?.boolValue ?? false, rule: text("rule"), scope: text("scope"), workspace: text("workspace"))
+        self.init(id: id, label: label, kind: PermissionKind(fields["kind"]?.stringValue), shortcut: text("shortcut"), short: text("short"), tone: text("tone"), menu: fields["menu"]?.boolValue ?? false, rule: text("rule"), scope: text("scope"), workspace: text("workspace"))
     }
 }
 

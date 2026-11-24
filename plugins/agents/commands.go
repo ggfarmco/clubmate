@@ -576,27 +576,26 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 		return nil, err
 	}
 	var w pluginsdk.Workspace
+	var lives map[string]map[string]callLive
 	key := ""
 	if !cmd.Agent {
 		if w, err = a.host.GetWorkspace(ctx, cmd.WorkspaceID); err != nil {
 			w = pluginsdk.Workspace{}
 		}
 		rec := s.snapshot()
-		key = decorationKey(rec, w, callStamp(a.callLives(rec), time.Now())...)
+		lives = a.callLives(rec)
+		key = decorationKey(rec, w, callStamp(lives, time.Now())...)
 	}
 	var since *cursor
 	var always func(*entry) bool
 	if pos, seen, ok := parseCursor(args.Since); ok && !args.Last {
-		since = &pos
-		if seen != key {
-			always = func(en *entry) bool { return decorated(en) || gateDecorated(en) }
-		}
+		since, always = &pos, redecorated(seen, key)
 	}
 	v := s.viewSince(args.FromTurn, since, always)
 	v.Cursor = v.pos.format(key)
 	if !cmd.Agent {
 		withPermissionContent(v.Session, v.Entries, w.Name, a.firstRun.get().NeedsYou)
-		a.withCallContent(&v, s)
+		withCallContent(&v, s, lives)
 		a.withTaskContent(&v, w)
 		a.withAsideContent(&v, s)
 	}

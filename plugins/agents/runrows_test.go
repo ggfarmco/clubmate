@@ -70,6 +70,12 @@ func TestDockRowKeepsItsCountAndSaysTheStateApart(t *testing.T) {
 	assert.Equal(t, []string{"2 to trust", ""}, []string{dockRows(nil, gateCount{}, defs)[2].State, dockRows(nil, gateCount{}, defs)[2].Which})
 }
 
+func TestUntrustedGraphRowReadsToTrust(t *testing.T) {
+	t.Parallel()
+	plus := graphState{defs: []graphs.Definition{{Name: "nightly", Title: "Nightly", Untrusted: true, Nodes: 3}}}.plus("")
+	assert.Equal(t, []string{"to trust", "warning"}, []string{plus.graphs[1].Detail, plus.graphs[1].DetailTone})
+}
+
 func TestRunRowGroupAndStatus(t *testing.T) {
 	t.Parallel()
 	open := map[string]sessionInfo{"agt_c": {record: record{ID: "agt_c", Status: statusIdle}}}

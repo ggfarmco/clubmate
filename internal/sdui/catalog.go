@@ -82,6 +82,7 @@ var (
 	reservedKeys = []string{"esc", "return", "tab"}
 	badgeTones   = []string{"neutral", "accent", "success", "warning", "danger"}
 	detailTones  = append(slices.Clone(badgeTones), "plain")
+	titleTones   = []string{"caption", "accent"}
 
 	itemFields = map[string]propCheck{
 		"id": uniqueItemID, "label": isString, "detail": isString, "icon": isString, "badge": isString, "menu": listOf(menuEntryCheck),
@@ -107,7 +108,7 @@ var (
 	docCardsCheck = listOf(objectCheck([]string{"path", "kind", "title", "rel"}, docCardFields))
 
 	gateGroupCheck   = objectCheck([]string{"title"}, map[string]propCheck{"title": isString, "findings": listOf(isString), "deferred": listOf(isString)})
-	gateMessageCheck = objectCheck([]string{"groups"}, map[string]propCheck{"groups": listOf(gateGroupCheck), "tail": isString})
+	gateMessageCheck = objectCheck([]string{"groups"}, map[string]propCheck{"groups": listOf(gateGroupCheck), "tail": isString, "titleTone": oneOf(titleTones)})
 
 	imageRefFields = map[string]propCheck{"path": nonEmptyString, "rel": isString, "width": countNumber, "height": countNumber}
 	imageRefsCheck = listOf(objectCheck([]string{"path", "rel"}, imageRefFields))
@@ -186,7 +187,7 @@ var (
 	sparkHeight = number(func(n float64) bool { return n >= minSparkHeight && n <= maxSparkHeight }, fmt.Sprintf("a number within %d…%d", minSparkHeight, maxSparkHeight))
 
 	catalog = map[string]spec{
-		"stack":   {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions), "align": oneOf(alignments), "gap": nonNegative, "inset": oneOf(insets), "notes": isBool}, children: anyChildren},
+		"stack":   {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions), "align": oneOf(alignments), "gap": nonNegative, "inset": oneOf(insets), "notes": isBool, "twoRows": isBool}, children: anyChildren},
 		"split":   {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: childRule{min: 2, max: 4}},
 		"scroll":  {props: map[string]propCheck{"fit": isBool}, children: childRule{min: 1, max: 1}},
 		"spacer":  {children: noChildren},
@@ -896,7 +897,7 @@ func cardActionCheck(c *validator, v any) error {
 
 func permissionOptionCheck(c *validator, v any) error {
 	return objectCheck([]string{"id", "label"}, map[string]propCheck{
-		"id": uniqueItemID, "label": isString, "kind": oneOf(permissionKinds), "shortcut": shortcutCheck, "short": isString, "menu": isBool, "rule": isString, "scope": isString, "workspace": isString,
+		"id": uniqueItemID, "label": isString, "kind": oneOf(permissionKinds), "shortcut": shortcutCheck, "short": isString, "tone": oneOf(badgeTones), "menu": isBool, "rule": isString, "scope": isString, "workspace": isString,
 	})(c, v)
 }
 

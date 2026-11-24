@@ -100,7 +100,9 @@ func TestToolGateHoldsRequestWithoutPermission(t *testing.T) {
 	require.NotNil(t, got.Landing)
 	assert.Equal(t, "held", got.Landing.Words)
 	assert.Equal(t, "held · git push", got.Landing.Badge)
-	assert.Equal(t, "Held by a gate — messages queue", got.Landing.Hint)
+	assert.Equal(t, []any{"Held by a gate — messages queue", "Messages queue while it's held", "Held", "shield", "accent", true}, []any{got.Landing.Hint, got.Landing.Phone, got.Landing.Accent, got.Landing.Glyph, got.Landing.GlyphOf, got.CallHeld})
+	header := "Held by a gate · " + git(t, got.Worktree, "rev-parse", "--abbrev-ref", "HEAD")
+	f.waitRecord(t, workspace, session, "the held header", func(r record) bool { return r.Landing != nil && r.Landing.Header == header })
 	assert.Equal(t, "git push origin main", got.Calls[0].Input)
 	assert.Equal(t, 1, got.Calls[0].Round)
 	tr := f.transcript(t, workspace, session)
@@ -159,6 +161,12 @@ func TestCallHeldByTwoGatesHasTwoHolds(t *testing.T) {
 	assert.Equal(t, origin.ID, got.Calls[1].Gate)
 	assert.Equal(t, "held · git push +1", got.Landing.Badge)
 	assert.Equal(t, "Held · git push +1 · 2 graphs reviewing", got.Landing.Line)
+	header := "Held by 2 gates · " + git(t, got.Worktree, "rev-parse", "--abbrev-ref", "HEAD")
+	f.waitRecord(t, workspace, session, "the held header", func(r record) bool { return r.Landing != nil && r.Landing.Header == header })
+	testutil.Eventually(t, func() bool {
+		item := f.sidebarItem(t, workspace, session)
+		return item.Icon == "shield" && item.Tone == "accent"
+	}, wait)
 	holds := gateMarkOf(t, f.transcript(t, workspace, session), "push1")["holds"]
 	var list []struct {
 		Gate string `json:"gate"`

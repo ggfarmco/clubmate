@@ -66,6 +66,7 @@ type record struct {
 	CronJob        string   `json:"cronJob"`
 	Error          string   `json:"error"`
 	Pending        []string `json:"pending"`
+	CardRequests   []string `json:"cardRequests"`
 	Asks           bool     `json:"asks"`
 	PendingSummary *struct {
 		Kind string `json:"kind"`
@@ -90,6 +91,7 @@ type record struct {
 	Kind          string `json:"kind"`
 	RowUnder      string `json:"rowUnder"`
 	TurnHeld      bool   `json:"turnHeld"`
+	CallHeld      bool   `json:"callHeld"`
 	HeldRound     *struct {
 		Text string `json:"text"`
 		Run  string `json:"run"`
@@ -107,6 +109,11 @@ type record struct {
 		Badge    string `json:"badge"`
 		Held     string `json:"held"`
 		Hint     string `json:"hint"`
+		Phone    string `json:"phoneHint"`
+		Header   string `json:"header"`
+		Accent   string `json:"headerAccent"`
+		Glyph    string `json:"glyph"`
+		GlyphOf  string `json:"glyphTone"`
 	} `json:"landing"`
 	Calls           []callRow `json:"calls"`
 	AsksParent      bool      `json:"asksParent"`

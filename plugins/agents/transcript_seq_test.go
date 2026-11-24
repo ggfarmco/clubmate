@@ -297,6 +297,20 @@ func TestDecoratedEntriesComeBackWhenTheirContextChanges(t *testing.T) {
 	assert.NotEqual(t, key, decorationKey(rec, w))
 }
 
+func TestCallStampChangeResendsOnlyGateEntries(t *testing.T) {
+	t.Parallel()
+	w := pluginsdk.Workspace{Name: "Shop"}
+	seen := decorationKey(record{}, w, "t1", "reviewing")
+	perm, held := &entry{Kind: entryPermission}, gatedTool(t, "t1", 1, &gateMark{State: callStateHeld})
+
+	calls := redecorated(seen, decorationKey(record{}, w, "t1", "approved"))
+	place := redecorated(seen, decorationKey(record{}, pluginsdk.Workspace{Name: "Store"}, "t1", "reviewing"))
+
+	assert.Nil(t, redecorated(seen, seen))
+	assert.Equal(t, []bool{false, true}, []bool{calls(perm), calls(held)})
+	assert.Equal(t, []bool{true, true}, []bool{place(perm), place(held)})
+}
+
 func TestLineChangesMatchThePhonesLineDiff(t *testing.T) {
 	t.Parallel()
 	added, removed := lineChanges("one\ntwo\nthree\n", "one\n2\nthree\nfour")

@@ -22,7 +22,7 @@ const (
 	gateStepWord     = "step"
 	gateAgentWord    = "agent"
 	gateChangedWord  = "%s changed"
-	gateAddedWord    = "added as step %d"
+	gateAddedWord    = "added"
 	gateRemovedWord  = "removed"
 	gateUnchanged    = "%s: unchanged"
 	gateDiffCells    = 1 << 20
@@ -33,6 +33,7 @@ const (
 	gateLandWaits    = "1 landing waits: %s"
 	gateLandsWait    = "%d landings wait: %s +%d"
 	gateLandInto     = "%s into %s"
+	gateCallIn       = "%s in %s"
 	gateCallWaits    = "1 call waits: %s"
 	gateCallsWait    = "%d calls wait: %s +%d"
 )
@@ -99,7 +100,10 @@ func trustWaitsText(r gateRow) string {
 		return gateTrustNothing + " " + fmt.Sprintf(gateTurnsWait, len(waits), what, len(waits)-1) + "."
 	}
 	if r.Point == gatePointTool {
-		what := cmp.Or(first.Call, first.Title, gateNone)
+		what := toolMatchName(r.gateConfig)
+		if first.Title != "" {
+			what = fmt.Sprintf(gateCallIn, what, first.Title)
+		}
 		if len(waits) == 1 {
 			return gateTrustNothing + " " + fmt.Sprintf(gateCallWaits, what) + "."
 		}
@@ -133,11 +137,11 @@ func gateGraphDiff(gate string, old, cur *graphs.GateGraphInfo) graphDiff {
 	if old.Head != cur.Head {
 		block("graph", gateGraphWord+" · "+fmt.Sprintf(gateChangedWord, gateHeadWhat), lineDiff(old.Head, cur.Head), true)
 	}
-	for at, n := range cur.Nodes {
+	for _, n := range cur.Nodes {
 		i := slices.IndexFunc(old.Nodes, func(o graphs.GateNodeInfo) bool { return o.ID == n.ID })
 		if i < 0 {
 			d.Changed++
-			block("node:"+n.ID, n.Title+" · "+nodeKind(n)+" · "+fmt.Sprintf(gateAddedWord, at+1), signed(sdui.DiffAdded, nodeText(n)), false)
+			block("node:"+n.ID, n.Title+" · "+nodeKind(n)+" · "+gateAddedWord, signed(sdui.DiffAdded, nodeWords(n)), false)
 			continue
 		}
 		o := old.Nodes[i]
@@ -160,7 +164,7 @@ func gateGraphDiff(gate string, old, cur *graphs.GateGraphInfo) graphDiff {
 		if !slices.ContainsFunc(cur.Nodes, func(n graphs.GateNodeInfo) bool { return n.ID == o.ID }) {
 			d.Changed++
 			d.Steps++
-			block("node:"+o.ID, o.Title+" · "+nodeKind(o)+" · "+gateRemovedWord, signed(sdui.DiffRemoved, nodeText(o)), false)
+			block("node:"+o.ID, o.Title+" · "+nodeKind(o)+" · "+gateRemovedWord, signed(sdui.DiffRemoved, nodeWords(o)), false)
 		}
 	}
 	if was, now := commonOrder(old.Nodes, cur.Nodes), commonOrder(cur.Nodes, old.Nodes); !slices.EqualFunc(was, now, func(x, y graphs.GateNodeInfo) bool { return x.ID == y.ID }) {
@@ -218,11 +222,14 @@ func nodeKind(n graphs.GateNodeInfo) string {
 }
 
 func nodeText(n graphs.GateNodeInfo) string {
-	parts := []string{nodeDoes(n)}
-	if n.Prompt != "" {
-		parts = append(parts, n.Prompt)
+	return strings.Join([]string{nodeWords(n), n.Other}, "\n")
+}
+
+func nodeWords(n graphs.GateNodeInfo) string {
+	if n.Prompt == "" {
+		return nodeDoes(n)
 	}
-	return strings.Join(append(parts, n.Other), "\n")
+	return nodeDoes(n) + "\n" + n.Prompt
 }
 
 func diffSplit(text string) []string {

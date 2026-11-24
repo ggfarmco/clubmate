@@ -25,7 +25,9 @@ const (
 	blockGateLine    = "%s · %s · round %d of %d"
 	blockWaitsOne    = "%s waits inside this call. Approved runs it. Changes refuse it, and the gate then sends its findings in a message."
 	blockWaitsTwo    = "%s waits inside this call. If either gate asks for changes, the refusal waits for the other; then the findings of both follow it in one message."
-	blockWaitsMany   = "%s waits inside this call. If any gate asks for changes, the refusal waits for the others; then the findings of all follow it in one message."
+	blockWaitsMany   = "%s waits inside this call. If any gate asks for changes, the refusal waits for the others; then all their findings follow it in one message."
+	blockNoTurn      = "%s · refused at once: gates hold only calls made inside a turn"
+	blockRefusedLine = "%s · round %d of %d"
 	blockReviewing   = "reviewing · %s"
 	blockDecided     = "%s · waits for %s"
 	blockMore        = "%s +%d"
@@ -34,16 +36,19 @@ const (
 	blockInputLines  = 3
 	gateTitlePrefix  = "[Clubmate] "
 	doneGateHead     = "[Clubmate] From the gate · "
+	doneGateJoin     = "\n\n" + doneGateHead
 	doneNotBlocking  = "Not blocking:"
 	bulletPrefix     = "- "
 	blockSep         = " · "
 	blockRoundWord   = "round "
 	blockChangesEnd  = " · changes"
+	titleToneCaption = "caption"
 )
 
 type callBlock struct {
 	State   string          `json:"state"`
 	Word    string          `json:"word,omitempty"`
+	Tone    string          `json:"tone,omitempty"`
 	Title   string          `json:"title,omitempty"`
 	Caption string          `json:"caption,omitempty"`
 	Tool    string          `json:"tool,omitempty"`
@@ -83,6 +88,39 @@ func (a *app) callLives(rec record) map[string]map[string]callLive {
 			out[c.Call] = map[string]callLive{}
 		}
 		out[c.Call][h.Gate] = l
+	}
+	for call, holds := range a.approvedHolds(rec.ID) {
+		for _, h := range holds {
+			if _, ok := out[call][h.Gate]; ok {
+				continue
+			}
+			if out[call] == nil {
+				out[call] = map[string]callLive{}
+			}
+			graph := h.Graph
+			if graph == "" {
+				graph = cmp.Or(a.heldFactsOf(h.Gate).graph, heldGraphFallback)
+			}
+			out[call][h.Gate] = callLive{Graph: graph, Last: gateApproved, Since: h.Since}
+		}
+	}
+	return out
+}
+
+func (a *app) approvedHolds(id string) map[string][]heldTurn {
+	s := a.session(id)
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[string][]heldTurn{}
+	for _, c := range s.calls {
+		for _, d := range c.decided {
+			if c.taken && d.Hold != nil && d.Hold.Last == gateApproved {
+				out[c.id] = append(out[c.id], *d.Hold)
+			}
+		}
 	}
 	return out
 }
@@ -130,22 +168,17 @@ func callBlockOf(en *entry, live map[string]callLive, msg *gateMessage, agent st
 	b := &callBlock{State: m.State}
 	if m.State == callStateRefd && m.Reason != "" {
 		b.Word = blockRefusedWord
+		if len(m.Holds) > 0 {
+			b.Caption = fmt.Sprintf(blockNoTurn, matchesCaption(m.Holds))
+		}
 		return b
 	}
 	b.Tool, b.Input = callShown(en)
 	if m.State == callStateRefd {
-		b.Title, b.Caption = fmt.Sprintf(blockRefusedOne, max(m.Round, 1)), refusedCaption(m.Holds)
-		if msg == nil {
-			return b
-		}
-		if caption := messageCaption(*msg); caption != "" {
-			b.Caption = caption
-		}
-		if len(msg.Groups) > 1 {
-			b.Title = fmt.Sprintf(blockRefusedMany, len(msg.Groups))
-		}
+		refusedBlock(b, m, live, msg)
 		return b
 	}
+	b.Tone = toneAccent
 	if len(m.Holds) == 0 {
 		b.Title = blockHeldOne
 		return b
@@ -176,6 +209,39 @@ func callBlockOf(en *entry, live map[string]callLive, msg *gateMessage, agent st
 	return b
 }
 
+func refusedBlock(b *callBlock, m *gateMark, live map[string]callLive, msg *gateMessage) {
+	b.Tone = toneNeutral
+	b.Title, b.Caption = fmt.Sprintf(blockRefusedOne, max(m.Round, 1)), refusedCaption(m.Holds)
+	var changed []string
+	if msg != nil {
+		if caption := messageCaption(*msg); caption != "" && len(m.Holds) == 0 {
+			b.Caption = caption
+		}
+		if len(msg.Groups) > 1 {
+			b.Title = fmt.Sprintf(blockRefusedMany, len(msg.Groups))
+		}
+		changed = changedGates(*msg)
+	}
+	if len(m.Holds) < 2 {
+		return
+	}
+	for _, h := range m.Holds {
+		round := max(h.Round, 1)
+		text := fmt.Sprintf(blockRefusedLine, h.Name, round, max(h.Of, round))
+		if g := live[h.Gate].Graph; g != "" {
+			text = fmt.Sprintf(blockGateLine, h.Name, g, round, max(h.Of, round))
+		}
+		state := ""
+		switch {
+		case slices.Contains(changed, h.Gate) || slices.Contains(changed, clipRunes(h.Name, callLineMax)):
+			state = gateChanges
+		case msg != nil:
+			state = gateApproved
+		}
+		b.Lines = append(b.Lines, callBlockLine{Text: text, State: state, Round: round})
+	}
+}
+
 func holdCaption(h callMark) string {
 	round := max(h.Round, 1)
 	return fmt.Sprintf(blockCaption, h.Repo, cmp.Or(h.Caption, h.Name), round, max(h.Of, round))
@@ -188,34 +254,69 @@ func refusedCaption(holds []callMark) string {
 	case 1:
 		return holdCaption(holds[0])
 	}
+	return matchesCaption(holds)
+}
+
+func matchesCaption(holds []callMark) string {
 	parts := []string{holds[0].Repo}
 	for _, h := range holds {
 		parts = append(parts, h.Name)
 	}
-	return strings.Join(parts, " · ")
+	return strings.Join(parts, blockSep)
 }
 
-func messageCaption(m gateMessage) string {
-	var repo string
-	var matches, captions []string
+type messageHead struct {
+	repo, match, head string
+}
+
+func messageHeads(m gateMessage) []messageHead {
+	var out []messageHead
 	for _, g := range m.Groups {
 		head, ok := strings.CutPrefix(g.Head, doneGateHead)
 		if !ok {
-			return ""
+			return nil
 		}
 		head = strings.TrimSuffix(head, blockChangesEnd)
 		r, rest, ok := strings.Cut(head, blockSep)
 		i := strings.LastIndex(rest, blockSep+blockRoundWord)
 		if !ok || i < 0 {
-			return ""
+			return nil
 		}
-		repo = cmp.Or(repo, r)
-		matches, captions = append(matches, rest[:i]), append(captions, head)
+		out = append(out, messageHead{repo: r, match: rest[:i], head: head})
 	}
-	if len(captions) == 1 {
-		return captions[0]
+	return out
+}
+
+func messageMatches(m gateMessage) []string {
+	var out []string
+	for _, h := range messageHeads(m) {
+		out = append(out, h.match)
 	}
-	return strings.Join(append([]string{repo}, matches...), blockSep)
+	return out
+}
+
+func changedGates(m gateMessage) []string {
+	var out []string
+	for _, g := range m.Groups {
+		if g.Gate != "" {
+			out = append(out, g.Gate)
+		}
+	}
+	if len(out) == len(m.Groups) {
+		return out
+	}
+	return messageMatches(m)
+}
+
+func messageCaption(m gateMessage) string {
+	heads := messageHeads(m)
+	switch len(heads) {
+	case 0:
+		return ""
+	case 1:
+		return heads[0].head
+	}
+	return strings.Join(append([]string{heads[0].repo}, messageMatches(m)...), blockSep)
 }
 
 func refusalMessage(en *entry, find func(string) *gateMessage) *gateMessage {
@@ -297,21 +398,26 @@ func callBlockNode(id, sid string, b callBlock) sdui.Node {
 	if b.Input != "" || b.Tool != "" {
 		rows = append(rows, sdui.HStack(sdui.MutedText(b.Tool), sdui.WithLines(sdui.MonoText(b.Input), blockInputLines)))
 	}
+	tone := cmp.Or(b.Tone, toneAccent)
 	for _, l := range b.Lines {
-		row := []sdui.Node{sdui.Text(l.Text)}
+		var tail []sdui.Node
 		if l.State != "" {
-			row = append(row, sdui.WithTone(sdui.Text(l.State), toneAccent))
+			state := sdui.MutedText(l.State)
+			if tone == toneAccent {
+				state = sdui.WithTone(sdui.Text(l.State), toneAccent)
+			}
+			tail = append(tail, state)
 		}
-		row = append(row, sdui.Spacer())
+		tail = append(tail, sdui.Spacer())
 		if len(b.Lines) > 1 && l.Review != "" {
-			row = append(row, blockReview(sid, l))
+			tail = append(tail, blockReview(sid, l))
 		}
-		rows = append(rows, sdui.HStack(row...))
+		rows = append(rows, sdui.WithTwoRows(sdui.HStack(sdui.Text(l.Text), sdui.HStack(tail...))))
 	}
 	if b.Note != "" {
 		rows = append(rows, sdui.MutedText(b.Note))
 	}
-	return sdui.WithID(sdui.Card(toneAccent, landingIcon, rows...), id)
+	return sdui.WithID(sdui.Card(tone, landingIcon, rows...), id)
 }
 
 func blockReview(sid string, l callBlockLine) sdui.Node {
@@ -319,7 +425,7 @@ func blockReview(sid string, l callBlockLine) sdui.Node {
 }
 
 func gateMessageProp(m gateMessage) sdui.GateMessage {
-	out := sdui.GateMessage{Tail: m.Tail}
+	out := sdui.GateMessage{Tail: m.Tail, TitleTone: titleToneCaption}
 	for _, g := range m.Groups {
 		out.Groups = append(out.Groups, sdui.GateGroup{Title: strings.TrimPrefix(g.Head, gateTitlePrefix), Findings: g.Findings, Deferred: g.Deferred})
 	}
@@ -404,13 +510,15 @@ func heldInside(sub *subagent) []*entry {
 	return out
 }
 
-func (a *app) withCallContent(v *transcriptView, s *session) {
-	lives := a.callLives(v.Session)
+func withCallContent(v *transcriptView, s *session, lives map[string]map[string]callLive) {
 	agent, now := agentLabel(v.Session.Agent), time.Now()
 	for _, en := range v.Entries {
 		en.Call = callBlockOf(en, lives[en.ID], refusalMessage(en, s.messageFor), agent, now)
 		for _, h := range en.HeldCalls {
 			h.Call = callBlockOf(h, lives[h.ID], nil, agent, now)
+		}
+		if word := heldWordOf(en); en.Call == nil && word != "" {
+			en.Call = &callBlock{State: callStateHeld, Word: word}
 		}
 		if en.Gate != nil {
 			en.Gate = titled(*en.Gate)
@@ -419,7 +527,7 @@ func (a *app) withCallContent(v *transcriptView, s *session) {
 }
 
 func titled(m gateMessage) *gateMessage {
-	m.Groups = slices.Clone(m.Groups)
+	m.Groups, m.TitleTone = slices.Clone(m.Groups), titleToneCaption
 	for i := range m.Groups {
 		m.Groups[i].Title = strings.TrimPrefix(m.Groups[i].Head, gateTitlePrefix)
 	}
@@ -437,6 +545,28 @@ func callStamp(lives map[string]map[string]callLive, now time.Time) []string {
 	return out
 }
 
+func heldWordOf(en *entry) string {
+	var names []string
+	held := false
+	for _, h := range en.HeldCalls {
+		if m := markOf(h); m != nil && m.State == callStateHeld {
+			held = true
+			for _, hold := range m.Holds {
+				names = append(names, hold.Name)
+			}
+		}
+	}
+	switch {
+	case len(names) == 0 && held:
+		return heldWord
+	case len(names) == 0:
+		return ""
+	case len(names) == 1:
+		return fmt.Sprintf(heldBadgeFormat, names[0])
+	}
+	return fmt.Sprintf(callBadgeMore, names[0], len(names)-1)
+}
+
 func gateDecorated(en *entry) bool {
 	return markOf(en) != nil || len(en.HeldCalls) > 0
 }
@@ -445,5 +575,20 @@ func doneMessage(args promptArgs, gate bool) *gateMessage {
 	if !gate || args.Message != nil {
 		return nil
 	}
-	return doneGateMessage(args.Text)
+	var out *gateMessage
+	for i, part := range strings.Split(args.Text, doneGateJoin) {
+		if i > 0 {
+			part = doneGateHead + part
+		}
+		m := doneGateMessage(part)
+		if m == nil {
+			return nil
+		}
+		if out == nil {
+			out = m
+			continue
+		}
+		out.Groups, out.Tail = append(out.Groups, m.Groups...), cmp.Or(m.Tail, out.Tail)
+	}
+	return out
 }

@@ -26,6 +26,7 @@ const (
 	gateNameBase     = "the parent's branch"
 	gateNameDefault  = "the default branch"
 	gateUngated      = "ungated"
+	gateChangesWaits = "changes · waits for %s"
 )
 
 var gateRank = map[string]int{gateApproved: 1, gateChanges: 2, gateStateReview: 3, gateStateNeedsMe: 4}
@@ -64,6 +65,8 @@ type gateLanding struct {
 	Run      string    `json:"run,omitempty"`
 	Wait     string    `json:"wait,omitempty"`
 	Trust    bool      `json:"trust,omitempty"`
+	WaitsOn  string    `json:"waitsOn,omitempty"`
+	held     string
 }
 
 type gateRow struct {
@@ -296,7 +299,7 @@ func (a *app) gateLandings(workspaceID, gateID string) []gateLanding {
 
 func (a *app) heldLanding(rec record, asks map[string]*runNeed) (gateLanding, bool) {
 	h := rec.Held
-	l := gateLanding{Lander: rec.ID, Title: rec.Title, State: gateStateNeedsMe, Round: max(h.Round, 1), Findings: h.Findings, Since: cmp.Or(h.Asked, h.Since)}
+	l := gateLanding{Lander: rec.ID, Title: rec.Title, State: gateStateNeedsMe, Round: max(h.Round, 1), Findings: h.Findings, Since: cmp.Or(h.Asked, h.Since), held: rec.ID}
 	if n := asks[heldRun(rec)]; n != nil {
 		l.Since, l.Ask, l.Run = n.Since, n.Text, n.Run
 		return l, true
@@ -327,10 +330,16 @@ func (a *app) callGateLanding(rec record, gateID string) (gateLanding, bool) {
 		return gateLanding{}, false
 	}
 	h := c.Hold
-	l := gateLanding{Lander: rec.ID, Title: rec.Title, Call: c.Input, Caption: c.Caption, State: gateStateReview, Round: max(h.Round, 1), Since: h.Since}
+	l := gateLanding{Lander: rec.ID, Title: rec.Title, Call: c.Input, Caption: c.Caption, State: gateStateReview, Round: max(h.Round, 1), Since: h.Since, held: rec.ID + "/" + cmp.Or(c.Call, h.Request)}
 	if h.Request != "" {
 		l.State, l.Reviewer, l.Findings, l.Since = gateStateNeedsMe, h.Reviewer, h.Findings, cmp.Or(h.Asked, h.Since)
 		return l, true
+	}
+	if h.Last == gateChanges && c.Call != "" {
+		if on := a.callWaitsOn(rec, c); on != "" {
+			l.WaitsOn, l.Wait, l.Findings = on, fmt.Sprintf(gateChangesWaits, on), h.Findings
+			return l, true
+		}
 	}
 	if l.Wait = heldWaitWords(h); l.Wait != "" {
 		l.Trust = holdWaitsTrust(h)
@@ -348,6 +357,29 @@ func (a *app) callGateLanding(rec record, gateID string) (gateLanding, bool) {
 		}
 	}
 	return l, true
+}
+
+func (a *app) callWaitsOn(rec record, c *callHold) string {
+	var others []string
+	for _, x := range rec.Calls {
+		if x == c || x.Call != c.Call || x.Hold == nil || x.Hold.Last == gateChanges {
+			continue
+		}
+		others = append(others, x.Hold.Gate)
+	}
+	if len(others) == 0 {
+		return ""
+	}
+	gates, _ := a.knownGates(context.Background())
+	i := slices.IndexFunc(gates, func(g gateConfig) bool { return g.ID == others[0] })
+	name := gateNone
+	if i >= 0 {
+		name = toolMatchName(gates[i])
+	}
+	if len(others) > 1 {
+		name += fmt.Sprintf(" +%d", len(others)-1)
+	}
+	return name
 }
 
 func (a *app) heldReviewer(rec record) *record {

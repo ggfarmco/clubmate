@@ -19,6 +19,8 @@ enum LandReviewFixture {
     static let twoGates = "agt_00000000000000bc"
     static let refusedCall = "agt_00000000000000bd"
     static let callReviewer = "agt_00000000000000be"
+    static let callCard = "agt_00000000000000bf"
+    static let callRequest = "lg_00000000000000bf"
     static let permission = "permission-r1"
     static let command = "go test ./plugins/gates/..."
 
@@ -31,7 +33,7 @@ enum LandReviewFixture {
     static var dock: [JSONValue] { [
         .object(["id": .string("service"), "label": .string("Service"), "icon": .string("gearshape.2"), "detail": .string("0"), "phoneDetail": .string("0")]),
         GateTrustFixture.on
-            ? .object(["id": .string("gates"), "label": .string("Gates"), "icon": .string("checkmark.shield"), "detail": .string("2"), "phoneDetail": .string("2"), "state": .string("1 to trust"), "which": .string("Done · plans and specs"), "attention": .bool(true)])
+            ? .object(["id": .string("gates"), "label": .string("Gates"), "icon": .string("checkmark.shield"), "detail": .string("2"), "phoneDetail": .string("2"), "state": .string("1 to trust"), "which": .string(GateTrustFixture.name), "attention": .bool(true)])
             : .object(["id": .string("gates"), "label": .string("Gates"), "icon": .string("checkmark.shield"), "detail": .string("1"), "phoneDetail": .string("1"), "state": .string("1 asking"), "which": .string("into main")]),
         .object(["id": .string("graphs"), "label": .string("Graphs"), "icon": .string("point.3.connected.trianglepath.dotted"), "detail": .string("2"), "phoneDetail": .string("2"), "state": .string("1 to trust"), "which": .string("Plan pipeline"), "attention": .bool(true)]),
     ] }
@@ -59,10 +61,13 @@ enum LandReviewFixture {
         func round(_ n: Int, _ verdict: String, label: String? = nil) -> JSONValue {
             .object(["round": .number(Double(n)), "label": .string(label ?? "Round \(n) review"), "verdict": .string(verdict)])
         }
-        func callLanding(line: String, badge: String) -> JSONValue {
-            .object(["round": .number(1), "of": .number(2), "verdict": .string("reviewing"), "words": .string("held"), "tone": .string("accent"), "badge": .string(badge), "badgeTone": .string("accent"), "into": .string(""), "held": .string("git push"), "line": .string(line), "hint": .string("Held by a gate — messages queue")])
+        func callLanding(line: String, badge: String, header: String, glyph: Bool = true) -> JSONValue {
+            var fields: [String: JSONValue] = ["round": .number(1), "of": .number(2), "verdict": .string("reviewing"), "words": .string("held"), "tone": .string("accent"), "badge": .string(badge), "badgeTone": .string("accent"), "into": .string(""), "held": .string("git push"), "line": .string(line), "hint": .string("Held by a gate — messages queue"),
+                                               "phoneHint": .string("Messages queue while it's held"), "header": .string(header + " · fix/cart-total"), "headerAccent": .string("Held")]
+            if glyph { fields.merge(["glyph": .string("shield"), "glyphTone": .string("accent")]) { $1 } }
+            return .object(fields)
         }
-        let branches = [heldCall: "fix-cart-total", twoGates: "fix-cart-total", refusedCall: "fix-cart-total", held: "main", heldCard: "main", asking: "gate-graph", askingReviewer: "gate-graph", changes: "keep-awake", changesReviewer: "keep-awake", reviewing: "side-threads", reviewingReviewer: "side-threads", closedReviewer: "side-threads", approved: "flaky-switcher"]
+        let branches = [heldCall: "fix-cart-total", twoGates: "fix-cart-total", callCard: "fix-cart-total", refusedCall: "fix-cart-total", held: "main", heldCard: "main", asking: "gate-graph", askingReviewer: "gate-graph", changes: "keep-awake", changesReviewer: "keep-awake", reviewing: "side-threads", reviewingReviewer: "side-threads", closedReviewer: "side-threads", approved: "flaky-switcher"]
         let reviewer = { (lander: String) in JSONValue.object(["lander": .string(lander), "into": .string("main")]) }
         let rows = [
             record(asking, "Gate graph instead of a fixed guard", status: "idle", group: "needsYou", ago: 120, [
@@ -93,13 +98,18 @@ enum LandReviewFixture {
             ]),
             record(held, "Write the inbox plan", status: "running", group: "running", ago: 40, [
                 "turnStartedAt": stamp(400), "turnHeld": .bool(true), "heldRound": .object(["text": .string("Plan pipeline · round 1 changes · round 2 reviewing"), "run": .string("gr_00000000000000b9")]),
-                "landing": .object(["round": .number(1), "of": .number(1), "verdict": .string("reviewing"), "words": .string("held"), "tone": .string("accent"), "badge": .string("held · plans and specs"), "badgeTone": .string("accent"), "into": .string(""), "held": .string("plans and specs"), "line": .string("Held · plans and specs · Plan pipeline…")]),
+                "landing": .object(["round": .number(1), "of": .number(1), "verdict": .string("reviewing"), "words": .string("held"), "tone": .string("accent"), "badge": .string("held · plans and specs"), "badgeTone": .string("accent"), "into": .string(""), "held": .string("plans and specs"), "line": .string("Held · plans and specs · Plan pipeline…"), "glyph": .string("shield"), "glyphTone": .string("accent")]),
             ]),
             record(heldCall, "Ship the cart fix", status: "running", group: "running", ago: 40, [
-                "turnStartedAt": stamp(300), "landing": callLanding(line: "Held · git push · Fable review…", badge: "held · git push"),
+                "turnStartedAt": stamp(300), "callHeld": .bool(true), "landing": callLanding(line: "Held · git push · Fable review…", badge: "held · git push", header: "Held by a gate"),
             ]),
             record(twoGates, "Open the cart PR", status: "running", group: "running", ago: 50, [
-                "turnStartedAt": stamp(320), "landing": callLanding(line: "Held · git push +1 · 2 graphs reviewing", badge: "held · git push +1"),
+                "turnStartedAt": stamp(320), "callHeld": .bool(true), "landing": callLanding(line: "Held · git push +1 · 2 graphs reviewing", badge: "held · git push +1", header: "Held by 2 gates"),
+            ]),
+            record(callCard, "Push the cart total", status: "running", group: "needsYou", ago: 70, [
+                "turnStartedAt": stamp(600), "callHeld": .bool(true), "landing": callLanding(line: "Held · git push · Fable review…", badge: "held · git push", header: "Held by a gate", glyph: false),
+                "needsYou": .bool(true), "needsYouSince": stamp(70), "pending": .array([.string(callRequest)]), "requests": .array([.string(callRequest)]),
+                "pendingSummary": .object(["kind": .string("land"), "text": .string("Fable review still asks for changes after 2 rounds"), "onMac": .bool(true), "at": stamp(70)]),
             ]),
             record(refusedCall, "Fix the discount order", status: "running", group: "running", ago: 20, [
                 "turnStartedAt": stamp(200),
@@ -113,14 +123,14 @@ enum LandReviewFixture {
             ]),
         ]
         guard GateTrustFixture.on else { return rows }
-        return rows + [record(GateTrustFixture.gate, "Done · plans and specs", status: "waiting", group: "needsYou", ago: 240, [
+        return rows + [record(GateTrustFixture.gate, GateTrustFixture.name, status: "waiting", group: "needsYou", ago: 240, [
             "kind": .string("gate"), "rowDetail": .string("Graph changed · 1 waits"), "needsYou": .bool(true), "needsYouSince": stamp(240), "listFilters": .array([.string("needs")]),
         ])]
     }
 
     static func transcripts(entry: (String, String, String) -> JSONValue) -> [String: [String: JSONValue]] {
         let option = { (id: String, label: String, kind: String?, key: String) in
-            JSONValue.object(["id": .string(id), "label": .string(label), "shortcut": .string(key)].merging(kind.map { ["kind": .string($0)] } ?? [:]) { $1 })
+            JSONValue.object(["id": .string(id), "label": .string(label), "shortcut": .string(key)].merging(kind.map { ["kind": .string($0)] } ?? [:]) { $1 }.merging(id == "leave" ? ["tone": .string("danger")] : [:]) { $1 })
         }
         let heldNode = JSONValue.object(["type": .string("request.land"), "id": .string(heldCard + "/landgate/" + heldRequest), "props": .object([
             "request": .string(heldRequest), "title": .string("Plan pipeline still asks for changes after 2 rounds"), "name": .string("Plan rate limits"), "dock": .bool(true),
@@ -129,26 +139,38 @@ enum LandReviewFixture {
             "rule": .string("Accept as done shows the turn as done as it is. One more round sends the agent these findings and reviews its next finished turn. Stop leaves the session idle and its turn not done."),
             "options": .array([option("merge", "Accept as done", "allow_once", "opt+1"), option("more", "One more round", nil, "opt+2"), option("leave", "Stop", "reject_once", "opt+3")]),
         ])])
+        let callNode = JSONValue.object(["type": .string("request.land"), "id": .string(callCard + "/landgate/" + callRequest), "props": .object([
+            "request": .string(callRequest), "title": .string("Fable review still asks for changes after 2 rounds"), "name": .string("Push the cart total"), "dock": .bool(true),
+            "caption": .string("shop · Tool call · git push · held since 12:58"), "gate": .bool(true), "question": .string("Run it without another review?"),
+            "detail": .string("git push origin fix/cart-total\n\n- internal/cart/total.go:5 — discounts are applied before the nil check\n- internal/cart/total_test.go — no test covers a discount on an empty cart"),
+            "rule": .string("Run anyway runs the call as it is. One more round refuses it and sends the agent the findings; its next matching call is reviewed again. Stop cancels the call and stops the turn."),
+            "options": .array([option("merge", "Run anyway", "allow_once", "opt+1"), option("more", "One more round", nil, "opt+2"), option("leave", "Stop", "reject_once", "opt+3")]),
+        ])])
         return [
+            callCard: ["request": callNode, "entries": .array([
+                entry("user", "cc-1", "Fix the cart total and push the branch"),
+                entry("agent", "cc-2", "Moved the discount after the nil check again. Pushing so the PR can open."),
+                json(#"{"kind":"tool","id":"cc-push","turn":1,"tool":{"kind":"execute","title":"git push origin fix/cart-total","status":"pending","rawInput":{"command":"git push origin fix/cart-total"},"toolCallId":"cc-push"},"gate":{"state":"held","tone":"accent","title":"Held by a gate","caption":"shop · git push · round 2 of 2","tool":"Bash","input":"git push origin fix/cart-total","lines":[{"text":"git push · Fable review · round 2 of 2","state":"changes · waits for you","round":2,"review":"\#(callReviewer)"}],"note":"Claude waits inside this call. Run anyway, One more round or Stop is yours."}}"#),
+            ])],
             heldCall: ["entries": .array([
                 entry("user", "call-1", "Fix the cart total and push the branch"),
                 entry("agent", "call-2", "The cart total keeps the stored total when the items slice is nil, and discounts are subtracted again. go test ./internal/cart/... passes. Pushing the branch so the PR can open."),
                 json(#"{"kind":"tool","id":"call-edit","turn":1,"tool":{"kind":"edit","title":"Edit internal/cart/total.go","status":"completed","toolCallId":"call-edit"}}"#),
                 json(#"{"kind":"tool","id":"call-test","turn":1,"tool":{"kind":"execute","title":"go test ./internal/cart/...","status":"completed","rawInput":{"command":"go test ./internal/cart/..."},"toolCallId":"call-test"}}"#),
-                json(#"{"kind":"tool","id":"call-push","turn":1,"tool":{"kind":"execute","title":"git push origin fix/cart-total","status":"pending","rawInput":{"command":"git push origin fix/cart-total"},"toolCallId":"call-push"},"gate":{"state":"held","title":"Held by a gate","caption":"shop · git push · round 1 of 2","tool":"Bash","input":"git push origin fix/cart-total","lines":[{"text":"Fable review → approved / changes","state":"reviewing · <1 min","round":1,"review":"\#(callReviewer)"}],"note":"Claude waits inside this call. Approved runs it. Changes refuse it, and the gate then sends its findings in a message."}}"#),
+                json(#"{"kind":"tool","id":"call-push","turn":1,"tool":{"kind":"execute","title":"git push origin fix/cart-total","status":"pending","rawInput":{"command":"git push origin fix/cart-total"},"toolCallId":"call-push"},"gate":{"state":"held","tone":"accent","title":"Held by a gate","caption":"shop · git push · round 1 of 2","tool":"Bash","input":"git push origin fix/cart-total","lines":[{"text":"Fable review → approved / changes","state":"reviewing · <1 min","round":1,"review":"\#(callReviewer)"}],"note":"Claude waits inside this call. Approved runs it. Changes refuse it, and the gate then sends its findings in a message."}}"#),
             ])],
             twoGates: ["entries": .array([
                 entry("user", "two-1", "Push the branch and open the PR"),
-                json(#"{"kind":"tool","id":"two-push","turn":1,"tool":{"kind":"execute","title":"git push origin fix/cart-total && gh pr create --fill","status":"pending","rawInput":{"command":"git push origin fix/cart-total && gh pr create --fill"},"toolCallId":"two-push"},"gate":{"state":"held","title":"Held by 2 gates","caption":"shop · runs when both approve","tool":"Bash","input":"git push origin fix/cart-total && gh pr create --fill","lines":[{"text":"git push · Fable review · round 1 of 2","state":"approved · waits for gh pr create","round":1,"review":"\#(callReviewer)"},{"text":"gh pr create · PR review · round 1 of 1","state":"reviewing · <1 min","round":1,"review":"\#(callReviewer)"}],"note":"Claude waits inside this call. If either gate asks for changes, the refusal waits for the other; then the findings of both follow it in one message."}}"#),
+                json(#"{"kind":"tool","id":"two-push","turn":1,"tool":{"kind":"execute","title":"git push origin fix/cart-total && gh pr create --fill","status":"pending","rawInput":{"command":"git push origin fix/cart-total && gh pr create --fill"},"toolCallId":"two-push"},"gate":{"state":"held","tone":"accent","title":"Held by 2 gates","caption":"shop · runs when both approve","tool":"Bash","input":"git push origin fix/cart-total && gh pr create --fill","lines":[{"text":"git push · Fable review · round 1 of 2","state":"approved · waits for gh pr create","round":1,"review":"\#(callReviewer)"},{"text":"gh pr create · PR review · round 1 of 1","state":"reviewing · <1 min","round":1,"review":"\#(callReviewer)"}],"note":"Claude waits inside this call. If either gate asks for changes, the refusal waits for the other; then the findings of both follow it in one message."}}"#),
             ])],
             refusedCall: ["entries": .array([
                 entry("user", "ref-1", "Fix the discount order and push"),
                 entry("agent", "ref-2", "The cart total keeps the stored total when the items slice is nil. Tests pass. Pushing the branch so the PR can open."),
-                json(#"{"kind":"tool","id":"ref-push","turn":1,"tool":{"kind":"execute","title":"git push origin fix/cart-total","status":"failed","rawInput":{"command":"git push origin fix/cart-total"},"toolCallId":"ref-push"},"gate":{"state":"refused","title":"Refused by the gate · round 1 · changes","caption":"shop · git push · round 1 of 2","tool":"Bash","input":"git push origin fix/cart-total"}}"#),
+                json(#"{"kind":"tool","id":"ref-push","turn":1,"tool":{"kind":"execute","title":"git push origin fix/cart-total","status":"failed","rawInput":{"command":"git push origin fix/cart-total"},"toolCallId":"ref-push"},"gate":{"state":"refused","tone":"neutral","title":"Refused by the gate · round 1 · changes","caption":"shop · git push · round 1 of 2","tool":"Bash","input":"git push origin fix/cart-total"}}"#),
                 json(#"{"kind":"agent","id":"ref-3","turn":2,"text":"The gate found two things. Moving the discount after the nil check and adding the empty-cart test, then pushing again."}"#),
-                json(#"{"kind":"user","id":"gate-ref-push","turn":2,"text":"[Clubmate] From the gate · shop · git push · round 1 of 2 · changes","gateMessage":{"groups":[{"head":"[Clubmate] From the gate · shop · git push · round 1 of 2 · changes","title":"From the gate · shop · git push · round 1 of 2 · changes","findings":["internal/cart/total.go:5 — discounts are applied before the nil check, so an empty cart can go negative","internal/cart/total_test.go — no test covers a discount on an empty cart"],"deferred":["total.go — the helper name reads like a getter"]}],"tail":"The next git push goes through the gate again, as round 2.","call":"ref-push"}}"#),
+                json(#"{"kind":"user","id":"gate-ref-push","turn":2,"text":"[Clubmate] From the gate · shop · git push · round 1 of 2 · changes","gateMessage":{"titleTone":"caption","groups":[{"gate":"gt_00000000000000c1","head":"[Clubmate] From the gate · shop · git push · round 1 of 2 · changes","title":"From the gate · shop · git push · round 1 of 2 · changes","findings":["internal/cart/total.go:5 — discounts are applied before the nil check, so an empty cart can go negative","internal/cart/total_test.go — no test covers a discount on an empty cart"],"deferred":["total.go — the helper name reads like a getter"]}],"tail":"The next git push goes through the gate again, as round 2.","call":"ref-push"}}"#),
                 json(#"{"kind":"tool","id":"ref-edit","turn":2,"tool":{"kind":"edit","title":"Edit internal/cart/total.go","status":"completed","toolCallId":"ref-edit"}}"#),
-                json(#"{"kind":"tool","id":"ref-late","turn":2,"tool":{"kind":"execute","title":"git push origin fix/cart-total","status":"failed","rawInput":{"command":"git push origin fix/cart-total"},"toolCallId":"ref-late"},"gate":{"state":"refused","word":"refused"}}"#),
+                json(#"{"kind":"tool","id":"ref-late","turn":2,"tool":{"kind":"execute","title":"git push origin fix/cart-total","status":"failed","rawInput":{"command":"git push origin fix/cart-total"},"toolCallId":"ref-late"},"gate":{"state":"refused","word":"refused","caption":"shop · git push · refused at once: gates hold only calls made inside a turn"}}"#),
             ])],
             held: ["entries": .array([
                 entry("user", "held-1", "Write the inbox plan"),
@@ -187,8 +209,24 @@ enum LandReviewFixture {
 enum GateTrustFixture {
     static let gate = "gt_00000000000000d1"
 
+    static var tool: Bool {
+        UserDefaults.standard.bool(forKey: "gateTrustTool")
+    }
+
     static var on: Bool {
-        UserDefaults.standard.bool(forKey: "gateTrust")
+        UserDefaults.standard.bool(forKey: "gateTrust") || tool
+    }
+
+    static var name: String {
+        tool ? "Tool call · git push" : "Done · plans and specs"
+    }
+
+    static var trustKey: String {
+        tool ? "gateTrustTool" : "gateTrust"
+    }
+
+    static var trustedKey: String {
+        tool ? "gateTrustedTool" : "gateTrusted"
     }
 }
 #endif

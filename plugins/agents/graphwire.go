@@ -118,7 +118,7 @@ func (st graphState) plus(open string) sidebarPlus {
 		item := sdui.TreeItem{ID: graphPrefix + d.Name, Label: cmp.Or(d.Title, d.Name), Icon: "doc", Detail: strconv.Itoa(d.Nodes) + " nodes", Open: openGraph}
 		switch {
 		case d.Untrusted:
-			item.Detail, item.DetailTone = "trust?", statusTones[statusWaiting]
+			item.Detail, item.DetailTone = gateToTrust, statusTones[statusWaiting]
 		case d.Builtin:
 			item.Detail = "built in"
 		}

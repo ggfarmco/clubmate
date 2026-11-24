@@ -65,6 +65,63 @@ func TestHeldCallIsNotFolded(t *testing.T) {
 	block := tree.Children[1]
 	assert.Equal(t, []string{"Held by a gate", "shop · git push · round 1 of 2", "Bash", "git push origin fix/cart", "Fable review → approved / changes", "reviewing · 2 min", blockWaitsOneFor("Claude")}, textsOf(block))
 	assert.Equal(t, "agt_1/heldReview/1/agt_rev", nodesOf(block, "button")[0].ID)
+	assert.Equal(t, "held · git push", tree.Children[3].Props["statusWord"])
+	v := transcriptView{Session: sc.View.Session, Entries: []*entry{agent}}
+	withCallContent(&v, nil, nil)
+	assert.Equal(t, &callBlock{State: callStateHeld, Word: "held · git push"}, agent.Call)
+	assert.Equal(t, "held", heldWordOf(&entry{HeldCalls: []*entry{gatedTool(t, "s9", 1, &gateMark{State: callStateHeld})}}))
+}
+
+func TestRefusedBlockIsNeutralWithALineForEachGate(t *testing.T) {
+	t.Parallel()
+	twin := callMark{Gate: "gt_twin", Name: "git push", Repo: "shop", Round: 1, Of: 1}
+	en := gatedTool(t, "t1", 1, &gateMark{State: callStateRefd, Round: 1, Holds: []callMark{pushHold(""), twin}})
+	msg := gateMessage{Call: "t1", Groups: []gateFindings{{Gate: "gt_push", Head: "[Clubmate] From the gate · shop · git push · round 1 of 2 · changes"}}}
+
+	b := callBlockOf(en, nil, &msg, "Claude", blockNow)
+
+	require.NotNil(t, b)
+	assert.Equal(t, callBlock{State: callStateRefd, Tone: toneNeutral, Title: "Refused by the gate · round 1 · changes", Caption: "shop · git push · git push", Tool: "Bash", Input: "git push origin fix/cart", Lines: []callBlockLine{{Text: "git push · round 1 of 2", State: "changes", Round: 1}, {Text: "git push · round 1 of 1", State: "approved", Round: 1}}}, *b)
+	assert.Equal(t, toneNeutral, callBlockNode("agt_1/tool/t1", "agt_1", *b).Props["tone"])
+}
+
+func TestGateLineSendsTextAndStateApart(t *testing.T) {
+	t.Parallel()
+	holds := []callMark{pushHold(""), {Gate: "gt_pr", Name: "gh pr create", Repo: "shop", Round: 1, Of: 1}, {Gate: "gt_tag", Name: "git tag", Repo: "shop", Round: 1, Of: 1}}
+	live := map[string]callLive{"gt_push": {Graph: "Fable review", Last: "approved"}, "gt_pr": {Graph: "Opus review", Reviewer: "agt_rev"}, "gt_tag": {Graph: "Opus review"}}
+	b := callBlockOf(gatedTool(t, "t1", 1, &gateMark{State: callStateHeld, Holds: holds}), live, nil, "Claude", blockNow)
+	require.NotNil(t, b)
+
+	node := callBlockNode("agt_1/tool/t1", "agt_1", *b)
+
+	require.NoError(t, internalsdui.Validate(node))
+	assert.Equal(t, callBlockLine{Text: "git push · Fable review · round 1 of 2", State: "approved · waits for gh pr create +1", Round: 1}, b.Lines[0])
+	assert.Equal(t, fmt.Sprintf(blockWaitsMany, "Claude"), b.Note)
+	line := node.Children[3]
+	assert.Equal(t, true, line.Props["twoRows"])
+	require.Len(t, line.Children, 2)
+	assert.Equal(t, []string{"gh pr create · Opus review · round 1 of 1"}, textsOf(line.Children[0]))
+	assert.Equal(t, []string{"reviewing"}, textsOf(line.Children[1]))
+	assert.Len(t, nodesOf(line.Children[1], "button"), 1)
+}
+
+func TestNoTurnRefusalHasACaptionUnderItsCall(t *testing.T) {
+	t.Parallel()
+	en := gatedTool(t, "t1", 1, &gateMark{State: callStateRefd, Round: 1, Reason: "no turn", Holds: []callMark{{Gate: "gt_push", Name: "git push", Repo: "shop"}}})
+	en.Tool["status"] = rawJSON(t, "failed")
+
+	tree := transcript(gateScreenOf([]*entry{en}, nil, nil))
+
+	assert.Equal(t, []string{"toolCard:agt_1/tool/t1", "text:"}, childIDs(tree))
+	assert.Equal(t, "shop · git push · refused at once: gates hold only calls made inside a turn", tree.Children[1].Props["text"])
+}
+
+func TestGateMessageCostsItsLines(t *testing.T) {
+	t.Parallel()
+	m := gateMessage{Groups: []gateFindings{{Head: "a", Findings: []string{"1", "2"}}, {Head: "b", Findings: []string{"3"}, Deferred: []string{"4"}}}}
+	n, _ := buildEntryNode(gateScreenOf(nil, nil, nil), &entry{Kind: entryUser, ID: "prompt-2", Turn: 2, Text: "x", Gate: &m}, "")
+
+	assert.Equal(t, 1+3+3, nodeCost(n))
 }
 
 func blockWaitsOneFor(agent string) string {
@@ -82,6 +139,9 @@ func TestHeldToBeSafeCaptionShows(t *testing.T) {
 	page := gateMain(gateScreen{Row: row, Sessions: map[string]bool{"agt_1": true}, Now: blockNow, Loc: time.UTC})
 
 	assert.Contains(t, textsOf(block), "shop · git push · inside sh -c, held to be safe · round 1 of 2")
+	refused := gatedTool(t, "t1", 1, &gateMark{State: callStateRefd, Round: 1, Holds: []callMark{pushHold(caption)}})
+	msg := gateMessage{Call: "t1", Groups: []gateFindings{{Head: "[Clubmate] From the gate · shop · git push · round 1 of 2 · changes"}}}
+	assert.Equal(t, "shop · git push · inside sh -c, held to be safe · round 1 of 2", callBlockOf(refused, nil, &msg, "Claude", blockNow).Caption)
 	assert.Equal(t, `Ship it · sh -c "git push" · `+caption, nodesOf(page, "table")[0].Props["rows"].([]sdui.TableRow)[0].Cells[2].Text)
 }
 
@@ -129,9 +189,12 @@ func TestGateMessageBlock(t *testing.T) {
 	toolNode, _ := buildEntryNode(sc, &entry{Kind: entryUser, ID: gateEntryID("t1"), Turn: 1, Text: tool.text(), Gate: &tool}, "")
 
 	require.NoError(t, internalsdui.Validate(sdui.VStack(doneNode, toolNode)))
-	assert.Equal(t, sdui.GateMessage{Groups: []sdui.GateGroup{{Title: "From the gate · shop · plans and specs · round 1 of 2 · changes", Findings: []string{"plan.md:3 — no rollback\n  step 4 drops the table"}, Deferred: []string{"typo in the title"}}}, Tail: "Fix these; your next finished turn goes back to the gate."}, doneNode.Props["gate"])
-	assert.Equal(t, sdui.GateMessage{Groups: []sdui.GateGroup{{Title: "From the gate · shop · git push · round 1 of 2 · changes", Findings: []string{"a"}, Deferred: []string{"b"}}}, Tail: tool.Tail}, toolNode.Props["gate"])
+	assert.Equal(t, sdui.GateMessage{Groups: []sdui.GateGroup{{Title: "From the gate · shop · plans and specs · round 1 of 2 · changes", Findings: []string{"plan.md:3 — no rollback\n  step 4 drops the table"}, Deferred: []string{"typo in the title"}}}, Tail: "Fix these; your next finished turn goes back to the gate.", TitleTone: "caption"}, doneNode.Props["gate"])
+	assert.Equal(t, sdui.GateMessage{Groups: []sdui.GateGroup{{Title: "From the gate · shop · git push · round 1 of 2 · changes", Findings: []string{"a"}, Deferred: []string{"b"}}}, Tail: tool.Tail, TitleTone: "caption"}, toolNode.Props["gate"])
 	assert.Nil(t, doneMessage(promptArgs{Text: "Merge it"}, true))
+	merged := doneMessage(promptArgs{Gate: true, Text: fmt.Sprintf(heldChangesFormat, "shop", "plans and specs", 1, 2, bullets([]string{"a"})) + "\n\n" + fmt.Sprintf(heldChangesFormat, "shop", "any turn", 1, 2, bullets([]string{"b"}))}, true)
+	require.NotNil(t, merged)
+	assert.Equal(t, [][]string{{"a"}, {"b"}}, [][]string{merged.Groups[0].Findings, merged.Groups[1].Findings})
 }
 
 func TestComposerSaysHeld(t *testing.T) {

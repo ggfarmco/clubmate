@@ -340,6 +340,9 @@ func entryShape(sc screen, shown []*entry, i int) (show, tool bool) {
 func heldNodes(sc screen, en *entry) []sdui.Node {
 	var out []sdui.Node
 	sid := sc.View.Session.ID
+	if b := callBlockOf(en, nil, nil, "", sc.Now); b != nil && b.Title == "" && b.Caption != "" {
+		out = append(out, sdui.MutedText(b.Caption))
+	}
 	for _, h := range en.HeldCalls {
 		if b := callBlockOf(h, sc.Calls[h.ID], nil, agentLabel(sc.View.Session.Agent), sc.Now); b != nil && b.Title != "" {
 			out = append(out, callBlockNode(sid+"/tool/"+h.ID, sid, *b))
@@ -487,6 +490,10 @@ func nodeCost(n sdui.Node) int {
 			cost += len(list)
 		case []sdui.PermissionOption:
 			cost += len(list)
+		case sdui.GateMessage:
+			for _, g := range list.Groups {
+				cost += 1 + len(g.Findings) + len(g.Deferred)
+			}
 		}
 	}
 	for _, c := range n.Children {
@@ -503,7 +510,7 @@ func entryNode(sc screen, en *entry, sha string) builtNode {
 		}
 		return builtNode{node: n, shown: true, cost: nodeCost(n)}
 	}
-	if en.node == nil || en.Kind == entryTool && (sc.Expanded[en.ID] || markOf(en) != nil) || en.Kind == entryOpenItems || en.Kind == entryNotice {
+	if en.node == nil || en.Kind == entryTool && (sc.Expanded[en.ID] || gateDecorated(en)) || en.Kind == entryOpenItems || en.Kind == entryNotice {
 		return build()
 	}
 	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", editor: sc.EditorReview, pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en), note: permissionNote(sc.NeedsYou, sc.View.Session.ID, en) != ""}
@@ -587,7 +594,7 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		if b != nil && b.Title != "" {
 			return callBlockNode(id, sid, *b), !en.Hidden
 		}
-		word := ""
+		word := heldWordOf(en)
 		if b != nil {
 			word = b.Word
 		}

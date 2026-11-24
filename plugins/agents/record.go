@@ -127,6 +127,7 @@ type sessionInfo struct {
 	Kind            string             `json:"kind,omitempty"`
 	RowDetail       string             `json:"rowDetail,omitempty"`
 	Pending         []string           `json:"pending,omitempty"`
+	CardRequests    []string           `json:"cardRequests,omitempty"`
 	PendingSummary  *pendingSummary    `json:"pendingSummary,omitempty"`
 	TurnStartedAt   *time.Time         `json:"turnStartedAt,omitempty"`
 	NotifyEffective string             `json:"notifyEffective"`
@@ -159,6 +160,7 @@ type sessionInfo struct {
 	RowUnder        string             `json:"rowUnder,omitempty"`
 	Landing         *landingView       `json:"landing,omitempty"`
 	TurnHeld        bool               `json:"turnHeld,omitempty"`
+	CallHeld        bool               `json:"callHeld,omitempty"`
 	Calls           []callView         `json:"calls,omitempty"`
 	HeldRound       *heldRoundView     `json:"heldRound,omitempty"`
 	ShareWords      map[string]string  `json:"shareWords,omitempty"`

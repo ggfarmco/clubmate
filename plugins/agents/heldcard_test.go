@@ -41,7 +41,7 @@ func TestDoneGateCardAtCap(t *testing.T) {
 	req := d.cardAtCap(t)
 
 	rec := d.f.session(t, d.workspace, d.session)
-	assert.Equal(t, []any{"running", true, []string{req}, "needsYou", true}, []any{rec.Status, rec.NeedsYou, rec.Pending, rec.Group, rec.TurnHeld})
+	assert.Equal(t, []any{"running", true, []string{req}, []string{req}, "needsYou", true}, []any{rec.Status, rec.NeedsYou, rec.Pending, rec.CardRequests, rec.Group, rec.TurnHeld})
 	require.NotNil(t, rec.HeldRound)
 	assert.Equal(t, "Opus review · round 1 changes", rec.HeldRound.Text)
 	assert.Equal(t, d.held(t).Run, rec.HeldRound.Run)
@@ -286,7 +286,7 @@ func TestToolGateCardAtCap(t *testing.T) {
 
 	req := f.toolCard(t, workspace, session, 1).Calls[0].Request
 	rec := f.session(t, workspace, session)
-	assert.Equal(t, []any{"running", true, []string{req}, true}, []any{rec.Status, rec.NeedsYou, rec.Pending, rec.Calls[0].Held})
+	assert.Equal(t, []any{"running", true, []string{req}, []string{req}, true}, []any{rec.Status, rec.NeedsYou, rec.Pending, rec.CardRequests, rec.Calls[0].Held})
 	card := f.phoneTranscript(t, workspace, session).Request.Props
 	require.NotNil(t, rec.PendingSummary)
 	assert.Equal(t, card["title"], rec.PendingSummary.Text)
@@ -300,6 +300,7 @@ func TestToolGateCardAtCap(t *testing.T) {
 		got = append(got, [3]string{m["id"].(string), m["label"].(string), m["shortcut"].(string)})
 	}
 	assert.Equal(t, [][3]string{{"merge", "Run anyway", "opt+1"}, {"more", "One more round", "opt+2"}, {"leave", "Stop", "opt+3"}}, got)
+	assert.Equal(t, "danger", options[2].(map[string]any)["tone"])
 	testutil.Eventually(t, func() bool { return f.sidebarItem(t, workspace, session).Detail == "asking" }, wait)
 	f.cardNote(t, req)
 	require.Error(t, f.runAs(t, workspace, session, "agents.gate-answer", map[string]any{"request": req, "action": "accept"}, nil))

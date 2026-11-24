@@ -2084,7 +2084,7 @@ struct HeldCallBlock: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Image(systemName: "checkmark.shield")
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(block.neutral ? AnyShapeStyle(Color.captionInk) : AnyShapeStyle(.tint))
                         .frame(width: 20)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(block.title ?? "")
@@ -2096,9 +2096,6 @@ struct HeldCallBlock: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    if let review = block.reviewOnTitle {
-                        reviewButton(review)
-                    }
                 }
                 if block.input?.isEmpty == false || block.tool?.isEmpty == false {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -2117,8 +2114,8 @@ struct HeldCallBlock: View {
                     .padding(.vertical, 6)
                     .background(Color.surface2, in: .rect(cornerRadius: 8))
                 }
-                ForEach(Array(block.lines.enumerated()), id: \.offset) { _, line in
-                    lineView(line, review: block.lines.count > 1 ? line.review?.nilIfEmpty : nil)
+                ForEach(Array(block.lines.enumerated()), id: \.offset) { index, line in
+                    lineRow(line, index: index, neutral: block.neutral)
                 }
                 if let note = block.note?.nilIfEmpty {
                     Text(note)
@@ -2131,60 +2128,74 @@ struct HeldCallBlock: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.surface1, in: .rect(cornerRadius: 16))
             .overlay {
-                RoundedRectangle(cornerRadius: 16).strokeBorder(Color.accentColor.opacity(0.45), lineWidth: 1.5)
+                if block.neutral {
+                    RoundedRectangle(cornerRadius: 16).strokeBorder(Color(.separator), lineWidth: 1)
+                } else {
+                    RoundedRectangle(cornerRadius: 16).strokeBorder(Color.accentColor.opacity(0.45), lineWidth: 1.5)
+                }
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("held." + call.id)
         }
     }
 
-    private func lineView(_ line: CallBlock.Line, review: String?) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                pill(line)
-                state(line)
-                Spacer(minLength: 0)
-                if let review { reviewButton(review) }
+    @ViewBuilder
+    private func lineRow(_ line: CallBlock.Line, index: Int, neutral: Bool) -> some View {
+        if let review = line.review?.nilIfEmpty, let openSession {
+            Button { openSession(review) } label: {
+                lineLabel(line, neutral: neutral, opens: true)
             }
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    pill(line)
-                    Spacer(minLength: 0)
-                    if let review { reviewButton(review) }
-                }
-                state(line)
-            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("held.line.\(index)")
+            .accessibilityHint("Opens the review")
+        } else {
+            lineLabel(line, neutral: neutral, opens: false)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("held.line.\(index)")
         }
     }
 
-    private func pill(_ line: CallBlock.Line) -> some View {
+    private func lineLabel(_ line: CallBlock.Line, neutral: Bool, opens: Bool) -> some View {
+        HStack(spacing: 8) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    lineText(line, lineLimit: 1)
+                    state(line, neutral: neutral)
+                    Spacer(minLength: 0)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    lineText(line, lineLimit: 2)
+                    state(line, neutral: neutral)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if opens {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.captionInk)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .background(Color.surface2, in: .rect(cornerRadius: 10))
+        .contentShape(.rect(cornerRadius: 10))
+    }
+
+    private func lineText(_ line: CallBlock.Line, lineLimit: Int) -> some View {
         Text(line.text)
             .font(.footnote)
-            .lineLimit(2)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(Color.surface2, in: .capsule)
+            .foregroundStyle(Color.primary)
+            .lineLimit(lineLimit)
     }
 
     @ViewBuilder
-    private func state(_ line: CallBlock.Line) -> some View {
+    private func state(_ line: CallBlock.Line, neutral: Bool) -> some View {
         if let state = line.state?.nilIfEmpty {
             Text(state)
                 .font(.footnote)
-                .foregroundStyle(.tint)
-                .fixedSize()
-        }
-    }
-
-    @ViewBuilder
-    private func reviewButton(_ session: String) -> some View {
-        if let openSession {
-            Button("Open review") { openSession(session) }
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.tint)
-                .buttonStyle(.plain)
-                .frame(minHeight: 44)
-                .fixedSize()
+                .foregroundStyle(neutral ? AnyShapeStyle(Color.captionInk) : AnyShapeStyle(.tint))
+                .lineLimit(1)
         }
     }
 }
@@ -2197,7 +2208,7 @@ struct GateMessageBubble: View {
             ForEach(Array(message.groups.enumerated()), id: \.offset) { _, group in
                 Label(group.title, systemImage: "checkmark.shield")
                     .font(.footnote)
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(message.captionTitle ? AnyShapeStyle(Color.captionInk) : AnyShapeStyle(.tint))
                 ForEach(Array(group.findings.enumerated()), id: \.offset) { _, finding in
                     Text("· " + finding)
                         .font(.subheadline)

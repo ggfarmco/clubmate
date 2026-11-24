@@ -449,8 +449,8 @@ actor FixtureServer {
                 uiViews[slot] = (1, tree)
             }
             uiSections = .array((uiSections.arrayValue ?? []) + [LandReviewFixture.section])
-            gateTrusted = sdui["gateTrusted"]?.objectValue ?? [:]
-            for (slot, tree) in GateTrustFixture.on ? sdui["gateTrust"]?.objectValue ?? [:] : [:] {
+            gateTrusted = sdui[GateTrustFixture.trustedKey]?.objectValue ?? [:]
+            for (slot, tree) in GateTrustFixture.on ? sdui[GateTrustFixture.trustKey]?.objectValue ?? [:] : [:] {
                 uiViews[slot] = (1, tree)
             }
         }

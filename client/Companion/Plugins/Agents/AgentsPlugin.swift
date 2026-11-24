@@ -748,6 +748,7 @@ struct SessionGlyphView: View {
         case .closed: "archivebox"
         case .aside: "bubble.left.and.bubble.right"
         case .gate: "exclamationmark"
+        case .held: "shield.fill"
         }
     }
 
@@ -755,7 +756,7 @@ struct SessionGlyphView: View {
         switch glyph {
         case .connect, .permission, .question, .step, .cap, .gate: Color.onWarning
         case .childWaiting: Color.warningInk
-        case .asksParent, .running, .review: .accentColor
+        case .asksParent, .running, .review, .held: .accentColor
         case .stopped: Color.dangerInk
         case .open: Color.successInk
         case .paused, .done, .closed, .aside: Color.captionInk
@@ -766,7 +767,7 @@ struct SessionGlyphView: View {
         switch glyph {
         case .connect, .permission, .question, .step, .cap, .gate: Color.warning
         case .childWaiting: Color.warning.opacity(0.18)
-        case .asksParent, .running, .review: Color.accentColor.opacity(0.18)
+        case .asksParent, .running, .review, .held: Color.accentColor.opacity(0.18)
         case .stopped: Color.dangerInk.opacity(0.18)
         case .paused, .open, .done, .closed, .aside: Color(.tertiarySystemFill)
         }

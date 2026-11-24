@@ -18,6 +18,8 @@ const (
 	reviewAsksYou     = "asks you"
 	reviewRoundLabel  = "Round %d review"
 	reviewEarlier     = "Land review"
+	reviewEarlierDone = "Done review"
+	reviewEarlierTool = "Tool call review"
 	landingIcon       = "shield"
 	landingInto       = "Landing into %s"
 	landingRoundOf    = "round %d of %d"
@@ -30,6 +32,7 @@ const (
 	toneNeutral       = "neutral"
 	toneSuccess       = "success"
 	toneWarning       = "warning"
+	toneDanger        = "danger"
 )
 
 type landingView struct {
@@ -51,6 +54,11 @@ type landingView struct {
 	Line      string `json:"line,omitempty"`
 	Ungated   bool   `json:"ungated,omitempty"`
 	Hint      string `json:"hint,omitempty"`
+	PhoneHint string `json:"phoneHint,omitempty"`
+	Header    string `json:"header,omitempty"`
+	HeaderKey string `json:"headerAccent,omitempty"`
+	Glyph     string `json:"glyph,omitempty"`
+	GlyphTone string `json:"glyphTone,omitempty"`
 }
 
 func landingOf(st landReview, reviewing bool, ask *runNeed) (landingView, bool) {
@@ -208,6 +216,9 @@ func (a *app) heldView(rec record, needs map[string]*runNeed) (landingView, bool
 	if r := a.heldReviewer(rec); r != nil && r.Workspace == rec.Workspace {
 		l.Reviewer = r.ID
 	}
+	if !l.Asking {
+		l.Glyph, l.GlyphTone = landingIcon, toneAccent
+	}
 	return l, true
 }
 
@@ -244,7 +255,13 @@ func landerReview(lander record, rec record) (landReview, bool) {
 	return lander.LandReviews[i], true
 }
 
-func earlierRound() gateRound {
+func earlierRound(point string) gateRound {
+	switch point {
+	case gatePointTurn:
+		return gateRound{Label: reviewEarlierDone}
+	case gatePointTool:
+		return gateRound{Label: reviewEarlierTool}
+	}
 	return gateRound{Label: reviewEarlier}
 }
 
@@ -263,7 +280,7 @@ func reviewNests(recs []record) map[string]reviewerNest {
 		st, tracked := landerReview(lander, rec)
 		held := gf.Point == gatePointTurn && lander.Held != nil && holdsNode(*lander.Held, *gf)
 		tracked = listed && (tracked || held)
-		n := reviewerNest{Lander: gf.Lander, Round: earlierRound(), Tracked: tracked, Asks: needsYou(rec) && !rec.closed(), Open: listed && !lander.closed()}
+		n := reviewerNest{Lander: gf.Lander, Round: earlierRound(gf.Point), Tracked: tracked, Asks: needsYou(rec) && !rec.closed(), Open: listed && !lander.closed()}
 		switch {
 		case tracked && held:
 			n.Round = heldRound(rec, *lander.Held)
@@ -324,8 +341,13 @@ func (a *app) reviewHead(ctx context.Context, rec record) *reviewHead {
 		lander = &l
 	}
 	gate := ""
-	if gf.Point == gatePointTurn {
+	switch gf.Point {
+	case gatePointTurn:
 		gate = gatePointDone
+	case gatePointTool:
+		gate = gatePointToolCall
+	}
+	if gate != "" {
 		if g := a.gateByID(ctx, gf.Gate); g != nil {
 			gate = a.gateMatchName(ctx, *g)
 		}
@@ -348,7 +370,7 @@ func reviewHeadOf(lander *record, rec record, gate string, logged func() (gateVe
 	findings := len(st.Findings)
 	h.Round = reviewRound(rec, st)
 	if !tracked {
-		h.Round, findings = earlierRound(), 0
+		h.Round, findings = earlierRound(gf.Point), 0
 		if v, ok := logged(); ok {
 			h.Round = gateRound{Round: max(v.Round, 1), Verdict: v.Outcome}
 			h.Round.Label = fmt.Sprintf(reviewRoundLabel, h.Round.Round)

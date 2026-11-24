@@ -253,7 +253,7 @@ struct SessionDetailView: View {
                 }
                 if let round = session?.heldRound {
                     HeldRoundLine(round: round) { run in pushRun(run) }
-                } else if session?.status == .running, session?.turnHeld != true {
+                } else if session?.status == .running, session?.turnHeld != true, session?.callHeld != true {
                     HStack(spacing: 8) {
                         ProgressView()
                         Text("Working…").foregroundStyle(Color.captionInk)
@@ -1088,6 +1088,10 @@ struct SessionHeader: View {
     }
 
     static func subtitle(_ session: AgentSession, mac: MacTag?, mode: Bool = false, now: Date) -> Text {
+        if !session.state.needsYou, let held = session.landing?.headerParts {
+            return Text(held.lead).foregroundStyle(Color.captionInk) + Text(held.accent).foregroundStyle(Color.accentColor) + Text(held.rest).foregroundStyle(Color.captionInk)
+                + (mac != nil ? Text(" · ") + mac.lead("") : Text("")).foregroundStyle(Color.captionInk)
+        }
         let detail = [session.headerDetail, (mode ? session.shareDetail : session.shareLabel) ?? "", mode ? session.modeLabel ?? "" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
         let activity = session.headerActivity(now: now).map { Text(" · " + $0).foregroundStyle(Color.captionInk) } ?? Text("")
         let open = session.openLabel.map { Text(" · ").foregroundStyle(Color.captionInk) + Text($0).foregroundStyle(Color.warningInk) } ?? Text("")
@@ -1332,6 +1336,14 @@ struct ComposerView: View {
         } else {
             GlassEffectContainer(spacing: 10) {
                 VStack(alignment: .leading, spacing: 8) {
+                    if let hint = session?.composerHint {
+                        Text(hint)
+                            .font(.caption)
+                            .foregroundStyle(Color.captionInk)
+                            .lineLimit(1)
+                            .padding(.leading, 4)
+                            .accessibilityIdentifier("composer.hint")
+                    }
                     if !attachments.isEmpty || importing > 0 {
                         AttachmentsRow(attachments: $attachments, importing: importing)
                             .disabled(!enabled)

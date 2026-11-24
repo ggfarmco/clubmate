@@ -239,5 +239,5 @@ func TestDockGroupsGatesByRepo(t *testing.T) {
 		{gatePrefix + "gt_main", "into main", gateLandIcon, "approved 4m", openGate},
 		{gatePrefix + "gt_base", "into the parent's branch", gateLandIcon, "1 landing", openGate},
 	}, got)
-	assert.Equal(t, "trust?", gates.Rows[1].Children[0].Detail)
+	assert.Equal(t, "to trust", gates.Rows[1].Children[0].Detail)
 }

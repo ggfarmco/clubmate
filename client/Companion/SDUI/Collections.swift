@@ -146,6 +146,7 @@ extension SessionGlyph {
         case "eye.circle": self = .review
         case "xmark.circle": self = .stopped
         case "archivebox": self = .closed
+        case SessionLanding.shield: self = .held
         default: return nil
         }
     }

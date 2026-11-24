@@ -151,6 +151,11 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertEqual(alerts[0].date, asked)
     }
 
+    func testGateCardRequestsGetNoPermissionAlert() {
+        let session = AgentSession(id: "agt_1", workspace: "w", title: "Land", status: .waiting, pending: ["p1", "lg_x"], cardRequests: ["lg_x"])
+        XCTAssertEqual(AgentNotifier.requests([session]).map(\.id), ["agt_1/p1"])
+    }
+
     func testWaitingDropsDeletedSessionsAndClosedWorkspaces() {
         var waiting = AgentWaiting()
         let sessions = [

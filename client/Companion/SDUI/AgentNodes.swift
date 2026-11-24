@@ -130,11 +130,22 @@ struct MessageNode: View {
         return String(id[range.upperBound...])
     }
 
+    private var gate: GateMessage? {
+        guard MessageRole(node.string("role")) == .user, let value = node.props["gate"], let data = try? JSONEncoder().encode(value) else { return nil }
+        return (try? JSONDecoder().decode(GateMessage.self, from: data)).flatMap { $0.groups.isEmpty ? nil : $0 }
+    }
+
     var body: some View {
         let text = node.string("text") ?? ""
+        let gate = self.gate
         Group {
             switch MessageRole(node.string("role")) {
-            case .user: UserBubble(text: text, fromAgent: node.string("from")?.isEmpty == false, images: [], files: attachments)
+            case .user:
+                if let gate {
+                    GateMessageBubble(message: gate)
+                } else {
+                    UserBubble(text: text, fromAgent: node.string("from")?.isEmpty == false, images: [], files: attachments)
+                }
             case .thought: ThoughtView(text: text, title: thought, open: node.bool("open") == true)
             case .agent:
                 AgentMessage(cards: node.docCards, entry: entry, images: node.images) { MarkdownView(text: text, docLinks: node.docLinks, imageLinks: node.imageLinks, taskLinks: node.taskLinks) }

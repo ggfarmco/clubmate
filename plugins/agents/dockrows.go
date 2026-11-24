@@ -45,6 +45,7 @@ type reviewerNest struct {
 
 func gateCounts(rows []gateRow, reviewersAsking int) gateCount {
 	c := gateCount{Gated: len(rows), Asking: reviewersAsking}
+	calls := map[string]bool{}
 	for _, r := range rows {
 		asking, landing := r.landingCounts()
 		label := dockGateLabel(r.Name)
@@ -55,7 +56,7 @@ func gateCounts(rows []gateRow, reviewersAsking int) gateCount {
 		switch {
 		case landing == 0:
 		case heldPoint(r.Point):
-			c.Held += landing
+			c.Held += r.newCalls(calls)
 			c.held = append(c.held, label)
 		default:
 			c.Landing += landing

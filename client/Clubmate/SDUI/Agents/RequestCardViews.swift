@@ -459,6 +459,7 @@ struct LandRequestCardView: View {
     }
 
     private func tone(_ option: SDUIPermissionOption) -> CardButton.Tone {
+        if option.tone == "danger" { return .danger }
         if option.kind == .allowOnce { return .primary }
         return option.kind.rejects ? .ghost : .plain
     }

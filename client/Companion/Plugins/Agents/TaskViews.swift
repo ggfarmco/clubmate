@@ -397,7 +397,7 @@ struct LandChoiceCard: View {
                 choice(card.mergeLabel, id: LandCard.merge, primary: true)
             }
             if let leave = card.leaveLabel {
-                choice(leave, id: LandCard.leave, primary: false, tint: Color.dangerInk)
+                choice(leave, id: LandCard.leave, primary: false, tint: card.leaveTone == "danger" ? Color.dangerInk : .primary)
             }
             if let message = blocked ?? failure {
                 Text(message)
