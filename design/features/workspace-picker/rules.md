@@ -34,7 +34,7 @@ Boards: `r2-a-Pairs.dc.html` (`png/r2-a-Pairs.png`) and `r2-Rules.dc.html` (roun
 | Current | system checkmark in front of the glyph (each row is a `Toggle`, on for the current workspace) | status stays in the subtitle |
 
 - Subtitle order: `{n} waiting · {n} failed · {n} running`, only the parts above zero; with none, `idle · {age}`; without `lastActiveAt`, no subtitle.
-- Offline Mac: rows stay enabled and are not dimmed (a `Menu` dims only by disabling); the text carries the state: `as of HH:mm · {state}`. "as of" is the time the phone last received that Mac's state (phone-local, `ComputerConnection.lastSeen`).
+- Offline Mac: rows stay enabled and are not dimmed (a `Menu` dims only by disabling); the text carries the state: `as of HH:mm · {part}`, where `{part}` is only the most urgent part of the subtitle (the first of `{n} waiting`, `{n} failed`, `{n} running`; with none, `idle · {age}`), for example "as of 14:34 · 2 waiting". So the line fits one line at the default text size ("as of 14:34 · 2 waiting · 1 running" took 2). The glyph shows the same most urgent state; the other counts show again when the Mac is online. "as of" is the time the phone last received that Mac's state (phone-local, `ComputerConnection.lastSeen`).
 - VoiceOver: the system reads the row title and subtitle with the selected trait, for example "selected, shop, 2 waiting · 1 running". A `Menu` row ignores `.accessibilityLabel` on iOS 27 (tried on the `Button`, the `Label`, a `Picker` option), so "current workspace" is the selected trait of the `Toggle`, not text. A `Picker` also gives the selected trait but drops the subtitle and the section header, so the rows are `Toggle`s. The XCUITest `testCapsuleRowReadsSelectedNameAndState` checks the label and the selected state.
 - No Mac colour, amber, red or dimming inside the menu (a system `Menu` cannot draw them); the capsule dot keeps the Mac colour.
 
@@ -46,7 +46,7 @@ Boards: `r2-a-Pairs.dc.html` (`png/r2-a-Pairs.png`) and `r2-Rules.dc.html` (roun
 - Stored on the phone only: key = the Mac's pairing ID (`computer.id`), value = the workspace id (Home included), beside the saved tab stacks (`TabStacks` in `UserDefaults`). It survives a relaunch, is not synced, and is removed with Forget this Mac.
 - None yet (a new pairing), or the workspace is no longer in that Mac's list: the row shows that Mac's Home.
 - 1 Mac: no other Macs, so no last used row; the menu is the same as round 1.
-- Offline Mac: the Mac row "offline · as of HH:mm"; the last used row stays enabled, subtitle "as of HH:mm · {state}" (the same rule as other rows).
+- Offline Mac: the Mac row "offline · as of HH:mm"; the last used row stays enabled, subtitle "as of HH:mm · {part}", only the most urgent part (the same rule as other rows, § Row).
 - Long names: the Mac name stays in its own row, never in a subtitle, so nothing new is cut; both labels use the 18-character cut.
 - VoiceOver: swiping reads the Mac row first ("MacBook Pro, 2 waiting · 1 running", submenu), then the last used row ("infra, 2 waiting · 1 running"). The last used row does not say the Mac (a `Menu` row ignores a custom label); the row before it does.
 - Taps after the capsule: the last used workspace on another Mac 1; any other workspace there 2 (the same path as before); back to the Mac the user left 1, because its last used row is the workspace they left.

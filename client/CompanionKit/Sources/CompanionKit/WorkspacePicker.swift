@@ -70,10 +70,9 @@ public struct WorkspaceSummary: Sendable, Equatable {
     }
 
     public func subtitle(now: Date, asOf: Date? = nil, offline: Bool = false) -> String? {
-        let text = text(now: now)
-        guard offline, let asOf else { return text }
+        guard offline, let asOf else { return text(now: now) }
         let prefix = "as of " + ComputerConnection.clock(asOf)
-        return text.map { prefix + " · " + $0 } ?? prefix
+        return (counts.first ?? text(now: now)).map { prefix + " · " + $0 } ?? prefix
     }
 
     public static let rowNameLimit = 18

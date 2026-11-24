@@ -36,11 +36,13 @@ final class WorkspacePickerTests: XCTestCase {
         XCTAssertEqual(ages, ["now", "5 min", "3 h", "2 d", "1 w"])
     }
 
-    func testOfflineSubtitleLeadsWithAsOfAndMacSubtitleSaysOffline() {
+    func testOfflineSubtitleLeadsWithAsOfAndKeepsOnlyTheMostUrgentPart() {
         let seen = now.addingTimeInterval(-600)
         let clock = ComputerConnection.clock(seen)
 
-        XCTAssertEqual(WorkspaceSummary(needsYou: 1).subtitle(now: now, asOf: seen, offline: true), "as of \(clock) · 1 waiting")
+        XCTAssertEqual(WorkspaceSummary(needsYou: 2, running: 1, failed: 3).subtitle(now: now, asOf: seen, offline: true), "as of \(clock) · 2 waiting")
+        XCTAssertEqual(WorkspaceSummary(running: 1, failed: 3).subtitle(now: now, asOf: seen, offline: true), "as of \(clock) · 3 failed")
+        XCTAssertEqual(WorkspaceSummary(lastActiveAt: now.addingTimeInterval(-3 * 3_600)).subtitle(now: now, asOf: seen, offline: true), "as of \(clock) · idle · 3 h")
         XCTAssertEqual(WorkspaceSummary().subtitle(now: now, asOf: seen, offline: true), "as of \(clock)")
         XCTAssertEqual(WorkspaceSummary(needsYou: 1).subtitle(now: now, asOf: seen, offline: false), "1 waiting")
         XCTAssertEqual(WorkspaceSummary.macSubtitle(WorkspaceSummary(needsYou: 1), offline: true, lastSeen: seen, now: now), "offline · as of \(clock)")

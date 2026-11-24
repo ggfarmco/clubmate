@@ -225,6 +225,7 @@ class E2ETestCase: XCTestCase {
         let app = XCUIApplication()
         var arguments = extra
         if let target { arguments += ["-open", target] }
+        if !extra.contains("-workspace") { arguments += ["-workspace", try mac.workspace()] }
         if let dump = deliveredDump { arguments += ["-deliveredDump", dump.path()] }
         let devices = try mac.run("remote.devices") as? [[String: Any]] ?? []
         if devices.isEmpty {
