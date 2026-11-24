@@ -1,0 +1,18 @@
+{
+  "title": "Workspace picker · round 2",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 24 Nov. The user: switch to another Mac's last used workspace in 1 tap, not 2 (today: open the Mac's submenu, then pick). Three small directions inside direction A; each stays a system Menu, changes nothing with 1 Mac, adds no plugin field, costs S.",
+    "a · Last used under each Mac (designer's pick): keep every Other Macs row as it is; put that Mac's last used workspace right under it, one tap away. Nothing moves; +1 row per other Mac.",
+    "b · Recent: a Recent section on top with the last 3 workspaces you opened on other Macs, newest first. The Mac name goes into the subtitle (cut to 12), so only the first state fits and an offline row loses its state; rows reorder with use.",
+    "c · A section per Mac: every Mac gets a section like this Mac's: header = Mac name, its last used workspace first, then \"All N workspaces\" opens the rest. The Mac row people know today goes away.",
+    "\"Last used\" (a, c): per Mac, the workspace that was last current on this phone while you were on that Mac (a pick in the menu, a notification, an Inbox row, a deep link). Stored on the phone beside the saved tab stacks, keyed by the Mac's pairing ID; no sync; none yet or gone → that Mac's Home. Dashed outlines on the boards mark the new rows."
+  ],
+  "boards": [
+    {"file": "r2-Today.dc.html", "w": 1372, "title": "Today · the menu in main", "caption": "The three shots of direction A as built: rows, light, and the open MacBook Pro submenu (tap 1 of 2)."},
+    {"file": "r2-a-Pairs.dc.html", "w": 1372, "title": "a · Last used under each Mac · designer's pick", "caption": "1 Mac (unchanged); 3 Macs × 10 with MacBook Air offline; long names."},
+    {"file": "r2-b-Recent.dc.html", "w": 1372, "title": "b · Recent section", "caption": "1 Mac (unchanged); 3 Macs × 10 with MacBook Air offline; long names."},
+    {"file": "r2-c-Sections.dc.html", "w": 1372, "title": "c · A section per Mac", "caption": "1 Mac (unchanged); 3 Macs × 10 with MacBook Air offline; long names."},
+    {"file": "r2-Rules.dc.html", "w": 1580, "title": "Rules · a, b, c compared", "caption": "Menu order, row text, where the Mac name goes, what \"last used\" means and where it is stored, offline and 1-Mac states, VoiceOver, tap counts, cost, weak spots, the pick."}
+  ]
+}

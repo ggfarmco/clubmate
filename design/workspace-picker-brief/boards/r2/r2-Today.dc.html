@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r2 · Today: the menu in main</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/a3008f026d28b2c59f3362d57348026a">
+<link rel="stylesheet" href="/_blob/a360d4e2acf10ea2a23fe2d15ad74ccc">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+.shot{width:393px;height:854px;object-fit:cover;border-radius:44px;box-shadow:0 0 0 1px rgba(0,0,0,.25),0 18px 48px rgba(0,0,0,.18);display:block}
+.figc{display:flex;flex-direction:column;gap:4px;min-height:72px}
+.figc b{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600}
+.figc span{font-size:14px;line-height:20px;color:#5B5F5C}
+</style>
+</helmet>
+<div class="doc" style="width: 1372px; height: 1340px; padding: 48px; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="eyebrow">Workspace picker · round 2 · today</div>
+<h1>Today: direction A in main</h1>
+<p class="lead">The user: "In general it is OK. I want one small change: show the last used workspace from another Mac, so I can switch in 1 tap, not in 2 as today." Today: capsule → the Mac row under Other Macs → the workspace.</p>
+</div>
+<div style="display: flex; gap: 48px; align-items: flex-start">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px; width: 393px">
+<figcaption class="figc"><b>today-iphone-dark-rows</b><span>3 Macs. Other Macs are submenu rows with the Mac's total state; this Mac's workspaces below, the current one checked.</span></figcaption>
+<img class="shot" src="/_blob/38831e6595aa565af7ed9b361e630834" alt="Today's menu in dark: Mac Details and Pair a Mac on top, Other Macs MacBook Pro and MacBook Air, then Mac Studio's Home, shop (checked) and infra-terraform-s…">
+</figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px; width: 393px">
+<figcaption class="figc"><b>today-iphone-light-rows</b><span>The same in light: the system draws the menu, so the round draws dark only.</span></figcaption>
+<img class="shot" src="/_blob/efe6c77b149b21c75698b76723e9b93b" alt="Today's menu in light, same rows">
+</figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px; width: 393px">
+<figcaption class="figc"><b>today-iphone-dark-submenu</b><span>Tap 1 opens MacBook Pro: its workspaces and Mac Details. Tap 2 picks infra. This round makes that one tap.</span></figcaption>
+<img class="shot" src="/_blob/84878a9c24410bf1c01d4d8d60316fd3" alt="The MacBook Pro submenu open: infra, 2 waiting · 1 running, and Mac Details">
+</figure>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1372,"height":1340}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

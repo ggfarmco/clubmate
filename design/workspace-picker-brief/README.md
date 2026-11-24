@@ -16,3 +16,11 @@ Canvas "Clubmate · workspace picker": https://claude.ai/artifact/K2F99UwNrVjsXF
 - `round-1.json`: the source of `round-1.html` (boards in `boards/r1/`; `r1-*-Light.dc.html` are light copies for the page, the canvas draws them with `dc-import`). `boards/r1/` is the round as the canvas had it on 23 Nov, kept only to rebuild `round-1.html`; the source of truth for the picked design is `design/features/workspace-picker/`, and its copies of the same boards win where they differ.
 - Directions: A · Refined system Menu (S), B · Mac cards sheet (L), C · Mac strip sheet (M, the designer's pick).
 - Ruling (user, 23 Nov): **A**. Boards, PNG and `rules.md` are in `design/features/workspace-picker/`; B, C and the iPad board in its `rounds/`.
+
+## Round 2
+
+24 Nov 2026, same canvas and chat, page r2. The user: switch to another Mac's last used workspace in 1 tap, not 2. Seed: `check/iphone-{dark,light}-rows-fixed.jpg` and `check/iphone-dark-3macs-submenu.jpg` (board `r2-Today`).
+
+- `round-2.json`: the source of `round-2.html` (boards in `boards/r2/` as the canvas had them; `r2-Today` refers to the shots as canvas blobs, so the page is built from a copy with the shots as `data:` URIs).
+- Directions: a · Last used under each Mac (the designer's pick), b · Recent section, c · A section per Mac. All S, no NEW field.
+- Ruling (user, 24 Nov): **a**. Boards, PNG and the updated `rules.md` are in `design/features/workspace-picker/`; b, c and `r2-Today` in its `rounds/`.

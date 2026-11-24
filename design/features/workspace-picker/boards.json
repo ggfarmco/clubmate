@@ -1,10 +1,22 @@
 {
-  "title": "Workspace picker · ruling A",
+  "title": "Workspace picker · ruling A + r2 a",
   "fit": 1200,
   "intro": [
-    "Claude Design round 1, 23 Nov 2026. The user picked A · Refined system Menu (cost S, all system). Rules: rules.md beside this page."
+    "Claude Design round 1, 23 Nov 2026: the user picked A · Refined system Menu (cost S, all system). Round 2, 24 Nov 2026: the user picked a · last used under each Mac (1 tap to another Mac's last used workspace). Rules: rules.md beside this page."
   ],
   "boards": [
+    {
+      "file": "r2-a-Pairs.dc.html",
+      "w": 1372,
+      "title": "r2 a · Last used under each Mac",
+      "caption": "1 Mac (unchanged); 3 Macs × 10 with MacBook Air offline; long names and a Mac just paired (its Home). Dashed outlines mark the new rows."
+    },
+    {
+      "file": "r2-Rules.dc.html",
+      "w": 1580,
+      "title": "r2 Rules · a, b, c compared",
+      "caption": "Menu order, row text, what \"last used\" means and where it is stored, offline and 1-Mac states, VoiceOver, tap counts, cost, the pick."
+    },
     {
       "file": "r1-A-Menu.dc.html",
       "w": 1372,

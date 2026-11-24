@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r2 · Rules: a, b, c compared</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/a3008f026d28b2c59f3362d57348026a">
+<link rel="stylesheet" href="/_blob/a360d4e2acf10ea2a23fe2d15ad74ccc">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+.doc td.k{font-weight:600;width:190px}
+.doc td.pk,.doc th.pk{background:#EEF5EC}
+.doc .ok{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:16px;padding:0 6px;border-radius:4px;background:#E4E2D9;color:#3A3D3B}
+</style>
+</helmet>
+<div class="doc" style="width: 1580px; height: 2400px; padding: 56px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div class="eyebrow">Workspace picker · round 2 · rules</div>
+<h1>a, b, c compared — pick a</h1>
+<p class="lead">All three keep the system Menu, change nothing with 1 Mac, add no plugin field and cost S. a adds one row under each other Mac and moves nothing else, so it is the smallest change to what is in main.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>1 · Side by side</h2>
+<table>
+<thead><tr><th style="width: 190px"></th><th class="pk">a · Last used under each Mac · picked</th><th>b · Recent</th><th>c · A section per Mac</th></tr></thead>
+<tbody>
+<tr><td class="k">Pitch</td><td class="pk">Keep every Other Macs row as it is; put that Mac's last used workspace right under it, one tap away.</td><td>A Recent section on top: the last 3 workspaces you opened on other Macs, newest first. Other Macs stays as today.</td><td>Every Mac gets a section like this Mac's: the header names it, its last used workspace first, "All N workspaces" opens the rest.</td></tr>
+<tr><td class="k">Menu order</td><td class="pk">Mac Details · Pair a Mac — "Other Macs" — per other Mac a section: [Mac row ›] [last used] — "{this Mac} · online": Home, workspaces.</td><td>Mac Details · Pair a Mac — "Recent": up to 3 rows — "Other Macs": Mac rows › (as today) — "{this Mac} · online": Home, workspaces.</td><td>Mac Details · Pair a Mac — per other Mac "{Mac} · online|offline": [last used] [All N workspaces ›] — "{this Mac} · online": Home, workspaces.</td></tr>
+<tr><td class="k">New row</td><td class="pk">Status glyph · label <b>{workspace}</b> · subtitle <b>{state}</b>, exactly as a row in that Mac's submenu.</td><td>Status glyph · <b>{workspace}</b> · <b>{Mac} · {first state}</b>.</td><td>Last used row as in a; plus "All N workspaces" › with the Mac glyph and the Mac's total state.</td></tr>
+<tr><td class="k">Where the Mac name goes</td><td class="pk">Its own row, right above, as today.</td><td>The subtitle, cut to 12 + "…".</td><td>The section header, cut to 17 + "…".</td></tr>
+<tr><td class="k">"Last used" means</td><td class="pk" colspan="1">Per Mac: the workspace that was last current on this phone while you were on that Mac.</td><td>The 3 workspaces most recently made current on this phone, not on the current Mac. Two can be on the same Mac.</td><td>As a.</td></tr>
+<tr><td class="k">Stored</td><td class="pk"><code>lastUsed[macID] = workspace</code>, phone-local, with the saved tab stacks.</td><td>A phone-local list of (macID, workspace, openedAt), newest first, last 10 kept.</td><td>As a.</td></tr>
+<tr><td class="k">No last used yet</td><td class="pk">New pairing, or the workspace is gone from the Mac: that Mac's <b>Home</b>.</td><td>No row: the Mac is only in Other Macs until you open one of its workspaces.</td><td>Home, as a.</td></tr>
+<tr><td class="k">1 Mac</td><td class="pk">No other Macs: unchanged.</td><td>Recent is empty and hidden: unchanged.</td><td>Only this Mac's section: unchanged.</td></tr>
+<tr><td class="k">Offline Mac</td><td class="pk">Mac row "offline · as of 23:52"; last used row enabled, "as of 23:52 · 1 running".</td><td>"MacBook Air · as of 23:52": the state does not fit in one line and is dropped.</td><td>Header "MacBook Air · offline"; row "as of 23:52 · 1 running"; "All 6 workspaces" "as of 23:52".</td></tr>
+<tr><td class="k">Long names</td><td class="pk">Labels cut as today. Nothing new to cut.</td><td>Mac name and state share one subtitle; both get shortened.</td><td>Header "{Mac 17…} · online"; labels as today.</td></tr>
+<tr><td class="k">VoiceOver</td><td class="pk">Swiping: "MacBook Pro, 2 waiting · 1 running" (submenu), then "infra, 2 waiting · 1 running". The shortcut doesn't say the Mac; the row before it does.</td><td>"infra, MacBook Pro · 2 waiting". Says the Mac on every row; only the first state; offline rows no state.</td><td>Header "MacBook Pro · online" when swiping in, then "infra, 2 waiting · 1 running", then "All 10 workspaces, 2 waiting · 1 running" (submenu).</td></tr>
+<tr><td class="k">Taps after the capsule</td><td class="pk">Last used on another Mac <b>1</b> · any other there <b>2</b> (as today) · back to the Mac you left <b>1</b>.</td><td>A Recent row <b>1</b> (up to 3) · anything else <b>2</b> · back to the Mac you left <b>1</b>.</td><td>Last used <b>1</b> · anything else <b>2</b> · back <b>1</b>.</td></tr>
+<tr><td class="k">Rows at 3 Macs</td><td class="pk">+2 rows. This Mac's list starts 2 rows lower.</td><td>+3 rows, +1 header.</td><td>+2 rows, +1 header; the Mac rows become "All N" rows.</td></tr>
+<tr><td class="k">Cost · NEW field</td><td class="pk"><span class="tag p0">S</span> · none</td><td><span class="tag p0">S</span> · none</td><td><span class="tag p0">S</span> · none</td></tr>
+<tr><td class="k">Weak spot</td><td class="pk">The shortcut and the Mac row often show the same subtitle when only that workspace is busy.</td><td>Rows move as you use them; the Mac name squeezes the state, and offline loses it.</td><td>The opened submenu is titled "All 10 workspaces", not the Mac; the Mac row people know is gone.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>2 · "Last used", exactly (a and c)</h2>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li><b>Set</b> when a workspace becomes current on this phone: a pick in the capsule menu or the submenu, a notification, an Inbox row, a deep link. Opening a submenu without picking sets nothing.</li>
+<li><b>Key:</b> the Mac's pairing ID; <b>value:</b> the workspace name (Home included). Kept beside the saved tab stacks, survives relaunch, removed with Forget this Mac. This phone only, no sync.</li>
+<li><b>Shown</b> for every Mac but the current one: the current Mac's workspace is the checked row in its own list.</li>
+<li><b>Fallback:</b> no entry, or the name is no longer in that Mac's workspace list → Home of that Mac.</li>
+<li><b>Not used:</b> the workspace last active on the Mac itself. It is the Mac's view, not this phone's, and would need a NEW plugin field; the user asked for where <i>they</i> were.</li>
+<li>The shortcut is a <code>Toggle</code> that is never on: it is never the current workspace. The same workspace stays in that Mac's submenu.</li>
+</ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>3 · Text and cuts</h2>
+<table>
+<thead><tr><th style="width: 260px">Text</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td>Workspace or Mac label</td><td>Up to 18: the first 17 characters + "…", trailing space or punctuation dropped before "…". As in main.</td></tr>
+<tr><td>Mac in a subtitle (b)</td><td>First 12 characters + "…", then " · " and the first state part.</td></tr>
+<tr><td>Mac in a header (c)</td><td>17 + "…", then " · online" or " · offline".</td></tr>
+<tr><td>Subtitle states</td><td>As round 1: "2 waiting · 1 failed · 1 running", parts above zero; "idle · 2 d"; offline "as of 23:52 · {state}".</td></tr>
+<tr><td>Section headers</td><td>"Other Macs" (a, b) · "Recent" (b) · "{Mac} · online|offline" (c).</td></tr>
+<tr><td>"All N workspaces" (c)</td><td>N = that Mac's workspaces incl. Home; subtitle = the Mac's total state.</td></tr>
+<tr><td>VoiceOver</td><td>Reads the label as cut, then the subtitle; "Selected" on the checked row. Rows ignore custom labels, so nothing longer can be added.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<h2>4 · Why a</h2>
+<ul style="font-size: 16px; line-height: 24px; display: flex; flex-direction: column; gap: 6px; max-width: 1240px">
+<li><b>Does exactly what was asked.</b> The last used workspace on each other Mac is 1 tap; everything else is where it is today, including the 2-tap path through the Mac row.</li>
+<li><b>Nothing moves, nothing squeezes.</b> Rows stay in Mac order (b reorders with use); the Mac name keeps its own row (b and c cut it harder); offline rows keep "as of 23:52 · {state}" (b loses the state).</li>
+<li><b>Going back and forth is 1 tap each way.</b> When you switch Mac, the Mac you left gets a shortcut to the workspace you just left.</li>
+<li><b>Cost S, no plugin change.</b> One phone-local value per Mac, one row per other Mac. iPad gets it for free: the capsule shows the same menu when the sidebar is hidden.</li>
+<li><b>Trade-off we accept:</b> +1 row per other Mac pushes this Mac's list down (2 rows with 3 Macs), and VoiceOver hears the Mac from the row above the shortcut, not from the shortcut.</li>
+</ul>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1580,"height":2400}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
