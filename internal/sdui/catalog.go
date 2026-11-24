@@ -427,11 +427,13 @@ type validator struct {
 	ids     map[string]struct{}
 	itemIDs map[string]struct{}
 	columns []any
+	path    []pathStep
 }
 
 func Validate(n sdui.Node) error {
 	v := &validator{ids: map[string]struct{}{}}
-	return v.node(n, n.Type, 1)
+	v.path = append(v.path, pathStep{index: -1, typ: n.Type})
+	return v.node(n, 1)
 }
 
 func CheckShortcut(combo string) error {
@@ -446,93 +448,98 @@ func (v *validator) countNode() error {
 	return nil
 }
 
-func (v *validator) node(n sdui.Node, path string, depth int) error {
+func (v *validator) node(n sdui.Node, depth int) error {
 	if depth > maxDepth {
-		return invalid(path, "depth exceeds %d", maxDepth)
+		return v.invalid("depth exceeds %d", maxDepth)
 	}
 	if err := v.countNode(); err != nil {
-		return invalid(path, "%v", err)
+		return v.invalid("%v", err)
 	}
 	v.depth = depth
 	sp, ok := catalog[n.Type]
 	if !ok {
-		return invalid(path, "unknown type %q", n.Type)
+		return v.invalid("unknown type %q", n.Type)
 	}
-	if err := v.identity(n, sp, path); err != nil {
+	if err := v.identity(n, sp); err != nil {
 		return err
 	}
-	if err := v.checkProps(n, sp, path); err != nil {
+	if err := v.checkProps(n, sp); err != nil {
 		return err
 	}
-	if err := checkChildCount(n, sp, path); err != nil {
+	if err := v.checkChildCount(n, sp); err != nil {
 		return err
 	}
 	if sp.check != nil {
 		if err := sp.check(v, n); err != nil {
-			return invalid(path, "%v", err)
+			return v.invalid("%v", err)
 		}
 	}
 	for i, c := range n.Children {
-		if err := v.node(c, path+"["+strconv.Itoa(i)+"]."+c.Type, depth+1); err != nil {
+		v.path = append(v.path, pathStep{index: i, typ: c.Type})
+		if err := v.node(c, depth+1); err != nil {
 			return err
 		}
+		v.path = v.path[:len(v.path)-1]
 	}
 	return nil
 }
 
-func (v *validator) identity(n sdui.Node, sp spec, path string) error {
+func (v *validator) identity(n sdui.Node, sp spec) error {
 	if n.ID == "" {
 		if sp.interactive {
-			return invalid(path, "missing id")
+			return v.invalid("missing id")
 		}
 		return nil
 	}
 	if _, dup := v.ids[n.ID]; dup {
-		return invalid(path, "duplicate id %q", n.ID)
+		return v.invalid("duplicate id %q", n.ID)
 	}
 	v.ids[n.ID] = struct{}{}
 	return nil
 }
 
-func (v *validator) checkProps(n sdui.Node, sp spec, path string) error {
+func (v *validator) checkProps(n sdui.Node, sp spec) error {
 	props, err := normalize(n.Props)
 	if err != nil {
-		return invalid(path, "props: %v", err)
+		return v.invalid("props: %v", err)
 	}
 	if sp.prepare != nil {
 		sp.prepare(v, props)
 	}
 	for _, name := range sp.required {
 		if _, ok := props[name]; !ok {
-			return invalid(path, "missing prop %s", name)
+			return v.invalid("missing prop %s", name)
 		}
 	}
 	for name, value := range props {
 		check, ok := sp.props[name]
 		if !ok {
-			return invalid(path, "unknown prop %s", name)
+			return v.invalid("unknown prop %s", name)
 		}
-		v.itemIDs = map[string]struct{}{}
+		v.itemIDs = nil
 		if err := check(v, value); err != nil {
-			return invalid(path, "prop %s: %v", name, err)
+			return v.invalid("prop %s: %v", name, err)
 		}
 	}
 	return nil
 }
 
-func checkChildCount(n sdui.Node, sp spec, path string) error {
+func (v *validator) checkChildCount(n sdui.Node, sp spec) error {
 	count := len(n.Children)
 	if count < sp.children.min || (sp.children.max >= 0 && count > sp.children.max) {
-		return invalid(path, "invalid child count %d", count)
+		return v.invalid("invalid child count %d", count)
 	}
-	seen := map[string]bool{}
+	var seen map[string]bool
 	for _, c := range n.Children {
 		if len(sp.children.only) > 0 && !slices.Contains(sp.children.only, c.Type) {
-			return invalid(path, "child %s not allowed; only %v", c.Type, sp.children.only)
+			return v.invalid("child %s not allowed; only %v", c.Type, sp.children.only)
 		}
 		if slices.Contains(sp.children.once, c.Type) {
 			if seen[c.Type] {
-				return invalid(path, "more than one %s child", c.Type)
+				return v.invalid("more than one %s child", c.Type)
+			}
+			if seen == nil {
+				seen = map[string]bool{}
 			}
 			seen[c.Type] = true
 		}
@@ -582,8 +589,20 @@ func jsonNative(v any) bool {
 	return false
 }
 
-func invalid(path, format string, args ...any) error {
-	return fmt.Errorf("%w: %s: %s", ErrInvalidTree, path, fmt.Sprintf(format, args...))
+type pathStep struct {
+	index int
+	typ   string
+}
+
+func (v *validator) invalid(format string, args ...any) error {
+	var b strings.Builder
+	for _, st := range v.path {
+		if st.index >= 0 {
+			b.WriteString("[" + strconv.Itoa(st.index) + "].")
+		}
+		b.WriteString(st.typ)
+	}
+	return fmt.Errorf("%w: %s: %s", ErrInvalidTree, b.String(), fmt.Sprintf(format, args...))
 }
 
 func isString(_ *validator, v any) error {
@@ -786,6 +805,9 @@ func uniqueItemID(c *validator, v any) error {
 	}
 	if _, dup := c.itemIDs[s]; dup {
 		return fmt.Errorf("duplicate item id %q", s)
+	}
+	if c.itemIDs == nil {
+		c.itemIDs = map[string]struct{}{}
 	}
 	c.itemIDs[s] = struct{}{}
 	return nil

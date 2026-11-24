@@ -455,3 +455,22 @@ func TestCatalogAcceptsContextAttachment(t *testing.T) {
 	bad := []sdui.Attachment{{Kind: "tab", Path: "x"}}
 	assert.ErrorIs(t, internalsdui.Validate(sdui.Composer("c", sdui.ComposerProps{Attachments: bad})), internalsdui.ErrInvalidTree)
 }
+
+func BenchmarkValidate(b *testing.B) {
+	rows := make([]sdui.Node, 600)
+	for i := range rows {
+		id := strconv.Itoa(i)
+		items := []sdui.Item{{ID: "a", Label: "A"}, {ID: "b", Label: "B"}, {ID: "c", Label: "C"}}
+		rows[i] = sdui.HStack(sdui.Text("row "+id), sdui.Button("b"+id, "Open", "play"), sdui.Badge("3", "accent"), sdui.List("l"+id, items, "a"))
+	}
+	raw, err := json.Marshal(sdui.VStack(rows...))
+	require.NoError(b, err)
+	var n sdui.Node
+	require.NoError(b, json.Unmarshal(raw, &n))
+	b.ReportAllocs()
+	for b.Loop() {
+		if err := internalsdui.Validate(n); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

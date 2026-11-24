@@ -206,7 +206,9 @@ func (rt *runtime) drain(ctx context.Context) {
 		rt.mu.Lock()
 		var fn func()
 		if len(rt.queue) > 0 {
-			fn, rt.queue = rt.queue[0], rt.queue[1:]
+			fn = rt.queue[0]
+			rt.queue[0] = nil
+			rt.queue = rt.queue[1:]
 		}
 		rt.mu.Unlock()
 		if fn != nil {

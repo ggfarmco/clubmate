@@ -165,7 +165,8 @@ func (s *Store) DeletePrefix(ctx context.Context, plugin, prefix string) error {
 	if err := validateKey(prefix); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM kv WHERE plugin = ? AND substr(key, 1, length(?)) = ?`, plugin, prefix, prefix); err != nil {
+	where, args := prefixRange(plugin, prefix)
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM kv WHERE `+where, args...); err != nil {
 		return fmt.Errorf("delete kv prefix: %w", err)
 	}
 	return nil
@@ -175,7 +176,8 @@ func (s *Store) List(ctx context.Context, plugin, prefix string) ([]string, erro
 	if err := s.readFault(plugin, func(f string) bool { return strings.HasPrefix(prefix, f) || strings.HasPrefix(f, prefix) }); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT key FROM kv WHERE plugin = ? AND substr(key, 1, length(?)) = ? ORDER BY key`, plugin, prefix, prefix)
+	where, args := prefixRange(plugin, prefix)
+	rows, err := s.db.QueryContext(ctx, `SELECT key FROM kv WHERE `+where+` ORDER BY key`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list kv: %w", err)
 	}
@@ -251,6 +253,21 @@ func moveRows(ctx context.Context, conn *sql.Conn, from, to, prefix string, rewr
 		return 0, fmt.Errorf("move kv: %w", err)
 	}
 	return len(all), nil
+}
+
+func prefixRange(plugin, prefix string) (string, []any) {
+	if prefix == "" {
+		return `plugin = ?`, []any{plugin}
+	}
+	end := []byte(prefix)
+	for len(end) > 0 && end[len(end)-1] == 0xff {
+		end = end[:len(end)-1]
+	}
+	if len(end) == 0 {
+		return `plugin = ? AND key >= ?`, []any{plugin, prefix}
+	}
+	end[len(end)-1]++
+	return `plugin = ? AND key >= ? AND key < ?`, []any{plugin, prefix, string(end)}
 }
 
 func validateKey(key string) error {

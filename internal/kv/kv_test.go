@@ -47,27 +47,30 @@ func TestKVSetOverwritesAndDeletes(t *testing.T) {
 
 func TestKVListIsSortedAndPrefixed(t *testing.T) {
 	s := openKV(t)
-	for _, k := range []string{"b/2", "a/1", "b/1", "%b"} {
+	for _, k := range []string{"b/2", "a/1", "b/1", "%b", "b.", "b0", "b/\xffz"} {
 		require.NoError(t, s.Set(t.Context(), "a", k, json.RawMessage(`null`)))
 	}
 	keys, err := s.List(t.Context(), "a", "b/")
 	require.NoError(t, err)
-	assert.Equal(t, []string{"b/1", "b/2"}, keys)
+	assert.Equal(t, []string{"b/1", "b/2", "b/\xffz"}, keys)
+	high, err := s.List(t.Context(), "a", "b/\xff")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"b/\xffz"}, high)
 	all, err := s.List(t.Context(), "a", "")
 	require.NoError(t, err)
-	assert.Equal(t, []string{"%b", "a/1", "b/1", "b/2"}, all)
+	assert.Equal(t, []string{"%b", "a/1", "b.", "b/1", "b/2", "b/\xffz", "b0"}, all)
 }
 
 func TestKVDeletePrefixKeepsOtherKeysAndPlugins(t *testing.T) {
 	s := openKV(t)
-	for _, k := range []string{"task/prj_1/1", "task/prj_1/2", "task/prj_10/1", "seq/prj_1"} {
+	for _, k := range []string{"task/prj_1/1", "task/prj_1/2", "task/prj_1/\xffz", "task/prj_1.", "task/prj_10/1", "seq/prj_1"} {
 		require.NoError(t, s.Set(t.Context(), "a", k, json.RawMessage(`1`)))
 	}
 	require.NoError(t, s.Set(t.Context(), "b", "task/prj_1/1", json.RawMessage(`1`)))
 	require.NoError(t, s.DeletePrefix(t.Context(), "a", "task/prj_1/"))
 	keys, err := s.List(t.Context(), "a", "")
 	require.NoError(t, err)
-	assert.Equal(t, []string{"seq/prj_1", "task/prj_10/1"}, keys)
+	assert.Equal(t, []string{"seq/prj_1", "task/prj_1.", "task/prj_10/1"}, keys)
 	other, err := s.List(t.Context(), "b", "")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"task/prj_1/1"}, other)
