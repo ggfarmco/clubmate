@@ -20,6 +20,7 @@ Boards: `r1-A-Menu.dc.html` (`png/r1-A-Menu.png`), `r1-Rules.dc.html` (compares 
 ## Row
 
 - Label = workspace name, one line. The system `Menu` wraps a long title (it ignores `.lineLimit` and `.truncationMode` on iOS 27), so CompanionKit cuts a name longer than 18 characters to its first 17 and "…" (`WorkspaceSummary.rowName`; "infra-terraform-s…" fits one line of an iPhone menu at the default text size). Subtitle = one line, the state text below.
+- Larger Dynamic Type (checked 24 Nov 2026, iOS 27, `design/workspace-picker-brief/check-1.html`): the cut stays at 18 characters for every size, because the system draws the menu and one limit cannot keep a line at every size. At Large and on the iPad (list shown or hidden) every name and subtitle is one line. At XXL the menu keeps its width and the text wraps, even "MacBook Pro" and the subtitles: 2 lines are accepted. From AX3 the system draws a full-width list without glyphs: one line again, the checkmark stays, the status glyph is not drawn (the subtitle keeps the state text). Not checked: XL, XXXL, AX1, AX2, and names of wide letters ("MMMM…" can take 2 lines at Large).
 - Glyph = status (monochrome SF Symbols). Several at once: needs you › failed › running › idle picks the glyph.
 
 | Status | SF Symbol | Subtitle part |

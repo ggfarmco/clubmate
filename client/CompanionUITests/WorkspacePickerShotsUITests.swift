@@ -41,6 +41,19 @@ final class WorkspacePickerShotsUITests: XCTestCase {
         shot(app, "long")
     }
 
+    func testLongNameScrolled() {
+        let app = launch(["-macs", "3", "-activity", "YES", "-longWorkspace", "YES"])
+        openCapsule(app)
+        let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'infra-terraform-s'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        for _ in 0..<6 where !row.isHittable {
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.55))
+            from.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.1)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        }
+        XCTAssertTrue(row.isHittable, "the long-name row did not scroll into view")
+        shot(app, "long-scrolled")
+    }
+
     func testFallbackWithoutActivity() {
         let app = launch([])
         openCapsule(app)
@@ -50,7 +63,7 @@ final class WorkspacePickerShotsUITests: XCTestCase {
     func testIPadMenu() throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "iPad only")
         XCUIDevice.shared.orientation = .landscapeLeft
-        let app = launch(["-macs", "3", "-activity", "YES"])
+        let app = launch(["-macs", "3", "-activity", "YES", "-longWorkspace", "YES"])
         let window = app.windows.firstMatch
         let turned = NSPredicate { _, _ in window.exists && window.frame.width > window.frame.height }
         XCTAssertEqual(XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: turned, object: nil)], timeout: 10), .completed)
@@ -62,7 +75,7 @@ final class WorkspacePickerShotsUITests: XCTestCase {
     func testIPadSidebarHidden() throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "iPad only")
         XCUIDevice.shared.orientation = .landscapeLeft
-        let app = launch(["-macs", "3", "-activity", "YES"])
+        let app = launch(["-macs", "3", "-activity", "YES", "-longWorkspace", "YES"])
         let hide = app.buttons["Hide Sidebar"]
         XCTAssertTrue(hide.waitForExistence(timeout: 10))
         hide.tap()
