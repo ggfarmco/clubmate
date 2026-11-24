@@ -619,7 +619,8 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 	}
 	sc.ReviewStates, sc.ReviewsOpen = a.reviews.cards(v.ReviewStates)
 	shown := gateUnderCalls(openItemsLast(v.Entries))
-	rows := windowRows(sc, shown, turnNotes(v))
+	sc.Notes = turnNotes(v)
+	rows := windowRows(sc, shown, sc.Notes)
 	first, landed := st.window.resolve(rows, st.anchor != "")
 	sc.WindowFirst = first
 	if landed >= 0 {

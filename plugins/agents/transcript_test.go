@@ -336,3 +336,14 @@ func TestThoughtOpensWhenItsTurnEnds(t *testing.T) {
 	}
 	assert.Equal(t, []any{true}, props)
 }
+
+func TestTheTurnEndLineCountsFilesOnceTheEditCompletes(t *testing.T) {
+	s := newSession(record{ID: "agt_1", Agent: agentClaude}, nil, true, nil)
+	s.applyTool(true, 1, json.RawMessage(`{"sessionUpdate":"tool_call","toolCallId":"c1","kind":"edit","status":"in_progress","locations":[{"path":"/r/a.go"}],"content":[{"type":"diff","path":"/r/a.go","newText":"x"},{"type":"diff","path":"/r/b.go","newText":"y"}]}`))
+	s.turnInfo(1).Ended = true
+	assert.Equal(t, "Turn 1", turnNotes(s.view(0))[1])
+
+	s.applyTool(false, 1, json.RawMessage(`{"sessionUpdate":"tool_call_update","toolCallId":"c1","status":"completed"}`))
+
+	assert.Equal(t, "Turn 1 · 2 files changed", turnNotes(s.view(0))[1])
+}

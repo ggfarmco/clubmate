@@ -56,6 +56,20 @@ type nodeCache struct {
 	built builtNode
 	ok    bool
 	sum   *toolSummary
+	edits *[]string
+}
+
+func (n *nodeCache) edited(build func() []string) []string {
+	if n == nil {
+		return build()
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.edits == nil {
+		edits := build()
+		n.edits = &edits
+	}
+	return *n.edits
 }
 
 func (n *nodeCache) summary(build func() toolSummary) toolSummary {
@@ -120,7 +134,10 @@ type planUpdate struct {
 func transcript(sc screen) sdui.Node {
 	v := sc.View
 	sid := v.Session.ID
-	notes := turnNotes(v)
+	notes := sc.Notes
+	if notes == nil {
+		notes = turnNotes(v)
+	}
 	shas := map[int]string{}
 	for _, t := range v.Turns {
 		shas[t.Turn] = t.CheckpointSha
@@ -418,7 +435,7 @@ func turnNotes(v transcriptView) map[int]string {
 		if en.Kind != entryTool || en.Tool == nil {
 			continue
 		}
-		for _, path := range editedPaths(en.Tool) {
+		for _, path := range en.node.edited(func() []string { return editedPaths(en.Tool) }) {
 			if files[en.Turn] == nil {
 				files[en.Turn] = map[string]bool{}
 			}

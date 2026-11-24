@@ -113,6 +113,7 @@ type screen struct {
 	Suggestion   string
 	NeedsYou     string
 	OfferTurn    int
+	Notes        map[int]string
 }
 
 type codePanel struct {
