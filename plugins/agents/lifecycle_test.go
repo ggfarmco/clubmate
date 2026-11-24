@@ -187,6 +187,31 @@ func TestDequeuedPromptIsNotSentAgainAfterRestart(t *testing.T) {
 	assert.Len(t, f.promptsTo(t, agentID, "follow up"), 1)
 }
 
+func TestStopSavesEndedTurn(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_SAVE_HOLD=2s"}, map[string]any{"resume": true, "prompt": []map[string]any{{"match": "long", "sleep": 4000}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "long")
+	agentID := f.agentID(t, workspace, session)
+	stored := func() string {
+		raw, _, err := f.h.KV.Get(t.Context(), "agents", "session/"+workspace+"/"+session)
+		require.NoError(t, err)
+		var got storedState
+		_ = json.Unmarshal(raw, &got)
+		return got.Status
+	}
+	testutil.Eventually(t, func() bool { return stored() == "running" }, wait)
+	f.waitStatus(t, workspace, session, "done")
+
+	require.NoError(t, f.h.Sup.SetEnabled(t.Context(), "agents", false))
+	assert.Equal(t, "done", stored())
+	require.NoError(t, f.h.Sup.SetEnabled(t.Context(), "agents", true))
+
+	f.waitStatus(t, workspace, session, "done")
+	testutil.Never(t, func() bool { return len(f.promptsTo(t, agentID, cutOffText)) > 0 }, 2*time.Second)
+}
+
 func TestPromptCutByAgentExitBeforeSendIsQueued(t *testing.T) {
 	t.Parallel()
 	f := startEnv(t, []string{"CLUBMATE_AGENTS_SEND_HOLD=2s"}, map[string]any{"resume": true})

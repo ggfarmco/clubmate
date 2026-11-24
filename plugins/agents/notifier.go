@@ -36,6 +36,7 @@ const (
 	endHold       = 5 * time.Second
 	endHoldEnv    = "CLUBMATE_AGENTS_END_HOLD"
 	saveHoldEnv   = "CLUBMATE_AGENTS_SAVE_HOLD"
+	shutdownFlush = 1500 * time.Millisecond
 
 	doneOpenFormat   = "Done · %d open"
 	listedOpenFormat = "%s · %d open"
@@ -64,6 +65,10 @@ type notifier struct {
 	timer *time.Timer
 	wake  chan struct{}
 	hold  time.Duration
+
+	flushes   chan chan struct{}
+	hurry     chan struct{}
+	hurryOnce sync.Once
 }
 
 type cardPost struct {
@@ -108,7 +113,7 @@ type change struct {
 }
 
 func newNotifier(h *pluginsdk.Host, stateDir string) *notifier {
-	n := &notifier{host: h, kv: h, dir: stateDir, seen: map[change]bool{}, saves: map[*session]bool{}, endq: newEndQueue(envDelay(endHoldEnv, endHold)), wake: make(chan struct{}, 1), hold: envDelay(saveHoldEnv, 0)}
+	n := &notifier{host: h, kv: h, dir: stateDir, seen: map[change]bool{}, saves: map[*session]bool{}, endq: newEndQueue(envDelay(endHoldEnv, endHold)), wake: make(chan struct{}, 1), hold: envDelay(saveHoldEnv, 0), flushes: make(chan chan struct{}), hurry: make(chan struct{})}
 	go n.run()
 	return n
 }
@@ -189,62 +194,93 @@ func (n *notifier) poke() {
 }
 
 func (n *notifier) run() {
-	for range n.wake {
-		n.mu.Lock()
-		order, saves, turns, asks, cards, pubs, ends := n.order, n.saves, n.turns, n.asks, n.cards, n.pubs, n.ends
-		n.order, n.seen, n.saves, n.turns, n.asks, n.cards, n.pubs, n.ends = nil, map[change]bool{}, map[*session]bool{}, nil, nil, nil, nil, nil
-		n.mu.Unlock()
-		if len(saves) > 0 {
-			time.Sleep(n.hold)
+	for {
+		select {
+		case <-n.wake:
+			n.batch()
+		case done := <-n.flushes:
+			n.batch()
+			close(done)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
-		for s := range saves {
-			n.persist(ctx, s)
-		}
-		for _, c := range order {
-			rec := c.session.snapshot()
-			if _, err := n.host.Publish(ctx, api.TopicChanged, api.Changed{Workspace: rec.Workspace, Session: rec.ID, Kind: c.kind, Status: rec.Status, Request: c.request, RequestKind: c.requestKind}); err != nil {
-				fmt.Fprintln(os.Stderr, "agents: publish:", err)
-			}
-		}
-		for _, p := range turns {
-			if _, err := n.host.Publish(ctx, api.TopicTurn, p); err != nil {
-				fmt.Fprintln(os.Stderr, "agents: publish:", err)
-			}
-		}
-		for _, c := range asks {
-			n.notify(ctx, c)
-		}
-		for _, c := range cards {
-			if c.still == nil || c.still() {
-				n.post(ctx, c.post)
-			}
-		}
-		for _, c := range pubs {
-			if _, err := n.host.Publish(ctx, api.TopicChanged, c); err != nil {
-				fmt.Fprintln(os.Stderr, "agents: publish:", err)
-			}
-		}
-		now := time.Now()
-		for _, e := range ends {
-			if e.kind == "" {
-				n.endq.drop(e.session)
-			} else {
-				n.endq.add(e, now)
-			}
-		}
-		posts, wait := n.endq.take(now)
-		for _, p := range posts {
-			n.post(ctx, p)
-		}
-		if n.timer != nil {
-			n.timer.Stop()
-		}
-		if wait > 0 {
-			n.timer = time.AfterFunc(wait, n.poke)
-		}
-		cancel()
 	}
+}
+
+func (n *notifier) flush(ctx context.Context) error {
+	n.hurryOnce.Do(func() { close(n.hurry) })
+	done := make(chan struct{})
+	select {
+	case n.flushes <- done:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (n *notifier) batch() {
+	n.mu.Lock()
+	order, saves, turns, asks, cards, pubs, ends := n.order, n.saves, n.turns, n.asks, n.cards, n.pubs, n.ends
+	n.order, n.seen, n.saves, n.turns, n.asks, n.cards, n.pubs, n.ends = nil, map[change]bool{}, map[*session]bool{}, nil, nil, nil, nil, nil
+	n.mu.Unlock()
+	if len(saves) > 0 && n.hold > 0 {
+		t := time.NewTimer(n.hold)
+		select {
+		case <-t.C:
+		case <-n.hurry:
+			t.Stop()
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+	for s := range saves {
+		n.persist(ctx, s)
+	}
+	for _, c := range order {
+		rec := c.session.snapshot()
+		if _, err := n.host.Publish(ctx, api.TopicChanged, api.Changed{Workspace: rec.Workspace, Session: rec.ID, Kind: c.kind, Status: rec.Status, Request: c.request, RequestKind: c.requestKind}); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: publish:", err)
+		}
+	}
+	for _, p := range turns {
+		if _, err := n.host.Publish(ctx, api.TopicTurn, p); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: publish:", err)
+		}
+	}
+	for _, c := range asks {
+		n.notify(ctx, c)
+	}
+	for _, c := range cards {
+		if c.still == nil || c.still() {
+			n.post(ctx, c.post)
+		}
+	}
+	for _, c := range pubs {
+		if _, err := n.host.Publish(ctx, api.TopicChanged, c); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: publish:", err)
+		}
+	}
+	now := time.Now()
+	for _, e := range ends {
+		if e.kind == "" {
+			n.endq.drop(e.session)
+		} else {
+			n.endq.add(e, now)
+		}
+	}
+	posts, wait := n.endq.take(now)
+	for _, p := range posts {
+		n.post(ctx, p)
+	}
+	if n.timer != nil {
+		n.timer.Stop()
+	}
+	if wait > 0 {
+		n.timer = time.AfterFunc(wait, n.poke)
+	}
+	cancel()
 }
 
 func (n *notifier) notify(ctx context.Context, c change) {

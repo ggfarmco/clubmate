@@ -47,6 +47,7 @@ type app struct {
 	olderAfter   time.Duration
 	loaded       chan struct{}
 	quit         chan struct{}
+	halting      atomic.Bool
 	notes        *notifier
 	groups       *groups
 	codePanel    bool

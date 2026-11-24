@@ -187,7 +187,13 @@ func (a *app) release(p *agentProc) {
 	go p.shutdown()
 }
 
-func (a *app) shutdown(context.Context, *pluginsdk.Host) {
+func (a *app) shutdown(ctx context.Context, _ *pluginsdk.Host) {
+	a.halting.Store(true)
+	if a.notes != nil {
+		fctx, cancel := context.WithTimeout(ctx, shutdownFlush)
+		logError("save sessions before stop", a.notes.flush(fctx))
+		cancel()
+	}
 	a.stopAll()
 }
 

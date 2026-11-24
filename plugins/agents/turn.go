@@ -598,6 +598,9 @@ func (s *session) beginTurnLocked() (int, int) {
 }
 
 func (a *app) stopping() bool {
+	if a.halting.Load() {
+		return true
+	}
 	select {
 	case <-a.quit:
 		return true
