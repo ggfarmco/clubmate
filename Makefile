@@ -5,7 +5,8 @@ RELAY_URL ?= https://clubmate-push.exe.xyz
 LDFLAGS = -X clubmate/internal/buildinfo.Version=$(VERSION) -X clubmate/internal/buildinfo.Commit=$(COMMIT) -X clubmate/internal/buildinfo.Flavor=$(FLAVOR) -X clubmate/internal/buildinfo.RelayURL=$(RELAY_URL)
 MACOS_MIN = 27.0
 GO_ENV = MACOSX_DEPLOYMENT_TARGET=$(MACOS_MIN) CGO_CFLAGS="-O2 -g -mmacosx-version-min=$(MACOS_MIN)" CGO_LDFLAGS="-O2 -g -mmacosx-version-min=$(MACOS_MIN)"
-GO_BUILD = $(GO_ENV) go build -ldflags "$(LDFLAGS)"
+GO_STRIP = $(if $(filter release,$(FLAVOR)),-trimpath -ldflags "-s -w $(LDFLAGS)",-ldflags "$(LDFLAGS)")
+GO_BUILD = $(GO_ENV) go build $(GO_STRIP)
 DEV_SIGN_IDENTITY ?= $(shell security find-identity -p codesigning -v 2>/dev/null | awk '/"Apple Development: / {print $$2; exit}')
 
 build:

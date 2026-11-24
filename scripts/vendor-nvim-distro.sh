@@ -89,6 +89,7 @@ while read -r kind name rev sha url; do
       fetch "$name" "$rev" "$sha" "$url/archive/$rev.tar.gz" "$archive"
       mkdir -p "$STAGE/plugins/$name"
       tar -xzf "$archive" -C "$STAGE/plugins/$name" --strip-components 1
+      rm -rf "$STAGE/plugins/$name"/{tests,test,spec,.github}
       helptags "$STAGE/plugins/$name/doc"
       plugins+=("    [\"$name\"] = { url = \"$url\", commit = \"$rev\" },")
       ;;
