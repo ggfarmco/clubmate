@@ -9,6 +9,7 @@ import (
 const (
 	closeAfter    = time.Hour
 	closeAfterEnv = "CLUBMATE_AGENTS_CLOSE_AFTER"
+	closeHoldEnv  = "CLUBMATE_AGENTS_CLOSE_HOLD"
 )
 
 type ownedJob struct {
@@ -67,9 +68,12 @@ func (a *app) closeDone(after time.Duration) {
 		if owned := owners[workspace]; owned == nil || slices.ContainsFunc(tree, func(s *session) bool { return owned[s.snapshot().ID] }) {
 			continue
 		}
+		if a.closeHold > 0 {
+			time.Sleep(a.closeHold)
+		}
 		for _, s := range tree {
 			if !s.snapshot().closed() {
-				a.closeUnlessBusy(ctx, s, s != root || rec.ParentSession != "", s == root && rec.Run != nil)
+				a.closeUnlessBusy(ctx, s, s != root || rec.ParentSession != "", s == root && rec.Run != nil, after)
 			}
 		}
 	}

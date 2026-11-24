@@ -43,6 +43,7 @@ type app struct {
 	stateDir     string
 	sendHold     time.Duration
 	takeHold     time.Duration
+	closeHold    time.Duration
 	roundAfter   time.Duration
 	olderAfter   time.Duration
 	loaded       chan struct{}
@@ -163,6 +164,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.rechecks = recheckDelays(envDelay(recheckEnv, 0))
 	a.trustPoll = envDelay(trustPollEnv, trustPollDefault)
 	a.takeHold = envDelay(takeHoldEnv, 0)
+	a.closeHold = envDelay(closeHoldEnv, 0)
 	a.roundAfter = envDelay(roundResetEnv, roundReset)
 	a.olderAfter = envDelay(olderAfterEnv, olderAfter)
 	a.groups = newGroups(a.stateDir)

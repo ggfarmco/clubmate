@@ -42,32 +42,33 @@ const (
 )
 
 type record struct {
-	ID             string   `json:"id"`
-	Workspace      string   `json:"workspace"`
-	Worktree       string   `json:"worktree"`
-	Night          string   `json:"night"`
-	Agent          string   `json:"agent"`
-	AgentSessionID string   `json:"agentSessionId"`
-	Title          string   `json:"title"`
-	ParentSession  string   `json:"parentSession"`
-	HandoffFrom    string   `json:"handoffFrom"`
-	HandoffTo      string   `json:"handoffTo"`
-	ImportedFrom   string   `json:"importedFrom"`
-	Notify         string   `json:"notify"`
-	Advisor        string   `json:"advisor"`
-	Status         string   `json:"status"`
-	Mode           string   `json:"mode"`
-	Finish         string   `json:"finish"`
-	Handoff        string   `json:"handoff"`
-	AFK            bool     `json:"afk"`
-	AFKBy          string   `json:"afkBy"`
-	StartedBy      string   `json:"startedBy"`
-	StartNotice    string   `json:"startNotice"`
-	CronJob        string   `json:"cronJob"`
-	Error          string   `json:"error"`
-	Pending        []string `json:"pending"`
-	CardRequests   []string `json:"cardRequests"`
-	Asks           bool     `json:"asks"`
+	ID             string    `json:"id"`
+	Workspace      string    `json:"workspace"`
+	Worktree       string    `json:"worktree"`
+	Night          string    `json:"night"`
+	Agent          string    `json:"agent"`
+	AgentSessionID string    `json:"agentSessionId"`
+	Title          string    `json:"title"`
+	ParentSession  string    `json:"parentSession"`
+	HandoffFrom    string    `json:"handoffFrom"`
+	HandoffTo      string    `json:"handoffTo"`
+	ImportedFrom   string    `json:"importedFrom"`
+	Notify         string    `json:"notify"`
+	Advisor        string    `json:"advisor"`
+	Status         string    `json:"status"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+	Mode           string    `json:"mode"`
+	Finish         string    `json:"finish"`
+	Handoff        string    `json:"handoff"`
+	AFK            bool      `json:"afk"`
+	AFKBy          string    `json:"afkBy"`
+	StartedBy      string    `json:"startedBy"`
+	StartNotice    string    `json:"startNotice"`
+	CronJob        string    `json:"cronJob"`
+	Error          string    `json:"error"`
+	Pending        []string  `json:"pending"`
+	CardRequests   []string  `json:"cardRequests"`
+	Asks           bool      `json:"asks"`
 	PendingSummary *struct {
 		Kind string `json:"kind"`
 		Text string `json:"text"`

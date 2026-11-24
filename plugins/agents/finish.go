@@ -257,24 +257,36 @@ func (a *app) othersIn(id, root string) bool {
 }
 
 func (a *app) closeIdle(ctx context.Context, s *session) bool {
-	return a.closeUnlessBusy(ctx, s, false, false)
+	return a.closeUnlessBusy(ctx, s, false, false, 0)
 }
 
-func (a *app) closeUnlessBusy(ctx context.Context, s *session, evenAsking, idleOK bool) bool {
+func (a *app) closeUnlessBusy(ctx context.Context, s *session, evenAsking, idleOK bool, asidesIdle time.Duration) bool {
 	if rec := s.snapshot(); a.activeBelow(rec.Workspace, rec.ID) {
 		return false
 	}
 	a.noteBranch(ctx, s)
+	if asidesIdle > 0 {
+		a.asideMu.Lock()
+	}
+	closed := (asidesIdle == 0 || a.asidesSettled([]*session{s}, asidesIdle)) && s.autoClose(evenAsking, idleOK)
+	if asidesIdle > 0 {
+		a.asideMu.Unlock()
+	}
+	if closed {
+		a.closeSession(ctx, s, false)
+	}
+	return closed
+}
+
+func (s *session) autoClose(evenAsking, idleOK bool) bool {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.running || len(s.queue) > 0 || s.rec.Status != statusDone && !(idleOK && s.rec.Status == statusIdle) || s.rec.OpenCount > 0 || !evenAsking && s.asksLocked() {
-		s.mu.Unlock()
 		return false
 	}
 	s.recordLocked(actorClubmate, kindClose, acp.SessionRequest{SessionID: s.rec.AgentSessionID})
 	s.setStatusLocked(statusClosed, "")
 	s.rec.AutoClosed = true
-	s.mu.Unlock()
-	a.closeSession(ctx, s, false)
 	return true
 }
 

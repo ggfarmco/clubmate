@@ -90,16 +90,16 @@ func (a *app) submit(s *session, args *promptArgs) error {
 	if args != nil && args.User {
 		a.resetRounds(s, time.Time{})
 	}
-	s.mu.Lock()
-	s.loadLocked()
-	if args != nil && !args.Queued && s.running && !s.cancelRequested && !s.rec.closed() && s.proc != nil && s.proc.steering {
-		p, rec := s.proc, s.rec
-		s.mu.Unlock()
-		if a.steer(s, p, rec, *args) {
-			return nil
-		}
-		s.mu.Lock()
+	if args != nil && !args.Queued && a.steered(s, *args) {
+		return nil
 	}
+	unlock, err := a.lockAsideParent(s)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	unlock()
+	s.loadLocked()
 	switch {
 	case s.rec.closed():
 		s.mu.Unlock()
@@ -119,6 +119,28 @@ func (a *app) submit(s *session, args *promptArgs) error {
 	}
 	a.runQueuedLocked(s)
 	return nil
+}
+
+func (a *app) steered(s *session, args promptArgs) bool {
+	s.mu.Lock()
+	s.loadLocked()
+	p, rec := s.proc, s.rec
+	ok := s.running && !s.cancelRequested && !rec.closed() && p != nil && p.steering
+	s.mu.Unlock()
+	return ok && a.steer(s, p, rec, args)
+}
+
+func (a *app) lockAsideParent(s *session) (func(), error) {
+	rec := s.snapshot()
+	if !rec.isAside() {
+		return func() {}, nil
+	}
+	a.asideMu.Lock()
+	if parent := a.session(rec.ParentSession); parent == nil || parent.snapshot().closed() {
+		a.asideMu.Unlock()
+		return nil, errParentGone
+	}
+	return a.asideMu.Unlock, nil
 }
 
 func (a *app) runQueuedLocked(s *session) {

@@ -470,7 +470,7 @@ func (a *app) closeReviewer(ctx context.Context, s *session) {
 	case rec.Status == statusError:
 		a.closeTree(ctx, s)
 	default:
-		a.closeUnlessBusy(ctx, s, false, true)
+		a.closeUnlessBusy(ctx, s, false, true, 0)
 	}
 }
 
