@@ -217,6 +217,15 @@ class E2ETestCase: XCTestCase {
         self.mac = mac
     }
 
+    override func record(_ issue: XCTIssue) {
+        var issue = issue
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = "failure"
+        shot.lifetime = .keepAlways
+        issue.add(shot)
+        super.record(issue)
+    }
+
     var deliveredDump: URL? {
         Mac.out?.appending(path: "delivered.json")
     }
@@ -281,6 +290,18 @@ class E2ETestCase: XCTestCase {
 
     func text(_ app: XCUIApplication, containing label: String) -> XCUIElement {
         app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", label)).firstMatch
+    }
+
+    func online(_ app: XCUIApplication, timeout: TimeInterval) -> Bool {
+        wait(for: app.buttons["workspace.capsule"], "exists == true AND (value == nil OR value == '')", timeout: timeout)
+    }
+
+    func reveal(_ app: XCUIApplication, _ element: XCUIElement, swipes: Int = 8) -> Bool {
+        for _ in 0..<swipes {
+            if element.waitForExistence(timeout: 2), element.isHittable { return true }
+            app.swipeUp()
+        }
+        return element.waitForExistence(timeout: 2) && element.isHittable
     }
 
     func step(_ app: XCUIApplication, _ title: String) -> XCUIElement {

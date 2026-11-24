@@ -17,7 +17,7 @@ final class RelayPathTests: E2ETestCase {
 
     func testAPhonePairedWithoutHostsSendsAPromptAndGetsTheReplyOverTheRelay() throws {
         let app = try launchOverRelay(open: "agents")
-        XCTAssertTrue(text(app, containing: "online").waitForExistence(timeout: 20))
+        XCTAssertTrue(online(app, timeout: 20))
         app.navigationBars.buttons["New Session"].tap()
         let composer = app.textViews["composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 10))
@@ -46,7 +46,7 @@ final class RelayPathTests: E2ETestCase {
 
     func testAPushIsSkippedWhileTheRelayStreamIsOpenAndSentAfterTheRelayDropsIt() throws {
         let app = try launchOverRelay(open: "agents")
-        XCTAssertTrue(text(app, containing: "online").waitForExistence(timeout: 20))
+        XCTAssertTrue(online(app, timeout: 20))
         allowNotifications(timeout: 10)
         try waitForPushToken()
         XCTAssertEqual(try pushOutcomes("E2E relay open"), ["skipped, stream open"])

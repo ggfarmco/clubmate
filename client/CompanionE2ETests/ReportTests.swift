@@ -3,7 +3,7 @@ import XCTest
 final class ReportTests: E2ETestCase {
     func testAReportWrittenOfflineReachesTheRelayWithMacLogs() throws {
         var app = try launch(open: "sidebar")
-        XCTAssertTrue(app.buttons["workspace.capsule"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.tabBars.buttons["More"].waitForExistence(timeout: 20))
         app.terminate()
         try mac.setRemote(false)
         addTeardownBlock { [mac] in try? mac?.setRemote(true) }
@@ -15,6 +15,9 @@ final class ReportTests: E2ETestCase {
         words.tap()
         words.typeText("E2E report while the Mac is away")
         app.buttons["report.send"].tap()
+        let more = app.tabBars.buttons["More"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        more.tap()
         XCTAssertTrue(text(app, containing: "Problem report").waitForExistence(timeout: 10))
 
         try mac.setRemote(true)

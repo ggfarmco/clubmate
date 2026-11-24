@@ -41,7 +41,7 @@ struct RootView: View {
         }
         .onChange(of: tabsSource, initial: true) { _, key in
             tabsUI?.hide(owner: Self.tabsOwner)
-            tabsUI = key.flatMap { model.connection($0.computer)?.workspaceUI($0.workspace) }
+            tabsUI = key.flatMap { model.connection($0.key.computer)?.workspaceUI($0.key.workspace) }
             tabsUI?.show([], owner: Self.tabsOwner)
         }
         .onChange(of: navigation.liveTabs(model), initial: true) { _, live in
@@ -86,8 +86,8 @@ struct RootView: View {
         .sensoryFeedback(.success, trigger: pairing.paired)
     }
 
-    private var tabsSource: WorkspaceKey? {
-        navigation.workspaceKey.flatMap { model.connection($0.computer) == nil ? nil : $0 }
+    private var tabsSource: TabsSource? {
+        navigation.workspaceKey.flatMap { key in model.connection(key.computer).map { TabsSource(key: key, connection: $0.instance) } }
     }
 
     private var workspaceIDs: [[String]] {
@@ -110,7 +110,7 @@ struct RootView: View {
     private var shownSection: ShownSection? {
         guard let key = navigation.workspaceKey, case .section(let section, _)? = navigation.path.last?.destination,
               section != InboxPluginInfo.id, navigation.tab == .more || navigation.tab == .agents && section.hasPrefix(AgentsPluginInfo.id + ".") else { return nil }
-        return ShownSection(computer: key.computer, workspace: key.workspace, section: section)
+        return ShownSection(computer: key.computer, workspace: key.workspace, section: section, connection: model.connection(key.computer)?.instance)
     }
 }
 
@@ -464,6 +464,12 @@ struct ShownSection: Equatable {
     let computer: String
     let workspace: String
     let section: String
+    let connection: UUID?
+}
+
+struct TabsSource: Equatable {
+    let key: WorkspaceKey
+    let connection: UUID
 }
 
 struct PairingOverlay: View {

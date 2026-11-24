@@ -18,4 +18,15 @@ final class ConnectionTests: E2ETestCase {
         XCTAssertTrue(wait(for: app.descendants(matching: .any)["connection.step.hello"], "label CONTAINS 'no address answered'"))
         screenshot(app, "connection-refused")
     }
+
+    func testARevokedMacPairedAgainGetsItsTabsBack() throws {
+        var app = try launch(open: "agents")
+        let more = app.tabBars.buttons["More"]
+        XCTAssertTrue(more.waitForExistence(timeout: 20))
+        try mac.revokeDevices()
+        XCTAssertTrue(wait(for: more, "exists == false", timeout: 30))
+        app.terminate()
+        app = try launch(open: "agents")
+        XCTAssertTrue(app.tabBars.buttons["More"].waitForExistence(timeout: 20))
+    }
 }

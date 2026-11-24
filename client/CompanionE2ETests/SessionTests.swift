@@ -56,7 +56,7 @@ final class SessionTests: E2ETestCase {
         XCTAssertTrue(step(app, "Tick one").waitForExistence(timeout: 15))
         app.navigationBars.buttons.firstMatch.tap()
         let row = app.staticTexts["E2E stream"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(reveal(app, row))
         row.tap()
         XCTAssertTrue(step(app, "Tick one").waitForExistence(timeout: 5))
         try mac.signal("stream-1")

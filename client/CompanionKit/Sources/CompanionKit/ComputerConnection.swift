@@ -111,6 +111,7 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored private let eventSaves = SaveThrottle()
     @ObservationIgnored public let device: DeviceIdentity?
     @ObservationIgnored public let appVersion: String
+    @ObservationIgnored public let instance = UUID()
     @ObservationIgnored private var loggedState: String?
     @ObservationIgnored private var awakeSeq = 0
 

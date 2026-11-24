@@ -11,7 +11,7 @@ final class PushTests: E2ETestCase {
 
     func testAQuestionAnsweredOnTheMacEndsAsOneFinishedEntry() throws {
         let app = try launch(open: "agents")
-        XCTAssertTrue(text(app, containing: "online").waitForExistence(timeout: 15))
+        XCTAssertTrue(online(app, timeout: 15))
         XCUIDevice.shared.press(.home)
         let session = try mac.newSession("E2E push")
         eventually("a question alert") { try delivered(session).map(\.kind) == ["question"] }
@@ -24,7 +24,7 @@ final class PushTests: E2ETestCase {
         let parent = try mac.newSession("E2E parent")
         eventually("the parent's first turn to end") { try status(parent) == "done" }
         let app = try launch(open: "agents")
-        XCTAssertTrue(text(app, containing: "online").waitForExistence(timeout: 15))
+        XCTAssertTrue(online(app, timeout: 15))
         XCUIDevice.shared.press(.home)
         let child = (try mac.run("agents.new", ["prompt": "E2E kid reports"], caller: parent, agent: true) as? [String: Any])?["session"] as? String
         XCTAssertNotNil(child)
@@ -37,7 +37,7 @@ final class PushTests: E2ETestCase {
 
     func testPushesOfOneSessionShareItsCollapseIDAndTheLocalAlertReplacesThem() throws {
         var app = try launch(open: "agents")
-        XCTAssertTrue(text(app, containing: "online").waitForExistence(timeout: 15))
+        XCTAssertTrue(online(app, timeout: 15))
         try waitForPushToken()
         app.terminate()
         eventually("the Mac to see the phone gone") {
@@ -48,7 +48,7 @@ final class PushTests: E2ETestCase {
         XCTAssertEqual(try alerts(session).first?["collapseID"] as? String, session)
         XCTAssertEqual(try alerts(session).first?["delivered"] as? String, "simctl")
         app = try launch(open: "agents")
-        XCTAssertTrue(text(app, containing: "online").waitForExistence(timeout: 15))
+        XCTAssertTrue(online(app, timeout: 15))
         eventually("the pushed question on the phone") { try delivered(session).contains { $0.push && $0.kind == "question" } }
         XCUIDevice.shared.press(.home)
         try mac.answerOnTheMac(session, "Yes")

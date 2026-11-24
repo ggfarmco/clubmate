@@ -85,11 +85,11 @@ final class AppNavigation {
 
     var voiceDock: CGRect? { voiceDocks.last?.frame }
 
-    init(restore: Bool = AppNavigation.restores, defaults: UserDefaults = .standard) {
+    init(restore: Bool = AppNavigation.restores, fresh: Bool = AppNavigation.opensFresh, defaults: UserDefaults = .standard) {
         persists = restore
         self.defaults = defaults
         defaults.removeObject(forKey: "sidebarHidden")
-        stacks = restore ? TabStacks.restore(from: defaults) : TabStacks()
+        stacks = restore && !fresh ? TabStacks.restore(from: defaults) : TabStacks()
         knownTabs = restore ? KnownTabs.restore(from: defaults) : KnownTabs()
         workspaces = restore ? LastWorkspaces.restore(from: defaults) : LastWorkspaces()
         if let key = stacks.workspace { workspaces[key.computer] = key.workspace }
@@ -114,6 +114,15 @@ final class AppNavigation {
         return defaults.string(forKey: "fixtures") == nil || defaults.bool(forKey: "restoreStacks")
         #else
         true
+        #endif
+    }
+
+    private static var opensFresh: Bool {
+        #if DEBUG
+        let defaults = UserDefaults.standard
+        return defaults.string(forKey: "open") != nil && !defaults.bool(forKey: "restoreStacks")
+        #else
+        false
         #endif
     }
 

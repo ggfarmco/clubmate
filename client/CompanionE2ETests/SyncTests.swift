@@ -10,9 +10,7 @@ final class SyncTests: E2ETestCase {
         try mac.freezeCore()
         addTeardownBlock { [mac] in try? mac?.thawCore() }
         app.buttons["Add"].tap()
-        XCTAssertTrue(app.staticTexts["No Task Selected"].waitForExistence(timeout: 40))
-        app.navigationBars.buttons["BackButton"].tap()
-        XCTAssertTrue(text(app, containing: "Add “").waitForExistence(timeout: 10))
+        XCTAssertTrue(text(app, containing: "Add “").waitForExistence(timeout: 40))
         try mac.thawCore()
         eventually("the task on the Mac", timeout: 120) { try mac.tasks(titled: title) > 0 }
         XCTAssertTrue(wait(for: text(app, containing: "Add “"), "exists == false", timeout: 60))

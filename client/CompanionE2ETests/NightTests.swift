@@ -14,7 +14,7 @@ final class NightTests: E2ETestCase {
 
     func testANightsReportReachesTheLockedPhoneAndOpensWithItsUndo() throws {
         let app = try launch(open: "agents")
-        XCTAssertTrue(text(app, containing: "online").waitForExistence(timeout: 15))
+        XCTAssertTrue(online(app, timeout: 15))
         _ = try mac.rpc("ui.event", ["workspaceId": "", "slot": "agents.settings", "nodeId": "self-enabled", "action": "self-enabled", "value": true])
         try waitForPushToken()
         let day = try mac.newSession("E2E night day")
