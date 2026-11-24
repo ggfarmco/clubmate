@@ -12,6 +12,10 @@ fail() {
   exit 1
 }
 
+for tool in actionlint yq; do
+  command -v "$tool" >/dev/null || fail "$tool not found: brew install actionlint yq"
+done
+
 for f in "$CI" "$RELEASE"; do
   [[ -f "$f" ]] || fail "${f#"$ROOT"/} not found"
 done
@@ -32,9 +36,14 @@ DMG_STEP="$(step_index scripts/release/dmg.sh)"
 DELETE_STEP="$(step_index delete-keychain)"
 ((BUILD_STEP >= 0 && IMPORT_STEP > BUILD_STEP)) || fail "release.yml must import the signing certificate after build.sh"
 ((DMG_STEP >= 0 && DELETE_STEP > DMG_STEP)) || fail "release.yml must delete the keychain after dmg.sh"
+NOTARIZE_STEP="$(step_index scripts/release/notarize.sh)"
+DELTAS_STEP="$(step_index scripts/release/deltas.sh)"
+APPCAST_STEP="$(step_index scripts/release/appcast.sh)"
+((NOTARIZE_STEP >= 0 && DELTAS_STEP > NOTARIZE_STEP && APPCAST_STEP > DELTAS_STEP)) || fail "release.yml must run deltas.sh after notarize.sh and before appcast.sh"
 WAIT_CI_STEP="$(step_index scripts/release/wait-ci.sh)"
 PUBLISH_STEP="$(step_index 'gh release create')"
 ((WAIT_CI_STEP >= 0 && PUBLISH_STEP > WAIT_CI_STEP)) || fail "release.yml must wait for ci before gh release create"
+[[ "$(yq '.jobs[].steps[] | select((.run // "") | contains("gh release create")) | .run' "$RELEASE")" == *dist/deltas.tsv* ]] || fail "release.yml must upload the delta updates in dist/deltas.tsv"
 [[ "$(yq '.jobs[].steps[] | select((.run // "") | contains("delete-keychain")) | .if' "$RELEASE")" == 'always()' ]] || fail "release.yml must delete the keychain with if: always()"
 
 for f in "$DIR"/*.yml; do

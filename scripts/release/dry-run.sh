@@ -5,15 +5,21 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 VERSION="0.0.0-test"
+OLD_VERSION="0.0.0-old"
 MACOS_MIN="27.0"
 BUILD="$(git rev-list --count HEAD)"
+OLD_BUILD="$((BUILD - 1))"
 APP="dist/Clubmate.app"
 DMG="dist/Clubmate-$VERSION.dmg"
 APPCAST="dist/appcast.xml"
 URL="https://github.com/ggfarmco/clubmate/releases/download/v$VERSION/Clubmate-$VERSION.dmg"
+DELTA="dist/Clubmate-$OLD_VERSION-$VERSION.delta"
+DELTA_URL="https://github.com/ggfarmco/clubmate/releases/download/v$VERSION/Clubmate-$OLD_VERSION-$VERSION.delta"
 TMP="$(mktemp -d)"
 MNT="$TMP/mnt"
+OLD_APP="$TMP/old/Clubmate.app"
 trap 'hdiutil detach "$MNT" -quiet >/dev/null 2>&1 || true; rm -rf "$TMP"' EXIT
+source scripts/release/sparkle.sh
 
 expect() {
   local what="$1" got="$2" want="$3"
@@ -66,7 +72,14 @@ SPARKLE_PUBLIC_KEY="$PUBLIC_KEY" scripts/release/build.sh "$VERSION" 2>&1 | tee 
 scripts/release/sign.sh "$APP" -
 scripts/release/dmg.sh "$APP" "$VERSION" -
 env -u ASC_KEY_ID scripts/release/notarize.sh "$DMG"
-SPARKLE_PRIVATE_KEY="$(<"$TMP/sparkle.key")" scripts/release/appcast.sh "$DMG" "$VERSION" "$BUILD"
+mkdir -p "$TMP/old"
+ditto "$APP" "$OLD_APP"
+plutil -replace CFBundleVersion -string "$OLD_BUILD" "$OLD_APP/Contents/Info.plist"
+plutil -replace CFBundleShortVersionString -string "$OLD_VERSION" "$OLD_APP/Contents/Info.plist"
+echo old >"$OLD_APP/Contents/Resources/delta-test"
+hdiutil create -volname Clubmate -srcfolder "$TMP/old" -fs HFS+ -format ULFO "$TMP/old.dmg" -quiet
+scripts/release/deltas.sh "$DMG" "$VERSION" "$TMP/old.dmg"
+SPARKLE_PRIVATE_KEY="$(<"$TMP/sparkle.key")" scripts/release/appcast.sh "$DMG" "$VERSION" "$BUILD" dist/deltas.tsv
 
 PLIST="$APP/Contents/Info.plist"
 check "codesign --verify --strict $APP" codesign --verify --strict --deep "$APP"
@@ -94,6 +107,11 @@ for f in LICENSE NOTICE THIRD_PARTY_LICENSES.md; do
 done
 check "dmg links /Applications" test "$(readlink "$MNT/Applications")" == /Applications
 check "dmg app signature" codesign --verify --strict --deep "$MNT/Clubmate.app"
+SPARKLE_BIN="$(sparkle_bin)"
+mkdir -p "$TMP/patched"
+check "BinaryDelta apply $DELTA" "$SPARKLE_BIN/BinaryDelta" apply "$OLD_APP" "$TMP/patched/Clubmate.app" "$DELTA"
+check "patched old app is the dmg app" test "$(tree_digest "$TMP/patched/Clubmate.app")" == "$(tree_digest "$MNT/Clubmate.app")"
+check "patched app signature" codesign --verify --strict --deep "$TMP/patched/Clubmate.app"
 hdiutil detach "$MNT" -quiet
 
 expect "enclosure url" "$(xpath "string(//item/enclosure/@url)")" "$URL"
@@ -103,6 +121,14 @@ expect "sparkle:minimumSystemVersion" "$(xpath "string(//item/*[local-name()='mi
 expect "clubmate:sessionProtocol" "$(xpath "string(//item/*[local-name()='sessionProtocol' and namespace-uri()='https://github.com/ggfarmco/clubmate'])")" "$(go run ./cmd/clubmate version --json | plutil -extract sessionProtocol raw -)"
 check "clubmate: prefix" grep -q '<clubmate:sessionProtocol>' "$APPCAST"
 check "non-empty edSignature" test -n "$(xpath "string(//item/enclosure/@*[local-name()='edSignature'])")"
+DELTA_ENCLOSURE="//item/*[local-name()='deltas']/enclosure"
+expect "delta count" "$(xpath "count($DELTA_ENCLOSURE)")" 1
+expect "delta url" "$(xpath "string($DELTA_ENCLOSURE/@url)")" "$DELTA_URL"
+expect "delta deltaFrom" "$(xpath "string($DELTA_ENCLOSURE/@*[local-name()='deltaFrom'])")" "$OLD_BUILD"
+expect "delta length" "$(xpath "string($DELTA_ENCLOSURE/@length)")" "$(stat -f %z "$DELTA")"
+expect "delta deltaFromSparkleExecutableSize" "$(xpath "string($DELTA_ENCLOSURE/@*[local-name()='deltaFromSparkleExecutableSize'])")" "$(stat -L -f %z "$OLD_APP/Contents/Frameworks/Sparkle.framework/Sparkle")"
+check "delta deltaFromSparkleLocales" test -n "$(xpath "string($DELTA_ENCLOSURE/@*[local-name()='deltaFromSparkleLocales'])")"
+check "delta edSignature verifies" "$SPARKLE_BIN/sign_update" --verify --ed-key-file "$TMP/sparkle.key" "$DELTA" "$(xpath "string($DELTA_ENCLOSURE/@*[local-name()='edSignature'])")"
 check "dist/ is gitignored" git check-ignore -q dist/Clubmate.app
 
 echo "dry run ok"

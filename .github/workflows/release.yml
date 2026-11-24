@@ -179,12 +179,19 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: scripts/release/notarize.sh "dist/Clubmate-$VERSION.dmg"
 
+      - name: Delta updates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/release/deltas.sh "dist/Clubmate-$VERSION.dmg" "$VERSION"
+
       - name: Appcast
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
           VERSION: ${{ steps.version.outputs.version }}
           BUILD: ${{ steps.version.outputs.build }}
-        run: scripts/release/appcast.sh "dist/Clubmate-$VERSION.dmg" "$VERSION" "$BUILD"
+        run: scripts/release/appcast.sh "dist/Clubmate-$VERSION.dmg" "$VERSION" "$BUILD" dist/deltas.tsv
 
       - name: Wait for CI
         env:
@@ -199,5 +206,9 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           scripts/release/notes.sh "$GITHUB_REF_NAME" >"$RUNNER_TEMP/notes.md"
-          gh release create "$GITHUB_REF_NAME" "dist/Clubmate-$VERSION.dmg" dist/appcast.xml \
+          assets=("dist/Clubmate-$VERSION.dmg" dist/appcast.xml)
+          while IFS=$'\t' read -r name _; do
+            assets+=("dist/$name")
+          done <dist/deltas.tsv
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
             --title "Clubmate $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag

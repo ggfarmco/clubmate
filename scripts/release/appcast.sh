@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 3 ]]; then
-  echo "usage: $0 <path/to/Clubmate.dmg> <version> <build>" >&2
+if [[ $# -lt 3 || $# -gt 4 ]]; then
+  echo "usage: $0 <path/to/Clubmate.dmg> <version> <build> [deltas.tsv]" >&2
   exit 2
 fi
 
 DMG="$1"
 VERSION="$2"
 BUILD="$3"
+DELTAS="${4:-}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT="$ROOT/dist/appcast.xml"
-SPARKLE_VERSION="2.10.1"
-SPARKLE_SHA256="4c2e48a3e50ebcc2c88a58a4c7264a1a99c3c31857ce754357afb9cdb323022a"
-SPARKLE_ZIP_URL="https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-for-Swift-Package-Manager.zip"
+source "$ROOT/scripts/release/sparkle.sh"
 
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
   echo "error: version must be X.Y.Z or X.Y.Z-suffix, got '$VERSION'" >&2
@@ -27,6 +26,10 @@ if [[ ! -f "$DMG" ]]; then
   echo "error: $DMG not found" >&2
   exit 1
 fi
+if [[ -n "$DELTAS" && ! -f "$DELTAS" ]]; then
+  echo "error: $DELTAS not found" >&2
+  exit 1
+fi
 if [[ -z "${SPARKLE_PRIVATE_KEY:-}" ]]; then
   echo "error: SPARKLE_PRIVATE_KEY is not set" >&2
   exit 1
@@ -34,41 +37,47 @@ fi
 declare +x PRIVATE_KEY="$SPARKLE_PRIVATE_KEY"
 unset SPARKLE_PRIVATE_KEY
 
-sign_update() {
-  local spm="$ROOT/build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update"
-  local cache="$ROOT/build/sparkle-$SPARKLE_VERSION"
-  if [[ -x "$spm" ]]; then
-    echo "$spm"
-    return
-  fi
-  if [[ ! -x "$cache/bin/sign_update" ]]; then
-    local tmp
-    tmp="$(mktemp -d)"
-    curl -fsSL -o "$tmp/sparkle.zip" "$SPARKLE_ZIP_URL"
-    echo "$SPARKLE_SHA256  $tmp/sparkle.zip" | shasum -a 256 -c - >&2
-    rm -rf "$cache"
-    ditto -x -k "$tmp/sparkle.zip" "$cache"
-    rm -rf "$tmp"
-  fi
-  echo "$cache/bin/sign_update"
-}
-
 html_escape() {
   sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
 }
 
-SIGN_UPDATE="$(sign_update)"
-SIGNATURE="$(printf '%s' "$PRIVATE_KEY" | "$SIGN_UPDATE" --ed-key-file - -p "$DMG")"
-if [[ -z "$SIGNATURE" ]]; then
-  echo "error: sign_update produced no signature" >&2
-  exit 1
+SIGN_UPDATE="$(sparkle_bin)/sign_update"
+sign() {
+  local signature
+  signature="$(printf '%s' "$PRIVATE_KEY" | "$SIGN_UPDATE" --ed-key-file - -p "$1")"
+  if [[ -z "$signature" ]]; then
+    echo "error: sign_update produced no signature for $1" >&2
+    exit 1
+  fi
+  echo "$signature"
+}
+
+SIGNATURE="$(sign "$DMG")"
+RELEASE_URL="https://github.com/ggfarmco/clubmate/releases/download/v$VERSION"
+DELTA_XML=""
+if [[ -n "$DELTAS" ]]; then
+  DELTA_DIR="$(dirname "$DELTAS")"
+  while IFS=$'\t' read -r name from size locales; do
+    file="$DELTA_DIR/$name"
+    if [[ ! "$name" =~ ^Clubmate-[0-9A-Za-z.-]+\.delta$ || ! "$from" =~ ^[0-9]+$ || ! "$size" =~ ^[0-9]+$ || ! "$locales" =~ ^[a-zA-Z_,-]*$ || ! -f "$file" ]]; then
+      echo "error: bad line in $DELTAS: $name $from $size $locales" >&2
+      exit 1
+    fi
+    DELTA_XML+="
+        <enclosure url=\"$RELEASE_URL/$name\" sparkle:deltaFrom=\"$from\" length=\"$(stat -f %z "$file")\" type=\"application/octet-stream\" sparkle:deltaFromSparkleExecutableSize=\"$size\" ${locales:+sparkle:deltaFromSparkleLocales=\"$locales\" }sparkle:edSignature=\"$(sign "$file")\"/>"
+  done <"$DELTAS"
+fi
+if [[ -n "$DELTA_XML" ]]; then
+  DELTA_XML="
+      <sparkle:deltas>$DELTA_XML
+      </sparkle:deltas>"
 fi
 
 VERSION_JSON="$(cd "$ROOT" && go run ./cmd/clubmate version --json)"
 SESSION_PROTOCOL="$(plutil -extract sessionProtocol raw - <<<"$VERSION_JSON")"
 LENGTH="$(stat -f %z "$DMG")"
 PUB_DATE="$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')"
-URL="https://github.com/ggfarmco/clubmate/releases/download/v$VERSION/Clubmate-$VERSION.dmg"
+URL="$RELEASE_URL/Clubmate-$VERSION.dmg"
 NOTES="$("$ROOT/scripts/release/notes.sh" "v$VERSION" | html_escape | sed -e 's/^- \(.*\)$/<li>\1<\/li>/')"
 
 mkdir -p "$(dirname "$OUT")"
@@ -88,7 +97,7 @@ cat >"$OUT" <<XML
       <description><![CDATA[<ul>
 $NOTES
 </ul>]]></description>
-      <enclosure url="$URL" length="$LENGTH" type="application/octet-stream" sparkle:edSignature="$SIGNATURE"/>
+      <enclosure url="$URL" length="$LENGTH" type="application/octet-stream" sparkle:edSignature="$SIGNATURE"/>$DELTA_XML
     </item>
   </channel>
 </rss>

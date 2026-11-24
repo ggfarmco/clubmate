@@ -133,7 +133,7 @@ The JSON-RPC transport is a fork of `github.com/sourcegraph/jsonrpc2` in `third_
 - **Nightly:** the repo's `nightly` graph (`.clubmate/graphs/nightly.json`, run by the "Nightly tidy" cron job) runs the tidy, `make test`, the Companion and Mac UI tests (`scripts/graph/`), pushes main and ships the next patch; `design-check` is the nightly design check. See `docs/agent-graphs.md` § nightly.
 - **Release:**
   - Pushing a `vX.Y.Z` tag runs the release workflow (`.github/workflows/release.yml`) in the `release` environment, which holds the signing secrets and allows only `v*` tags; it fails unless the tagged commit is on main.
-  - It builds, signs with Developer ID (entitlements in `scripts/release/`), builds a DMG, notarizes it and makes a Sparkle appcast, then waits for the CI run on that commit to pass (`scripts/release/wait-ci.sh`) before it publishes the GitHub release.
+  - It builds, signs with Developer ID (entitlements in `scripts/release/`), builds a DMG, notarizes it, makes Sparkle delta updates from the last 3 releases (`scripts/release/deltas.sh`, so an update downloads only the changed files) and a Sparkle appcast, then waits for the CI run on that commit to pass (`scripts/release/wait-ci.sh`) before it publishes the GitHub release.
   - The build number is the commit count, so updates always move forward.
 
 ## Conventions

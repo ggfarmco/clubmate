@@ -56,6 +56,8 @@ test:
 	go test -race -timeout 20m $$(go list ./... | grep -v /dist/)
 	cd third_party/jsonrpc2 && go test ./...
 	scripts/release/ship-test.sh
+	scripts/release/deltas-test.sh
+	scripts/release/check-workflows.sh
 	$(MAKE) lint-tests
 
 BASE ?= $(shell git merge-base HEAD main)
