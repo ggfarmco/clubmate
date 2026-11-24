@@ -412,7 +412,7 @@ final class IPadUITests: XCTestCase {
     }
 
     private func press(_ app: XCUIApplication, _ key: String, _ modifiers: XCUIElement.KeyModifierFlags, until done: @autoclosure () -> Bool) -> Bool {
-        for _ in 0..<3 {
+        for _ in 0..<6 {
             app.typeKey(key, modifierFlags: modifiers)
             if done() { return true }
         }

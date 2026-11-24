@@ -64,18 +64,27 @@ func TestAskStartsNoClaudeInTestMode(t *testing.T) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("CLUBMATE_TEST_MODE", "1")
 
-	for flavor, offline := range map[string]bool{"dev": true, "release": false} {
-		t.Setenv("CLUBMATE_FLAVOR", flavor)
+	for _, tc := range []struct {
+		flavor, testClaude string
+		offline            bool
+	}{
+		{"dev", "", true},
+		{"dev", "1", false},
+		{"release", "", false},
+	} {
+		name := tc.flavor + " CLUBMATE_TEST_CLAUDE=" + tc.testClaude
+		t.Setenv("CLUBMATE_FLAVOR", tc.flavor)
+		t.Setenv("CLUBMATE_TEST_CLAUDE", tc.testClaude)
 		os.Remove(ran)
 
 		_, err := Ask(t.Context(), Haiku, "system", "input")
 
-		if offline {
-			assert.ErrorIs(t, err, ErrMissing, flavor)
-			assert.NoFileExists(t, ran, flavor)
+		if tc.offline {
+			assert.ErrorIs(t, err, ErrMissing, name)
+			assert.NoFileExists(t, ran, name)
 			continue
 		}
-		require.NoError(t, err, flavor)
-		assert.FileExists(t, ran, flavor)
+		require.NoError(t, err, name)
+		assert.FileExists(t, ran, name)
 	}
 }

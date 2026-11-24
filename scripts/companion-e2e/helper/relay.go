@@ -31,8 +31,11 @@ type relayState struct {
 }
 
 func newTunnelRelay(token string) (*tunnelrelay.Relay, error) {
+	limits := tunnelrelay.DefaultLimits()
+	limits.TicketsBurst = 1000
 	return tunnelrelay.New(tunnelrelay.Config{
-		Auth: func(bearer string) (string, bool) { return "e2e", bearer == token },
+		Auth:   func(bearer string) (string, bool) { return "e2e", bearer == token },
+		Limits: limits,
 	})
 }
 

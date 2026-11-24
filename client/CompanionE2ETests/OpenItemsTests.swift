@@ -45,6 +45,11 @@ final class OpenItemsTests: E2ETestCase {
         return step
     }
 
+    private func stepBar(_ app: XCUIApplication, _ title: String) -> XCUIElement? {
+        let row = app.buttons["Later"].frame.midY
+        return app.buttons.matching(identifier: title).allElementsBoundByIndex.first { abs($0.frame.midY - row) < 4 }
+    }
+
     func testAnsweringOneAndLeavingAnotherForLaterDropsTheMacsCount() throws {
         let session = try sessionWithItems("E2E open later", [decision("Store", "Which store?", ["Postgres", "Redis"]), decision("Cache", "Which cache?", ["Memcached", "None"])])
         let app = try launch(open: "agents")
@@ -70,7 +75,7 @@ final class OpenItemsTests: E2ETestCase {
         _ = answerAll(app)
         XCTAssertTrue(app.staticTexts["1 of 2"].waitForExistence(timeout: 5))
         sleep(1)
-        app.buttons["Backlog"].tap()
+        try XCTUnwrap(stepBar(app, "Backlog"), "no Backlog button on the Later row").tap()
         eventually("the task to land in the Mac's backlog") {
             String(decoding: try JSONSerialization.data(withJSONObject: try mac.run("backlog.list")), as: UTF8.self).contains("Write the migration guide")
         }
@@ -80,11 +85,11 @@ final class OpenItemsTests: E2ETestCase {
         let no = card.buttons["No to All"]
         XCTAssertTrue(wait(for: no, "isEnabled == true"))
         no.tap()
-        let confirm = launched.sheets.buttons["No to All"].firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
-        confirm.tap()
-        XCTAssertTrue(wait(for: card, "exists == false"))
-        eventually("the Mac to have nothing open") { try openCount(session) == 0 }
+        let closing = launched.otherElements["open-closing"]
+        XCTAssertTrue(closing.staticTexts["Closed 1 item"].waitForExistence(timeout: 5))
+        eventually("the Mac to have nothing open", timeout: 20) { try openCount(session) == 0 }
+        XCTAssertTrue(closing.waitForNonExistence(timeout: 10))
+        XCTAssertFalse(card.exists)
     }
 
     func testTheCardsOtherFieldAndThePassMenuRespond() throws {

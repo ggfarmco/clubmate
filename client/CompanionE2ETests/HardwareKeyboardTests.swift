@@ -31,6 +31,7 @@ final class HardwareKeyboardTests: E2ETestCase {
             eventually("the step to wait for approval", timeout: 30) { try stepStatus(run) == "waiting" }
             let app = try launch(open: "agents/\(run)")
             let reject = app.buttons["Reject"]
+            XCTAssertTrue(online(app, timeout: 30))
             XCTAssertTrue(reject.waitForExistence(timeout: 15))
             XCTAssertTrue(wait(for: reject, "isEnabled == true"))
             sleep(1)
