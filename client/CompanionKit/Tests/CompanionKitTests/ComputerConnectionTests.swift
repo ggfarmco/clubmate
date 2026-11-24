@@ -504,6 +504,7 @@ final class ComputerConnectionPathTests: XCTestCase {
         XCTAssertEqual(tries.first, "100.64.0.1")
         XCTAssertEqual(Set(tries.dropFirst()), ["relay relay.example"])
         XCTAssertEqual(ComputerConnection(computer: both(relay), token: "t", transport: transport, relayTicket: "cmk_t", cache: ListCache(dir: dir)).selector.order, [.relay, .tailnet])
+        try await waitUntil { relay.bodies.filter { FakeTransport.rpc(body: $0) == "workspaces" }.count >= 2 }
 
         tailnet.up.withLock { $0 = true }
         relay.fail("/v1/d/call", [.status(503)])
@@ -541,7 +542,7 @@ final class ComputerConnectionPathTests: XCTestCase {
         let computer = Computer(id: "mac1", name: "Mac", hosts: ["100.64.0.1"], port: 47621, relay: relayRoute(relay.privateKey), path: .relay)
         let connection = ComputerConnection(computer: computer, token: "t", transport: RoutedTransport(relay: relay, tailnet: tailnet.transport), relayTicket: "cmk_t", sleep: { _ in })
         connection.start()
-        try await waitUntil { connection.state == .online }
+        try await waitUntil { connection.state == .online && relay.bodies.filter { FakeTransport.rpc(body: $0) == "workspaces" }.count >= 2 }
         relay.fail("/v1/d/call", [.status(502)])
 
         do {

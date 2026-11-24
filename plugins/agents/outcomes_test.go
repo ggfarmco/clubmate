@@ -71,6 +71,7 @@ func (f *fixture) outcome(t *testing.T, workspace, session string, ready func(ou
 func TestOutcomeBindsLandingToChildBuilderWithReviewCost(t *testing.T) {
 	t.Parallel()
 	release := filepath.Join(t.TempDir(), "release")
+	landed := filepath.Join(t.TempDir(), "landed")
 	f := start(t, map[string]any{
 		"configs": []map[string]any{
 			{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "opus", "options": []map[string]string{{"value": "opus", "name": "Opus"}, {"value": "fable", "name": "Fable"}}},
@@ -79,6 +80,7 @@ func TestOutcomeBindsLandingToChildBuilderWithReviewCost(t *testing.T) {
 			usageCost("[exp", 2),
 			usageCost("Clubmate land review", 0.5),
 			{"match": "Clubmate land review", "wait": release},
+			{"match": "Call git_land again", "wait": landed},
 		},
 	}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	repo := newRepo(t)
@@ -103,6 +105,7 @@ func TestOutcomeBindsLandingToChildBuilderWithReviewCost(t *testing.T) {
 	reviewer := g.reviewer(t).ID
 	g.verdict(t, "approved")
 	require.NoError(t, land())
+	write(t, landed, "")
 	squash := git(t, repo, "rev-parse", "main")
 	f.waitStatus(t, workspace, kid.Session, "closed")
 	require.NoError(t, f.run(t, workspace, "agents.delete", map[string]any{"session": kid.Session}, nil))

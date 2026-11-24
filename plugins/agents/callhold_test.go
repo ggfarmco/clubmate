@@ -2019,7 +2019,7 @@ func TestUserPromptResetsTheRound(t *testing.T) {
 	workspace := f.workspace(t, repo)
 	gate := f.addPushGate(t, workspace, repo).ID
 	parent := f.newSession(t, workspace)
-	session := f.newChild(t, workspace, parent, map[string]any{}).Session
+	session := f.newChild(t, workspace, parent, map[string]any{"title": "kid"}).Session
 	f.installToolHook(t, session)
 	require.NoError(t, f.runAs(t, workspace, parent, "agents.prompt", map[string]any{"session": session, "text": "alpha"}, nil))
 	f.waitHeldCall(t, workspace, session, 1)
