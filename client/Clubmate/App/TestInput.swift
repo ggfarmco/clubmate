@@ -22,6 +22,9 @@ enum TestKeyWindow {
         swap(NSApplication.self, #selector(getter: NSApplication.isActive), #selector(NSApplication.test_isActive))
         swap(NSMenu.self, #selector(NSMenu.popUp(positioning:at:in:)), #selector(NSMenu.test_popUp(positioning:at:in:)))
         swap(object_getClass(NSMenu.self)!, #selector(NSMenu.popUpContextMenu(_:with:for:)), #selector(NSMenu.test_popUpContextMenu(_:with:for:)))
+        if let cursor = object_getClass(NSCursor.self), class_getInstanceMethod(cursor, NSCursor.hiddenSelector) != nil {
+            swap(cursor, NSCursor.hiddenSelector, #selector(NSCursor.test_isHidden))
+        }
         NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: nil) { note in
             nonisolated(unsafe) let menu = note.object as? NSMenu
             MainActor.assumeIsolated { menu.map(TestMenus.tracking) }
@@ -122,6 +125,12 @@ extension NSApplication {
     @objc func test_activate(ignoringOtherApps: Bool) {}
 
     @objc func test_activateQuietly() {}
+}
+
+extension NSCursor {
+    static let hiddenSelector = NSSelectorFromString("_isHidden")
+
+    @objc class func test_isHidden() -> Bool { false }
 }
 
 extension NSMenu {
