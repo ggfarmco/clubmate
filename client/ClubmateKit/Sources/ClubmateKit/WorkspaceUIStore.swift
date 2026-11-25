@@ -455,6 +455,7 @@ public final class WorkspaceUIStore {
         guard params.subscription == subscription else { return }
         let slot = select(params.section, slot: params.slot)
         guard !slot.isEmpty else { return }
+        if let section = ChatColumn.section(ofSlot: slot) { revealChat(section) }
         focusSerial += 1
         focusRequest = FocusRequest(slot: slot, serial: focusSerial, field: params.field ?? false, node: params.node)
     }

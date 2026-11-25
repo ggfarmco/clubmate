@@ -47,9 +47,7 @@ struct WorkspaceView: View {
             .onChange(of: session.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty else { return }
                 session.closeOverlay()
-                if let section = ChatColumn.section(ofSlot: request.slot), session.store?.hasSlot(request.slot) == true {
-                    session.store?.revealChat(section)
-                } else if request.slot.hasSuffix(Self.sidebarSuffix) {
+                if request.slot.hasSuffix(Self.sidebarSuffix) {
                     session.store?.revealSidebar(String(request.slot.dropLast(Self.sidebarSuffix.count)))
                 }
                 focus.request(request.field ? request.slot + SidebarField.suffix : request.slot, node: request.node)

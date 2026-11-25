@@ -385,6 +385,24 @@ final class StoresTests: XCTestCase {
         await client.close()
     }
 
+    func testFocusToAChatSlotShowsTheChatBeforeTheSlotIsRendered() async throws {
+        let client = try await startCore()
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        try await store.start()
+        guard let paths = core?.paths else { throw TestFailure(description: "no core") }
+        let caller = try await CoreClient.connect(paths: paths)
+        _ = try await caller.call(method: "ui.focus", params: .object([
+            "workspaceId": .string(workspace.id), "section": .string("echo"), "slot": .string("echo.chat"),
+        ]))
+        try await waitUntil { store.focusRequest?.slot == "echo.chat" }
+        XCTAssertFalse(store.hasSlot("echo.chat"))
+        XCTAssertEqual(store.chatHidden, ["echo": false])
+        await caller.close()
+        await store.stop()
+        await client.close()
+    }
+
     func testFocusRequestCarriesField() async throws {
         let client = try await startCore()
         let workspace = try await client.createWorkspace(name: "demo")
