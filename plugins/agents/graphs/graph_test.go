@@ -22,7 +22,7 @@ func TestLoadGraph(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fromBuiltin, from)
 
-	files := listGraphs([]string{"testdata"}, "")
+	files := plainGraphs(listGraphs([]string{"testdata"}, ""))
 	require.Len(t, files, 7)
 	assert.Equal(t, []string{"fable-review", "gate", "opus-review", "pr-walkthrough", "red-team", "review-gate", "review-loop"}, []string{files[0].Name, files[1].Name, files[2].Name, files[3].Name, files[4].Name, files[5].Name, files[6].Name})
 	assert.Equal(t, graphFile{Name: "pr-walkthrough", Title: "PR walkthrough", Description: files[3].Description, Path: "builtin/pr-walkthrough.json", Nodes: files[3].Nodes, Builtin: true, spec: files[3].spec}, files[3])
@@ -49,7 +49,7 @@ func TestGraphPrecedenceProjectUserBuiltin(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []any{"Yours", fromUser}, []any{g.Title, from})
 
-	files := listGraphs([]string{dir}, home)
+	files := plainGraphs(listGraphs([]string{dir}, home))
 	require.Len(t, files, 4)
 	assert.Equal(t, []any{"Mine", false, false}, []any{files[2].Title, files[2].User, files[2].Builtin})
 	assert.Equal(t, graphFile{Name: "review-gate", Title: "Yours", Path: filepath.Join(home, graphsDir, "review-gate.json"), Nodes: 1, User: true, spec: files[3].spec}, files[3])

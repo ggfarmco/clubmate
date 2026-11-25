@@ -24,6 +24,7 @@ type gateListed struct {
 	Sessions []string `json:"sessions"`
 	Wrote    []string `json:"wrote"`
 	Graph    string   `json:"graph"`
+	Test     string   `json:"test"`
 	Name     string   `json:"name"`
 	Words    string   `json:"words"`
 	State    string   `json:"state"`

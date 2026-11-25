@@ -1,0 +1,26 @@
+{
+  "title": "Tests, then Opus review",
+  "description": "A land gate that runs the gate's Test command on the exact tree that would land. A fail asks for changes with the tail of the output, at no model cost; a pass sends the change to one read-only Opus reviewer, which reports approved or changes with agents_land_verdict.",
+  "gate": true,
+  "maxTurns": 12,
+  "nodes": [
+    {
+      "id": "tests",
+      "role": "Tests",
+      "start": true,
+      "run": "{{gate.test}}",
+      "timeout": 1800,
+      "decide": ["fail"]
+    },
+    {
+      "id": "reviewer",
+      "role": "Reviewer",
+      "model": "opus",
+      "prompt": "{{input}}",
+      "outcomes": ["approved", "changes"]
+    }
+  ],
+  "edges": [
+    {"from": "tests", "to": "reviewer", "on": "outcome", "outcome": "pass", "text": "The gate's tests passed on this tree."}
+  ]
+}

@@ -95,7 +95,7 @@ func (a *app) list(ctx context.Context, cmd pluginsdk.CommandRun) (listResult, e
 	if err != nil {
 		return listResult{}, err
 	}
-	res := listResult{Graphs: listGraphs(dirs, a.home)}
+	res := listResult{Graphs: plainGraphs(listGraphs(dirs, a.home))}
 	roots := map[string]func() string{}
 	for i := range res.Graphs {
 		f := &res.Graphs[i]
@@ -196,6 +196,9 @@ func (a *app) startIn(ctx context.Context, cmd pluginsdk.CommandRun, caller stri
 	g, from, err := loadGraph(dirs, a.home, args.Graph)
 	if err != nil {
 		return nil, err
+	}
+	if g.Gate {
+		return nil, fmt.Errorf(errGateOnly, args.Graph)
 	}
 	root := rootOf(ctx, trustDir(dirs, args.Graph))
 	switch untrusted, _, err := a.trustState(ctx, root, g); {

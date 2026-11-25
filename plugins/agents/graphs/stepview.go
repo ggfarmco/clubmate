@@ -230,8 +230,11 @@ func outputPanel(r *Run, node string, move int, live *liveOutput, summarizing bo
 	if st.ExitCode != nil && st.Reason != "exit "+strconv.Itoa(*st.ExitCode) {
 		meta = append(meta, "exit "+strconv.Itoa(*st.ExitCode))
 	}
-	if st.Status == stepFinished {
+	if st.Status == stepFinished && st.Note == "" {
 		meta = append(meta, humanDuration(time.Duration(st.Duration)*time.Millisecond))
+	}
+	if st.Note != "" {
+		meta = append(meta, st.Note)
 	}
 	head := sdui.HStack(sdui.Text(role), sdui.MutedText(strings.Join(meta, " · ")))
 	full := automation.ActionNode(r.ID, automation.DetailAction{Action: actFullOutput, Label: "Full output", Icon: "doc.text", Variant: sdui.VariantSecondary})

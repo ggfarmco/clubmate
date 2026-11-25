@@ -26,6 +26,7 @@ const (
 	Changes  = "changes"
 
 	ByReviewer = "reviewer"
+	ByCheck    = "check"
 	ByDocs     = "docs"
 	ByUser     = "user"
 	ByNoGate   = "nogate"

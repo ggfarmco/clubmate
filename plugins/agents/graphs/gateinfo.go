@@ -23,6 +23,8 @@ type GateGraphInfo struct {
 	From    string         `json:"from"`
 	Hash    string         `json:"hash"`
 	Decides bool           `json:"decides"`
+	Test    bool           `json:"test,omitempty"`
+	Land    bool           `json:"land,omitempty"`
 	Head    string         `json:"head,omitempty"`
 	Edges   string         `json:"edges,omitempty"`
 	Nodes   []GateNodeInfo `json:"nodes"`
@@ -112,7 +114,7 @@ func gateInfo(g *Graph, from origin) GateGraphInfo {
 		MaxTurns    int    `json:"maxTurns,omitempty"`
 		MaxSteps    int    `json:"maxSteps,omitempty"`
 	}{g.Title, g.Description, g.MaxTurns, g.MaxSteps}
-	info := GateGraphInfo{Name: g.Name, Title: g.Title, From: originWord(from), Hash: graphHash(g), Decides: g.decides(), Head: jsonText(head), Edges: jsonText(g.Edges), Shape: gateInfoShape}
+	info := GateGraphInfo{Name: g.Name, Title: g.Title, From: originWord(from), Hash: graphHash(g), Decides: g.decides(), Test: g.usesTest(), Land: g.Gate, Head: jsonText(head), Edges: jsonText(g.Edges), Shape: gateInfoShape}
 	for _, n := range g.Nodes {
 		rest := n
 		rest.Prompt, rest.Model, rest.Effort = "", "", ""

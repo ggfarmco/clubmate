@@ -43,6 +43,8 @@ type StepMove struct {
 	CheckFiles []string  `json:"checkFilesChanged,omitempty"`
 	PID        int       `json:"pid,omitempty"`
 	ProcStart  time.Time `json:"procStart,omitzero"`
+	Note       string    `json:"note,omitempty"`
+	Tree       string    `json:"tree,omitempty"`
 }
 
 func (r *Run) startMove(node string, now time.Time) {

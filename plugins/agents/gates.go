@@ -231,6 +231,14 @@ func (a *app) reviewing(lander string, st landReview) (*session, bool) {
 	return r, true
 }
 
+func (a *app) checking(st landReview) bool {
+	if st.Reviewer != "" || st.Run == "" || st.Old == "" {
+		return false
+	}
+	_, open := a.graphs.GateStepOpen(context.Background(), st.Run)
+	return open
+}
+
 func (a *app) gateState(rec record) string {
 	if rec.closed() {
 		return ""
@@ -242,7 +250,7 @@ func (a *app) gateState(rec record) string {
 			continue
 		}
 		state := st.Last
-		if _, ok := a.reviewing(rec.ID, st); ok {
+		if _, ok := a.reviewing(rec.ID, st); ok || a.checking(st) {
 			state = gateStateReview
 		}
 		if st.Request != "" || asks[st.Run] != nil {
@@ -273,6 +281,8 @@ func (a *app) gateLandings(workspaceID, gateID string) []gateLanding {
 			l := gateLanding{Lander: rec.ID, Title: rec.Title, Into: st.Into, Source: st.Source, Round: st.Rounds, Findings: st.Findings, Since: st.Since}
 			if r, ok := a.reviewing(rec.ID, st); ok && st.Request == "" {
 				l.State, l.Reviewer, l.Round, l.Since = gateStateReview, r.snapshot().ID, st.Rounds+1, cmp.Or(r.turnStart(), r.snapshot().UpdatedAt)
+			} else if st.Request == "" && a.checking(st) {
+				l.State, l.Round = gateStateReview, st.Rounds+1
 			}
 			if n := asks[st.Run]; n != nil {
 				l.State, l.Reviewer, l.Round, l.Since, l.Ask, l.Run = gateStateNeedsMe, st.Reviewer, st.Rounds+1, n.Since, n.Text, n.Run

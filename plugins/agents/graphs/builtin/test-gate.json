@@ -1,0 +1,15 @@
+{
+  "title": "Tests",
+  "description": "A land gate that runs the gate's Test command on the exact tree that would land. Exit 0 approves the landing; any other exit asks for changes with the tail of the output. No model.",
+  "gate": true,
+  "nodes": [
+    {
+      "id": "tests",
+      "role": "Tests",
+      "start": true,
+      "run": "{{gate.test}}",
+      "timeout": 1800,
+      "decide": ["pass", "fail"]
+    }
+  ]
+}

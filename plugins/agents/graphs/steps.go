@@ -42,6 +42,9 @@ const (
 	allowedYou           = "you"
 	allowedCommand       = "command"
 	allowedBypass        = "mode bypass"
+	allowedGateTest      = "the gate's test command"
+	noteTestWait         = "waiting: another landing's tests run"
+	noteCached           = "cached: passed on this tree at %s"
 	codeDenied           = -32014
 	waitMessage          = "A graph step wants to run a command"
 	notifyKind           = "permission"
@@ -199,12 +202,19 @@ func (a *app) startStep(ctx context.Context, runID, node string, move int) {
 	}
 	n := r.Spec.node(node)
 	r.Steps++
-	r.Moves[move].Step = &StepMove{Status: stepRunning, Command: cmpCommand(n)}
+	r.Moves[move].Step = &StepMove{Status: stepRunning, Command: r.stepCommand(n)}
+	if r.Gate {
+		r.Moves[move].Step.Tree = r.GateTree
+	}
 	snapshot := cloneRun(r)
 	a.touch(r.Workspace)
 	logError(a.store.Save(ctx, r))
 	a.mu.Unlock()
 	a.flush(ctx)
+	if at, ok := a.cachedPass(ctx, snapshot, n); ok {
+		a.stepDone(ctx, runID, node, move, stepResult{Note: fmt.Sprintf(noteCached, at.UTC().Format(time.RFC3339))})
+		return
+	}
 	spec, err := a.resolveStep(ctx, snapshot, n, move)
 	if err != nil {
 		a.stepDone(ctx, runID, node, move, stepResult{ExitCode: exitUnknown, Reason: "could not start: " + err.Error()})
@@ -226,6 +236,9 @@ func (a *app) approval(ctx context.Context, r *Run, n *Node, spec stepSpec) (str
 	if n.Command != "" {
 		return allowedCommand, false, nil
 	}
+	if r.Gate && n.Run == gateTestRun && r.GateTest != "" && r.GateDir != "" && filepath.Clean(spec.Dir) == filepath.Clean(r.GateDir) {
+		return allowedGateTest, false, nil
+	}
 	rules := loadRules(a.managedPath, a.home, spec.Dir, spec.inMain())
 	mode := rules.DefaultMode
 	if r.Agent && r.Caller != "" {
@@ -236,16 +249,16 @@ func (a *app) approval(ctx context.Context, r *Run, n *Node, spec stepSpec) (str
 		s, _ := agentcall.Find(sessions, r.Caller)
 		mode = s.Mode
 	}
-	if rule, denied := rules.denied(n.Run); denied {
+	if rule, denied := rules.denied(spec.Shell); denied {
 		return "", false, fmt.Errorf(reasonDenied, rule)
 	}
-	if _, suspicious := rules.suspicious(n.Run); suspicious {
+	if _, suspicious := rules.suspicious(spec.Shell); suspicious {
 		return "", true, nil
 	}
 	if mode == modeBypass && !rules.NoBypass {
 		return allowedBypass, false, nil
 	}
-	switch verdict, rule := rules.decide(n.Run); verdict {
+	switch verdict, rule := rules.decide(spec.Shell); verdict {
 	case verdictAllow:
 		return "rule " + rule, false, nil
 	case verdictDeny:
@@ -360,7 +373,6 @@ func (a *app) approveStep(ctx context.Context, cmd pluginsdk.CommandRun) error {
 		return fmt.Errorf("always: %s is not the main checkout, where the rule would count; allow it once instead", p.spec.Dir)
 	}
 	delete(a.pending, key)
-	n := r.Spec.node(args.Node)
 	a.mu.Unlock()
 	if args.Decision == reasonRejectDecision {
 		a.stepDone(ctx, args.ID, args.Node, p.move, stepResult{ExitCode: exitUnknown, Reason: reasonRejected})
@@ -375,7 +387,7 @@ func (a *app) approveStep(ctx context.Context, cmd pluginsdk.CommandRun) error {
 			a.stepDone(ctx, args.ID, args.Node, p.move, stepResult{ExitCode: exitUnknown, Reason: reasonStopped})
 			return errors.New("run is stopped")
 		}
-		if err := addAllowRule(p.spec.Main, n.Run); err != nil {
+		if err := addAllowRule(p.spec.Main, p.spec.Shell); err != nil {
 			a.restorePending(ctx, args.ID, args.Node, key, p)
 			return err
 		}
@@ -420,14 +432,20 @@ func (a *app) execStep(ctx context.Context, runID, node string, move int, spec s
 			if snapshot.Spec.check(node) && spec.Start != "" {
 				files = checkOwnFiles(n.Run, changedSince(base, spec.Dir, spec.Start))
 			}
-			pid := 0
-			res = a.proc.Run(pctx, spec, func(p int) {
-				pid = p
-				a.register(base, snapshot.Workspace, p, stepLabel+key)
-				a.stepStarted(base, runID, move, p)
-			})
-			if pid != 0 {
-				a.unregister(base, pid)
+			release, ok := a.testLock(pctx, snapshot, n, spec, func(note string) { a.stepNote(base, runID, move, note) })
+			if !ok {
+				res = stepResult{ExitCode: exitUnknown, Reason: reasonStopped}
+			} else {
+				pid := 0
+				res = a.proc.Run(pctx, spec, func(p int) {
+					pid = p
+					a.register(base, snapshot.Workspace, p, stepLabel+key)
+					a.stepStarted(base, runID, move, p)
+				})
+				release()
+				if pid != 0 {
+					a.unregister(base, pid)
+				}
 			}
 			if len(files) > 0 {
 				res.CheckFiles = files
@@ -625,11 +643,17 @@ func (a *app) stepDone(ctx context.Context, runID, node string, move int, res st
 	n := r.Spec.node(node)
 	outcome, reason := stepOutcome(r.Spec, n, res)
 	st := r.Moves[move].Step
-	st.Status, st.Outcome, st.Reason, st.Tail, st.Lines, st.EndedAt, st.Duration, st.CheckFiles = stepFinished, outcome, reason, res.Tail, res.Lines, now, res.Duration.Milliseconds(), res.CheckFiles
-	if res.ExitCode >= 0 {
+	st.Status, st.Outcome, st.Reason, st.Tail, st.Lines, st.EndedAt, st.Duration, st.CheckFiles, st.Note = stepFinished, outcome, reason, res.Tail, res.Lines, now, res.Duration.Milliseconds(), res.CheckFiles, res.Note
+	if res.ExitCode >= 0 && res.Note == "" {
 		code := res.ExitCode
 		st.ExitCode = &code
 	}
+	var check *GateCheck
+	if r.Gate && r.Status == statusRunning && slices.Contains(n.Decide, outcome) {
+		check = &GateCheck{Workspace: r.Workspace, Run: r.ID, Graph: r.Graph, Node: node, Command: st.Command, Outcome: outcome, ExitCode: res.ExitCode, Tail: res.Tail, Tree: st.Tree}
+	}
+	store := outcome == outPass && res.Note == "" && st.Tree != ""
+	pass := cloneRun(r)
 	r.Moves[move].Open = false
 	var owed []delivery
 	var stopped *Run
@@ -664,6 +688,13 @@ func (a *app) stepDone(ctx context.Context, runID, node string, move int, res st
 	a.touch(r.Workspace)
 	logError(a.store.Save(ctx, r))
 	a.mu.Unlock()
+	if store {
+		a.storePass(ctx, pass, n, st.Tree)
+	}
+	if check != nil && a.gateCheck != nil {
+		c := *check
+		a.spawn(func() { a.gateCheck(context.WithoutCancel(ctx), c) })
+	}
 	if failed {
 		a.queueSummary(runID, move, stepSummaryPrompt, summary)
 	}
@@ -731,6 +762,34 @@ func stepEdgeMatches(e Edge, outcome string) bool {
 		return outcome == onError
 	}
 	return false
+}
+
+func (r *Run) stepCommand(n *Node) string {
+	if n.Run != "" {
+		return r.stepShell(n)
+	}
+	return n.Command
+}
+
+func (r *Run) stepShell(n *Node) string {
+	if !r.Gate {
+		return n.Run
+	}
+	return strings.ReplaceAll(n.Run, gateTestRun, r.GateTest)
+}
+
+func (a *app) stepNote(ctx context.Context, runID string, move int, note string) {
+	a.mu.Lock()
+	r := a.runs[runID]
+	if r == nil || move >= len(r.Moves) || r.Moves[move].Step == nil {
+		a.mu.Unlock()
+		return
+	}
+	r.Moves[move].Step.Note = note
+	a.touch(r.Workspace)
+	logError(a.store.Save(ctx, r))
+	a.mu.Unlock()
+	a.flush(ctx)
 }
 
 func cmpCommand(n *Node) string {
@@ -832,7 +891,7 @@ func (a *app) resolveStep(ctx context.Context, r *Run, n *Node, move int) (stepS
 		Dir:     dir,
 		Start:   r.startFor(dir, trees),
 		Main:    mainCheckout(trees, dir),
-		Shell:   n.Run,
+		Shell:   r.stepShell(n),
 		Env:     stepEnv(r, move, trees, worktreeOf),
 		Timeout: n.timeout(),
 		OutPath: filepath.Join(a.outputDir(r.ID), strconv.Itoa(move)+".log"),

@@ -49,6 +49,7 @@ type stepResult struct {
 	Lines      int
 	Duration   time.Duration
 	CheckFiles []string
+	Note       string
 }
 
 type procRunner interface {

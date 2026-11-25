@@ -45,6 +45,8 @@ const (
 	gateUndecidedTool    = "%s can't decide a tool call: no node reports approved and changes"
 	gatePausedLine       = "a paused gate holds nothing new; what it holds stays held"
 	gatePausedToolLine   = "Paused: holds no new calls; calls it already holds stay held until their review ends."
+	gateTestHint         = "make test"
+	gateTestCaption      = "Runs in the gate's worktree on the exact tree that would land, without asking each time. The command is yours, but it runs the lander's Makefile, test code and scripts."
 )
 
 var gateCallPresets = []string{"git push", "gh pr create"}
@@ -66,6 +68,7 @@ type gateDraft struct {
 	Tool      string
 	How       string
 	Text      string
+	Test      string
 	Unhooked  int
 	Err       string
 	Repos     []gateRepo
@@ -147,6 +150,11 @@ func gateSheetView(d gateDraft) sdui.Node {
 	graph, ok := gateGraphField(d)
 	rows = append(rows, graph...)
 	disabled = disabled || !ok
+	if d.Point == gatePointLand || d.Point == "" {
+		test, ok := gateTestField(d)
+		rows = append(rows, test...)
+		disabled = disabled || !ok
+	}
 	rows = append(rows, sdui.HStack(sdui.MutedText("Rounds"), sdui.WithAction(sdui.Select(gateSheetID+"/rounds", roundOptions(d.Rounds), strconv.Itoa(d.Rounds)), actGateRounds), sdui.MutedText(gateRoundsWords)))
 	if d.Edit != "" {
 		paused := gatePausedLine
@@ -253,6 +261,9 @@ func gateGraphField(d gateDraft) ([]sdui.Node, bool) {
 			undecided = append(undecided, cmp.Or(c.Title, c.Name))
 			continue
 		}
+		if c.Land && heldPoint(d.Point) {
+			continue
+		}
 		options = append(options, sdui.Option{Value: c.Name, Label: cmp.Or(c.Title, c.Name) + " · " + originWords(c.From, d.primary())})
 	}
 	out := []sdui.Node{sdui.HStack(sdui.MutedText("Decided by"), sdui.WithAction(sdui.Select(gateSheetID+"/graph", options, d.Graph), actGatePick))}
@@ -274,6 +285,18 @@ func gateGraphField(d gateDraft) ([]sdui.Node, bool) {
 		out = append(out, sdui.MutedText(fmt.Sprintf(gateUnreadableGraphs, strings.Join(unreadable, ", "))))
 	}
 	return out, ok
+}
+
+func gateTestField(d gateDraft) ([]sdui.Node, bool) {
+	field := sdui.WithAction(sdui.WithLive(sdui.TextField(gateSheetID+"/test", d.Test, gateTestHint)), actGateTest)
+	chosen, _ := d.choice()
+	ok := true
+	if _, err := gateTest(gatePointLand, d.Test); err != nil {
+		field, ok = sdui.WithError(field, err.Error()), false
+	} else if chosen.Test && strings.TrimSpace(d.Test) == "" {
+		field, ok = sdui.WithError(field, graphs.ErrGateNoTest.Error()), false
+	}
+	return []sdui.Node{sdui.HStack(sdui.MutedText("Test command"), field), sdui.MutedText(gateTestCaption)}, ok
 }
 
 func gateChoiceOrder(choices []graphs.GateGraphInfo) []graphs.GateGraphInfo {

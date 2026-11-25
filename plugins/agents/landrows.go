@@ -15,6 +15,7 @@ const (
 	landingReview     = "review…"
 	landingReviewOf   = "review %d/%d…"
 	landingAsking     = "asking"
+	landingByCheck    = "%s by check"
 	reviewAsksYou     = "asks you"
 	reviewRoundLabel  = "Round %d review"
 	reviewEarlier     = "Land review"
@@ -48,6 +49,7 @@ type landingView struct {
 	Into         string `json:"into"`
 	Source       string `json:"source,omitempty"`
 	Reviewer     string `json:"reviewer,omitempty"`
+	Check        string `json:"check,omitempty"`
 	Ask          string `json:"ask,omitempty"`
 	Run          string `json:"run,omitempty"`
 	Held         string `json:"held,omitempty"`
@@ -91,6 +93,10 @@ func landingOf(st landReview, reviewing bool, ask *runNeed) (landingView, bool) 
 		l.Words = landingReview
 	case l.Verdict == gateChanges && !l.Asking:
 		l.Words = l.Badge
+	}
+	if st.Reviewer == "" && st.Check != "" {
+		l.Check = fmt.Sprintf(landingByCheck, st.Check)
+		l.Words += " · " + l.Check
 	}
 	return l, true
 }
@@ -166,7 +172,7 @@ func (a *app) landing(rec record) *landingView {
 			continue
 		}
 		_, reviewing := a.reviewing(rec.ID, st)
-		l, ok := landingOf(st, reviewing, needs[st.Run])
+		l, ok := landingOf(st, reviewing || a.checking(st), needs[st.Run])
 		if s := a.session(l.Reviewer); s == nil || s.snapshot().Workspace != rec.Workspace {
 			l.Reviewer = ""
 		}
@@ -311,6 +317,8 @@ func landingLine(sid string, l landingView) sdui.Node {
 	}
 	if l.Reviewer != "" {
 		parts = append(parts, landReviewButton(sid+"/"+landReviewNode))
+	} else if l.Check != "" {
+		parts = append(parts, sdui.MutedText(l.Check))
 	}
 	return sdui.WithID(sdui.HStack(parts...), sid+"/landing")
 }

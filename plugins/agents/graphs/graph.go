@@ -33,6 +33,7 @@ const (
 	maxTimeout      = 7200
 	maxNodeOption   = 32
 	inMain          = "main"
+	gateTestRun     = "{{gate.test}}"
 )
 
 const (
@@ -63,6 +64,7 @@ type Graph struct {
 	Description string `json:"description,omitempty"`
 	MaxTurns    int    `json:"maxTurns,omitempty"`
 	MaxSteps    int    `json:"maxSteps,omitempty"`
+	Gate        bool   `json:"gate,omitempty"`
 	Nodes       []Node `json:"nodes"`
 	Edges       []Edge `json:"edges"`
 }
@@ -84,6 +86,7 @@ type Node struct {
 	Effort   string            `json:"effort,omitempty"`
 	Outcomes []string          `json:"outcomes,omitempty"`
 	End      []string          `json:"end,omitempty"`
+	Decide   []string          `json:"decide,omitempty"`
 }
 
 type Edge struct {
@@ -205,6 +208,14 @@ func listGraphs(dirs []string, home string) []graphFile {
 	return files
 }
 
+func plainGraphs(files []graphFile) []graphFile {
+	return slices.DeleteFunc(files, func(f graphFile) bool { return f.spec != nil && f.spec.Gate })
+}
+
+func (g *Graph) usesTest() bool {
+	return slices.ContainsFunc(g.Nodes, func(n Node) bool { return strings.Contains(n.Run, gateTestRun) })
+}
+
 func describeGraph(f graphFile, data []byte, err error) graphFile {
 	if err == nil {
 		var g *Graph
@@ -280,7 +291,7 @@ func (g *Graph) validate() error {
 		return errors.New("nodes: mark at least one node with start: true")
 	}
 	for _, n := range g.Nodes {
-		if err := n.validate(nodes); err != nil {
+		if err := n.validate(nodes, g.Gate); err != nil {
 			return fmt.Errorf("node %s: %w", n.ID, err)
 		}
 	}
@@ -333,7 +344,7 @@ func (g *Graph) validate() error {
 	return nil
 }
 
-func (n *Node) validate(nodes map[string]*Node) error {
+func (n *Node) validate(nodes map[string]*Node, gate bool) error {
 	kinds := 0
 	for _, v := range []string{n.Prompt, n.Run, n.Command} {
 		if strings.TrimSpace(v) != "" {
@@ -366,11 +377,18 @@ func (n *Node) validate(nodes map[string]*Node) error {
 		if n.In != "" || n.Timeout != 0 || len(n.Exits) > 0 || len(n.Args) > 0 {
 			return errors.New("in, timeout, exits and args are only for steps")
 		}
+		if len(n.Decide) > 0 {
+			return errors.New("decide is only for steps; an agent node decides with the outcomes approved and changes")
+		}
 		return nil
 	}
 	switch {
-	case n.Start:
+	case n.Start && !gate:
 		return errors.New("a step can't be a start node")
+	case len(n.Decide) > 0 && !gate:
+		return errors.New(`decide is only for a gate graph ("gate": true)`)
+	case len(n.Decide) > 0 && n.In != "" && n.In != inMain:
+		return errors.New("decide: only for a step that runs in the gate's tree (in unset or main)")
 	case len(n.Outcomes) > 0:
 		return errors.New("a step's outcomes come from its exit code: use exits")
 	case n.Branch != "" || n.Afk:
@@ -381,10 +399,20 @@ func (n *Node) validate(nodes map[string]*Node) error {
 		return fmt.Errorf("timeout: between 1 and %d seconds, or omit for %d", maxTimeout, defaultTimeout)
 	case len(n.Args) > 0 && n.Command == "":
 		return errors.New("args: only with command")
-	case placeholderRe.MatchString(n.Run):
+	case strings.Contains(n.Run, gateTestRun) && !gate:
+		return errors.New(`run: {{gate.test}} is only for a gate graph ("gate": true)`)
+	case placeholderRe.MatchString(strings.ReplaceAll(n.Run, gateTestRun, "")):
 		return errors.New("run: no placeholders; a step reads the CLUBMATE_GRAPH_* environment variables")
 	case n.In != "" && n.In != inMain && (nodes[n.In] == nil || nodes[n.In].step()):
 		return fmt.Errorf("in %q: in: main or an agent node id", n.In)
+	}
+	for i, d := range n.Decide {
+		if d != outPass && d != outFail || slices.Contains(n.Decide[:i], d) {
+			return fmt.Errorf("decide %q: pass and/or fail, once each", d)
+		}
+		if slices.Contains(n.End, d) {
+			return fmt.Errorf("end %q: it is in decide, so it decides the landing; it can't also end the run", d)
+		}
 	}
 	for code, word := range n.Exits {
 		if c, err := strconv.Atoi(code); err != nil || c < 1 || c > 255 || strconv.Itoa(c) != code {
@@ -423,7 +451,7 @@ func (g *Graph) hasEdge(from, on string) bool {
 
 func (g *Graph) check(id string) bool {
 	n := g.node(id)
-	return n != nil && n.step() && g.hasEdge(id, onOutcome)
+	return n != nil && n.step() && (g.hasEdge(id, onOutcome) || len(n.Decide) > 0)
 }
 
 func (g *Graph) owned(e Edge) bool {

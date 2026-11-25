@@ -47,6 +47,7 @@ const (
 	actGateTool      = "gateTool"
 	actGateHow       = "gateHow"
 	actGateText      = "gateText"
+	actGateTest      = "gateTest"
 	actGatePick      = "gatePick"
 	actGateRounds    = "gateRounds"
 	actGatePaused    = "gatePaused"
@@ -345,6 +346,10 @@ func verdictLook(v gateVerdict, point string) gateVerdictLook {
 		return gateVerdictLook{Word: "you: run", Tone: "accent", Icon: "person"}
 	case v.By == landgate.ByUser:
 		return gateVerdictLook{Word: "you: land", Tone: "accent", Icon: "person"}
+	case v.By == landgate.ByCheck && v.Outcome == gateChanges:
+		return gateVerdictLook{Word: "changes · by check", Tone: "warning", Cell: "warn", Icon: "exclamationmark.triangle"}
+	case v.By == landgate.ByCheck:
+		return gateVerdictLook{Word: "approved · by check", Tone: "success", Cell: "ok", Icon: "checkmark"}
 	case v.Outcome == gateChanges:
 		return gateVerdictLook{Word: "changes", Tone: "warning", Cell: "warn", Icon: "exclamationmark.triangle"}
 	}

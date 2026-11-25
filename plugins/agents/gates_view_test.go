@@ -723,3 +723,18 @@ func TestPausedGateShowsWhatItStillHolds(t *testing.T) {
 	assert.Equal(t, []string{"paused · 1 held", toneAccent}, []string{badges[0].Text, badges[0].Tone})
 	assert.Equal(t, []string{"paused · 1 held", toneAccent}, []string{item.Detail, item.DetailTone})
 }
+
+func TestSheetOffersAGateGraphOnlyToALandGate(t *testing.T) {
+	t.Parallel()
+	tests := graphs.GateGraphInfo{Name: "test-gate", Title: "Tests", From: graphs.FromBuiltin, Decides: true, Land: true, Test: true}
+	repos := []gateRepo{{Path: "/src/shop", Primary: "/src/shop", Branch: "main"}}
+	d := gateDraft{Repo: "/src/shop", Into: gateIntoDefault, Graph: "fable-review", Rounds: 2, Repos: repos, Choices: []graphs.GateGraphInfo{fableChoice(), tests}}
+
+	land := fmt.Sprint(selectNamed(t, gateSheetView(d), "graph").Props["options"])
+	d.Point = gatePointTurn
+	done := fmt.Sprint(selectNamed(t, gateSheetView(d), "graph").Props["options"])
+
+	assert.Contains(t, land, "test-gate")
+	assert.NotContains(t, done, "test-gate")
+	assert.Contains(t, done, "fable-review")
+}

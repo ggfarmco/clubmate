@@ -93,6 +93,9 @@ type app struct {
 	showRun      func(ctx context.Context, workspace, run string) error
 	changed      func(workspace string)
 	gateEnded    func(workspace, run string)
+	gateCheck    func(ctx context.Context, c GateCheck)
+	testLocks    map[string]chan struct{}
+	checkMu      sync.Mutex
 	stateDir     string
 	startErr     error
 	pruneAfter   time.Duration
@@ -926,7 +929,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	}
 	dirs, err := a.graphDirs(ctx, workspace, false, "")
 	logError(err)
-	graphs := listGraphs(dirs, a.home)
+	graphs := plainGraphs(listGraphs(dirs, a.home))
 	runs := a.workspaceRuns(workspace, false)
 	var statuses map[string]api.Session
 	if len(runs) > 0 {
@@ -948,7 +951,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 func (a *app) page(ctx context.Context, workspace, selected string) sdui.Node {
 	dirs, err := a.graphDirs(ctx, workspace, false, "")
 	logError(err)
-	graphs := listGraphs(dirs, a.home)
+	graphs := plainGraphs(listGraphs(dirs, a.home))
 	runs := a.workspaceRuns(workspace, false)
 	return a.mainFor(ctx, workspace, selected, dirs, graphs, runs, a.sessionMap(ctx, workspace), true)
 }

@@ -603,7 +603,7 @@ func (j outcomeJournal) landingRow(e outcomeEntry, gates map[string]*gateFor, cr
 		if v.Outcome == gateChanges {
 			row.Changes++
 		}
-		if v.By == landgate.ByReviewer {
+		if v.By == landgate.ByReviewer || v.By == landgate.ByCheck {
 			row.Rounds++
 		}
 		if v.Reviewer != "" && !slices.Contains(row.Reviewers, v.Reviewer) {

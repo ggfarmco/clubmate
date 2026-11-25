@@ -17,7 +17,7 @@ import (
 	"clubmate/plugins/internal/automation"
 )
 
-var gateSheetActions = []string{actGateRepo, actGateHolds, actGateSession, actGateWrote, actGateWroteLike, actGateInto, actGateLike, actGateCall, actGateTool, actGateHow, actGateText, actGatePick, actGateRounds, actGatePaused, actGateCancel, actGateSave, actGateOpenTaken}
+var gateSheetActions = []string{actGateRepo, actGateHolds, actGateSession, actGateWrote, actGateWroteLike, actGateInto, actGateLike, actGateCall, actGateTool, actGateHow, actGateText, actGateTest, actGatePick, actGateRounds, actGatePaused, actGateCancel, actGateSave, actGateOpenTaken}
 
 func isGateSheetAction(action string) bool {
 	return slices.Contains(gateSheetActions, action)
@@ -185,7 +185,7 @@ func (a *app) openGateSheet(ctx context.Context, workspaceID, edit string) error
 			return errGateUnknown
 		}
 		g := gates[i]
-		d.Edit, d.Point, d.Repo, d.Into, d.Graph, d.Rounds, d.Paused = g.ID, g.Point, g.Repo, g.Into, g.Graph, g.Rounds, g.Paused
+		d.Edit, d.Point, d.Repo, d.Into, d.Graph, d.Rounds, d.Paused, d.Test = g.ID, g.Point, g.Repo, g.Into, g.Graph, g.Rounds, g.Paused, g.Test
 		d.Repos = []gateRepo{a.gateRepo(ctx, g.Repo)}
 		d.Name = gateNameOf(g.Into, d.branch())
 		d.Like = !slices.Contains([]string{gateIntoDefault, gateIntoBase, gateIntoAny}, g.Into)
@@ -443,6 +443,10 @@ func (a *app) gateSheetAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err := json.Unmarshal(ev.Value, &d.Text); err != nil {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
 		}
+	case actGateTest:
+		if err := json.Unmarshal(ev.Value, &d.Test); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
 	case actGatePick:
 		if err := json.Unmarshal(ev.Value, &d.Graph); err != nil {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
@@ -492,6 +496,8 @@ func (a *app) saveGateDraft(ctx context.Context, d gateDraft) (string, error) {
 				return "", err
 			}
 			args.Tool, args.How, args.Text = t.Tool, t.How, t.Text
+		default:
+			args.Test = d.Test
 		}
 		g, err := a.addGate(ctx, args)
 		if err == nil {
@@ -509,7 +515,7 @@ func (a *app) saveGateDraft(ctx context.Context, d gateDraft) (string, error) {
 			args.Tool, args.How, args.Text = &t.Tool, &t.How, &t.Text
 		}
 	} else if d.Point != gatePointTurn {
-		args.Into = &d.Into
+		args.Into, args.Test = &d.Into, &d.Test
 	} else if i := slices.IndexFunc(d.Gates, func(g gateConfig) bool { return g.ID == d.Edit }); i < 0 || !sameDone(d.Gates[i], gateConfig{Sessions: slices.Sorted(slices.Values(d.Sessions)), Wrote: d.wrote()}) {
 		wrote := d.wrote()
 		args.Sessions, args.Wrote = &d.Sessions, &wrote

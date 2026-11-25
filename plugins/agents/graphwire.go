@@ -39,6 +39,7 @@ func (a *app) newGraphs(h *pluginsdk.Host) *graphs.Engine {
 		Changed:    a.graphsChanged,
 		PruneAfter: envDelay(runDeleteAfterEnv, runDeleteAfter),
 		GateEnded:  a.gateRunEnded,
+		GateCheck:  a.gateCheckVerdict,
 	})
 }
 

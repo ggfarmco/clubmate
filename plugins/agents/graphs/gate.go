@@ -18,11 +18,15 @@ const (
 	outApproved       = "approved"
 	outChanges        = "changes"
 	errGateUndecided  = "%s can't decide a landing: no node reports approved and changes"
+	errGateOnly       = "%s is a gate graph: pick it for a land gate in the Gates sheet"
+	errGateNoTest     = "this graph runs the gate's test command: set Test command"
+	errLandOnly       = "%s is a gate graph: only a land gate runs it"
 	reasonGateDeadEnd = "the round ended before it reached the verdict node"
 )
 
 var (
 	ErrGateGraphChanged = errors.New("the gate's graph changed: waiting for the user to trust it")
+	ErrGateNoTest       = errors.New(errGateNoTest)
 	errGateNotRunning   = errors.New("the gate's run is not running")
 )
 
@@ -36,13 +40,34 @@ type GateNode struct {
 
 type GateRun struct {
 	Workspace string
+	Gate      string
 	Graph     string
 	Pin       string
 	Repo      string
 	Input     string
 	Other     string
 	Dir       string
+	Test      string
+	Tree      string
 	NewNode   func(ctx context.Context, n GateNode) (string, error)
+}
+
+type GateCheck struct {
+	Workspace string
+	Run       string
+	Graph     string
+	Node      string
+	Command   string
+	Outcome   string
+	ExitCode  int
+	Tail      string
+	Tree      string
+}
+
+type GateStep struct {
+	Node    string
+	Command string
+	Waiting bool
 }
 
 func (e *Engine) GateGraph(_ context.Context, repo, name string) (string, bool, error) {
@@ -53,9 +78,65 @@ func (e *Engine) GateGraph(_ context.Context, repo, name string) (string, bool, 
 	return graphHash(g), g.decides(), nil
 }
 
+func (e *Engine) LandOnly(_ context.Context, repo, name string) bool {
+	g, _, err := loadGraph(gateDirs(repo), e.a.home, name)
+	return err == nil && g.Gate
+}
+
+func LandOnlyGraph(name string) error {
+	return fmt.Errorf(errLandOnly, name)
+}
+
 func (e *Engine) GateSteps(_ context.Context, repo, name string) bool {
 	g, _, err := loadGraph(gateDirs(repo), e.a.home, name)
 	return err == nil && slices.ContainsFunc(g.Nodes, func(n Node) bool { return n.step() })
+}
+
+func (e *Engine) GateUsesTest(_ context.Context, repo, name string) bool {
+	g, _, err := loadGraph(gateDirs(repo), e.a.home, name)
+	return err == nil && g.usesTest()
+}
+
+func (e *Engine) GateCheckNode(_ context.Context, repo, name string) string {
+	g, _, err := loadGraph(gateDirs(repo), e.a.home, name)
+	if err != nil {
+		return ""
+	}
+	for _, n := range g.Nodes {
+		if len(n.Decide) > 0 {
+			return n.ID
+		}
+	}
+	return ""
+}
+
+func (e *Engine) GateStepOpen(ctx context.Context, run string) (GateStep, bool) {
+	a := e.a
+	select {
+	case <-a.ready:
+	case <-ctx.Done():
+		return GateStep{}, false
+	default:
+		return GateStep{}, false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	r := a.runs[run]
+	if r == nil || !r.Gate || r.Status != statusRunning || r.Spec == nil || r.GateRound > len(r.Moves) {
+		return GateStep{}, false
+	}
+	for _, m := range r.Moves[r.GateRound:] {
+		n := r.Spec.node(m.Node)
+		if !m.Open || n == nil || len(n.Decide) == 0 {
+			continue
+		}
+		st := GateStep{Node: n.ID, Command: r.stepCommand(n)}
+		if m.Step != nil {
+			st.Waiting = m.Step.Note == noteTestWait
+		}
+		return st, true
+	}
+	return GateStep{}, false
 }
 
 func GateUndecided(name string) error {
@@ -90,12 +171,15 @@ func (e *Engine) StartGate(ctx context.Context, gr GateRun) (string, string, err
 	if !g.decides() {
 		return "", "", GateUndecided(gr.Graph)
 	}
+	if g.usesTest() && gr.Test == "" {
+		return "", "", ErrGateNoTest
+	}
 	r, err := newRun(g, gr.Workspace, "", false, "", a.now())
 	if err != nil {
 		return "", "", err
 	}
 	r.Input, r.Gate, r.GateDir, r.Builtin, r.User, r.Dir = gr.Input, true, gr.Dir, from == fromBuiltin, from == fromUser, graphDir(gateDirs(gr.Repo), gr.Graph)
-	r.GatePin, r.GateOther = gr.Pin, gr.Other
+	r.GatePin, r.GateOther, r.GateID, r.GateTest, r.GateTree = gr.Pin, gr.Other, gr.Gate, gr.Test, gr.Tree
 	for i := range r.Edges {
 		r.Edges[i].Owned = true
 	}
@@ -122,11 +206,36 @@ func (e *Engine) StartGate(ctx context.Context, gr GateRun) (string, string, err
 		return "", "", err
 	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	return r.ID, r.verdictSession(), nil
+	steps := r.startSteps(0)
+	verdict := r.verdictSession()
+	a.mu.Unlock()
+	a.runSteps(ctx, r.ID, steps)
+	return r.ID, verdict, nil
 }
 
-func (e *Engine) PromptGate(ctx context.Context, run, verdictText, otherText string) error {
+type stepAt struct {
+	node string
+	move int
+}
+
+func (r *Run) startSteps(from int) []stepAt {
+	var out []stepAt
+	for i := from; i < len(r.Moves); i++ {
+		if n := r.Spec.node(r.Moves[i].Node); n != nil && n.Start && n.step() && r.Moves[i].Open && r.Moves[i].Cause < 0 {
+			out = append(out, stepAt{node: n.ID, move: i})
+		}
+	}
+	return out
+}
+
+func (a *app) runSteps(ctx context.Context, run string, steps []stepAt) {
+	bg := context.WithoutCancel(ctx)
+	for _, s := range steps {
+		a.spawn(func() { a.startStep(bg, run, s.node, s.move) })
+	}
+}
+
+func (e *Engine) PromptGate(ctx context.Context, run, verdictText, otherText, tree string) error {
 	a := e.a
 	if err := a.waitReady(ctx); err != nil {
 		return err
@@ -139,8 +248,15 @@ func (e *Engine) PromptGate(ctx context.Context, run, verdictText, otherText str
 		return errGateNotRunning
 	}
 	r.Input, r.GateOther, r.GateRound = verdictText, otherText, len(r.Moves)
+	if tree != "" {
+		r.GateTree = tree
+	}
 	var starts []promptArgs
 	for _, n := range r.Nodes {
+		if n.Start && n.Step {
+			r.startMove(n.ID, a.now())
+			continue
+		}
 		if !n.Start || n.Session == "" {
 			continue
 		}
@@ -151,6 +267,7 @@ func (e *Engine) PromptGate(ctx context.Context, run, verdictText, otherText str
 		}
 		starts = append(starts, promptArgs{Session: n.Session, Text: text})
 	}
+	steps := r.startSteps(r.GateRound)
 	a.touch(r.Workspace)
 	logError(a.store.Save(ctx, r))
 	x := &runner{call: a.runCommand, run: cloneRun(r)}
@@ -160,6 +277,7 @@ func (e *Engine) PromptGate(ctx context.Context, run, verdictText, otherText str
 			return err
 		}
 	}
+	a.runSteps(ctx, run, steps)
 	return nil
 }
 
@@ -284,7 +402,7 @@ func (r *Run) gateDeadEnd() bool {
 	}
 	return !slices.ContainsFunc(r.Moves[r.GateRound:], func(m Move) bool {
 		n := r.Spec.node(m.Node)
-		return m.Open || n == nil || n.decides()
+		return m.Open || n == nil || n.decides() || m.Step != nil && slices.Contains(n.Decide, m.Step.Outcome)
 	})
 }
 
@@ -319,7 +437,7 @@ func (r *Run) verdictSession() string {
 		return ""
 	}
 	for i, n := range r.Spec.Nodes {
-		if n.decides() && i < len(r.Nodes) {
+		if n.decides() && !n.step() && i < len(r.Nodes) {
 			return r.Nodes[i].Session
 		}
 	}
@@ -341,7 +459,10 @@ func (g *Graph) decides() bool {
 }
 
 func (n *Node) decides() bool {
-	return !n.step() && slices.Contains(n.Outcomes, outApproved) && slices.Contains(n.Outcomes, outChanges)
+	if n.step() {
+		return slices.Contains(n.Decide, outPass) && slices.Contains(n.Decide, outFail)
+	}
+	return slices.Contains(n.Outcomes, outApproved) && slices.Contains(n.Outcomes, outChanges)
 }
 
 func gateDirs(repo string) []string {

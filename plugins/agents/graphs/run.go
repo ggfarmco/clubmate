@@ -65,6 +65,9 @@ type Run struct {
 	GatePin   string      `json:"gatePin,omitempty"`
 	GateOther string      `json:"gateOther,omitempty"`
 	GateRound int         `json:"gateRound,omitempty"`
+	GateID    string      `json:"gateId,omitempty"`
+	GateTest  string      `json:"gateTest,omitempty"`
+	GateTree  string      `json:"gateTree,omitempty"`
 }
 
 type Start struct {
@@ -232,7 +235,7 @@ func (x *runner) start(ctx context.Context, g *Graph) error {
 
 func (x *runner) kickoff(ctx context.Context, g *Graph) error {
 	for i, n := range g.Nodes {
-		if !n.Start {
+		if !n.Start || n.step() {
 			continue
 		}
 		text := x.brief(&n)

@@ -56,7 +56,7 @@ func (e *Engine) Definitions(ctx context.Context, workspace string) []Definition
 	a := e.a
 	dirs, err := a.graphDirs(ctx, workspace, false, "")
 	logError(err)
-	files := listGraphs(dirs, a.home)
+	files := plainGraphs(listGraphs(dirs, a.home))
 	untrusted := a.untrustedGraphs(ctx, workspace, dirs, files)
 	out := make([]Definition, 0, len(files))
 	for _, f := range files {

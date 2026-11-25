@@ -261,7 +261,7 @@ func (a *app) reviewHeld(r holdRef) {
 		if delta != "" {
 			text, verdict = delta, delta+fmt.Sprintf(heldDeltaVerdict, h.Key)
 		}
-		if err := a.graphs.PromptGate(ctx, h.Run, verdict, text); err != nil {
+		if err := a.graphs.PromptGate(ctx, h.Run, verdict, text, ""); err != nil {
 			a.gateMu.Unlock()
 			logError("prompt the Done review", err)
 			a.heldEnded(r, h)

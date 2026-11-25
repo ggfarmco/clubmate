@@ -107,7 +107,7 @@ func TestGateRoundCarriesItsInputAlongEdges(t *testing.T) {
 	require.NoError(t, err)
 	turnDone(t, f.a, "agt_g1", 1)
 
-	require.NoError(t, f.e.PromptGate(t.Context(), run, "round two delta", "round two delta, no verdict"))
+	require.NoError(t, f.e.PromptGate(t.Context(), run, "round two delta", "round two delta, no verdict", ""))
 	turnDone(t, f.a, "agt_g1", 2)
 
 	assert.Equal(t, "round two delta, no verdict", prompts(t, f.core, "agt_g1")[1])
