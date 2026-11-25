@@ -120,6 +120,8 @@ type record struct {
 	AfkConnected    []string         `json:"afkConnected,omitempty"`
 	Queue           []queuedPrompt   `json:"queue,omitempty"`
 	QueueSpilled    bool             `json:"queueSpilled,omitempty"`
+	NeighboursTold  []string         `json:"neighboursTold,omitempty"`
+	LandOverlap     []overlapEntry   `json:"landOverlap,omitempty"`
 }
 
 type sessionInfo struct {
@@ -175,6 +177,7 @@ type sessionInfo struct {
 	ListOpen        int                `json:"listOpen,omitempty"`
 	Older           bool               `json:"older,omitempty"`
 	InboxKey        string             `json:"inboxKey,omitempty"`
+	Overlaps        []overlapEntry     `json:"overlaps,omitempty"`
 	inbox           inboxEntry
 	gatePoint       string
 	olderRoot       string

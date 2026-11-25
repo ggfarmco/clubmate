@@ -72,6 +72,10 @@ func landedWith(ctx context.Context, git runner, repo, tip string) bool {
 	return false
 }
 
+func LandedIn(ctx context.Context, repo, tip, base string) bool {
+	return landedIn(ctx, runWith, repo, tip, base)
+}
+
 func landedIn(ctx context.Context, git runner, repo, tip, base string) bool {
 	plain := func(args ...string) ([]byte, error) {
 		return git(ctx, repo, nil, append([]string{"--no-replace-objects"}, args...)...)

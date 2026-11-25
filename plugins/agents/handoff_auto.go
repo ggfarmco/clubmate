@@ -62,6 +62,7 @@ func handoffOn(setting, trigger string) bool {
 func (a *app) landDone(ctx context.Context, cmd pluginsdk.CommandRun, args landGateArgs) (any, error) {
 	res, err := a.landDoneCommand(ctx, cmd, args)
 	if err == nil {
+		a.landTold(ctx, args)
 		a.noteLanded(ctx, args)
 	}
 	return res, err

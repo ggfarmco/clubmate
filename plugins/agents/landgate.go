@@ -239,12 +239,13 @@ type landGateArgs struct {
 }
 
 type landGateResult struct {
-	State    string   `json:"state"`
-	Reviewer string   `json:"reviewer,omitempty"`
-	Text     string   `json:"text,omitempty"`
-	Findings []string `json:"findings,omitempty"`
-	Deferred []string `json:"deferred,omitempty"`
-	Summary  string   `json:"summary,omitempty"`
+	State      string   `json:"state"`
+	Reviewer   string   `json:"reviewer,omitempty"`
+	Text       string   `json:"text,omitempty"`
+	Findings   []string `json:"findings,omitempty"`
+	Deferred   []string `json:"deferred,omitempty"`
+	Summary    string   `json:"summary,omitempty"`
+	Neighbours string   `json:"neighbours,omitempty"`
 }
 
 type landVerdictArgs struct {

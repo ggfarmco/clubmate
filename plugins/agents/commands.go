@@ -115,7 +115,7 @@ var (
 		"agents.gate-add":       withArgs((*app).gateAddCommand),
 		"agents.gate-update":    withArgs((*app).gateUpdateCommand),
 		"agents.gate-delete":    withArgs((*app).gateDeleteCommand),
-		"agents.land-gate":      withArgs((*app).landGateCommand),
+		"agents.land-gate":      withArgs((*app).landGate),
 		"agents.land-done":      withArgs((*app).landDone),
 		"agents.land-verdict":   withArgs((*app).landVerdictCommand),
 		"agents.outcomes":       withArgs((*app).outcomesCommand),
@@ -492,6 +492,7 @@ func (a *app) listInfos(ctx context.Context, workspaceID, home string, runs []gr
 		return branchLabel(a.branches.name(ctx, workspaceID, worktree))
 	})
 	a.setOlderIn(infos, workspaceID, runs)
+	a.setOverlaps(workspaceID, infos)
 	return infos
 }
 

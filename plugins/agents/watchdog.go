@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -203,7 +204,10 @@ func (a *app) flushWake(id string) {
 		}
 	}
 	w.mu.Unlock()
-	var lines []string
+	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+	defer cancel()
+	told := slices.Clone(rec.NeighboursTold)
+	var lines, added []string
 	for _, kid := range a.children(id) {
 		k := kid.snapshot()
 		key, ok := taken[k.ID]
@@ -217,10 +221,19 @@ func (a *app) flushWake(id string) {
 			fallthrough
 		default:
 			status := strings.Split(key, "/")[1]
-			lines = append(lines, fmt.Sprintf(childFormat, childName(k), k.ID, status))
+			line := fmt.Sprintf(childFormat, childName(k), k.ID, status)
+			if extra, keys := a.childNeighbours(ctx, told, k); extra != "" {
+				line += " " + extra
+				told, added = append(told, keys...), append(added, keys...)
+			}
+			lines = append(lines, line)
 		}
 	}
-	if len(lines) == 0 || a.submitIdle(parent, promptArgs{Text: strings.Join(lines, "\n")}) {
+	if len(lines) == 0 {
+		return
+	}
+	if a.submitIdle(parent, promptArgs{Text: strings.Join(lines, "\n")}) {
+		a.markTold(ctx, parent, added)
 		return
 	}
 	w.mu.Lock()

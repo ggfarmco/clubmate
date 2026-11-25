@@ -303,7 +303,8 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: slices.Clone(blocks)}
 	fromTitle := a.senderTitle(args.From)
 	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
-	req.Prompt = append(slices.Clip(req.Prompt), a.policies(ctx, rec)...)
+	policies, told := a.policies(ctx, rec, turn)
+	req.Prompt = append(slices.Clip(req.Prompt), policies...)
 	cancel()
 	if s.isCommand(args.Text) {
 		req.Prompt = append(slices.Clip(req.Prompt[1:]), req.Prompt[0])
@@ -337,6 +338,9 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	s.recordSentLocked(promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, FromTitle: fromTitle, Voice: args.Voice, Review: args.Review, Gate: cmp.Or(args.Message, doneMessage(args, args.Gate || s.sending != nil && s.sending.Gate))})
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
+	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
+	a.markTold(ctx, s, told)
+	cancel()
 	req.Prompt = sendable(req.Prompt)
 	var res acp.PromptResponse
 	answered := acp.WithAnswered(context.Background(), func() {

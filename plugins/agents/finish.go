@@ -60,12 +60,12 @@ type worktreeSession struct {
 	ID string `json:"id"`
 }
 
-func (a *app) policies(ctx context.Context, rec record) []acp.ContentBlock {
+func (a *app) policies(ctx context.Context, rec record, turn int) ([]acp.ContentBlock, []string) {
 	if rec.SystemPrompt != "" || rec.isAside() {
-		return nil
+		return nil, nil
 	}
 	if gf := rec.GateFor; gf != nil {
-		return []acp.ContentBlock{{Type: "text", Text: gf.policy()}}
+		return []acp.ContentBlock{{Type: "text", Text: gf.policy()}}, nil
 	}
 	out := []acp.ContentBlock{{Type: "text", Text: a.finishText(ctx, rec)}}
 	if len(a.children(rec.ID)) > 0 {
@@ -77,7 +77,11 @@ func (a *app) policies(ctx context.Context, rec record) []acp.ContentBlock {
 	if a.effectiveAFK(rec) {
 		out = append(out, acp.ContentBlock{Type: "text", Text: afkText})
 	}
-	return out
+	text, told := a.neighboursBlock(ctx, rec, turn)
+	if text != "" {
+		out = append(out, acp.ContentBlock{Type: "text", Text: text})
+	}
+	return out, told
 }
 
 func (a *app) finishText(ctx context.Context, rec record) string {

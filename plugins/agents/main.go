@@ -61,6 +61,7 @@ type app struct {
 	found        searchCache
 	thumbs       thumbCache
 	watchdog     watchdog
+	overlapCache overlapCache
 	reviews      *reviewBoard
 	self         *selfStore
 
@@ -538,7 +539,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 	tree := a.spendTree()
 	out := make([]sessionInfo, 0, len(recs))
 	for _, rec := range recs {
-		rec.DocIndex = nil
+		rec.DocIndex, rec.NeighboursTold, rec.LandOverlap = nil, nil, nil
 		info := baseInfo(rec, nest)
 		info.NotifyEffective, info.ChildStatus = a.effectiveNotify(rec), children[rec.ID]
 		if s := a.session(rec.ID); s != nil {

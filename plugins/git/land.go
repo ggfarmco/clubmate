@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -65,9 +66,10 @@ type landGateCall struct {
 }
 
 type landGateReply struct {
-	State   string `json:"state"`
-	Text    string `json:"text"`
-	Summary string `json:"summary"`
+	State      string `json:"state"`
+	Text       string `json:"text"`
+	Summary    string `json:"summary"`
+	Neighbours string `json:"neighbours"`
 }
 
 type landResult struct {
@@ -102,7 +104,7 @@ func landCommand(ctx context.Context, a *app, c call) (any, error) {
 		return p.cleanup(ctx, a, c.h, c.workspaceID, landResult{Into: p.into, Source: p.source, Note: fmt.Sprintf(nothingToLand, p.source, p.into)}), nil
 	}
 	gate := landGateCall{Session: c.caller, Target: p.target.Path, Worktree: p.own.Path, Into: p.into, Source: p.source, Head: p.head, Old: p.old, Tree: p.tree}
-	var summary string
+	var summary, neighbours string
 	if c.agent {
 		var reply landGateReply
 		if err := c.h.RunCommand(ctx, landGateCmd, c.workspaceID, gate, &reply); err != nil {
@@ -111,7 +113,7 @@ func landCommand(ctx context.Context, a *app, c call) (any, error) {
 		if reply.State != landApproved {
 			return nil, errors.New(reply.Text)
 		}
-		summary = strings.TrimSpace(reply.Summary)
+		summary, neighbours = strings.TrimSpace(reply.Summary), strings.TrimSpace(reply.Neighbours)
 	}
 	commit, note, err := p.commitWithSummary(ctx, c.args.Message, summary)
 	if err != nil {
@@ -121,7 +123,7 @@ func landCommand(ctx context.Context, a *app, c call) (any, error) {
 		gate.Commit = commit
 		logError("record landing", c.h.RunCommand(ctx, landDoneCmd, c.workspaceID, gate, nil))
 	}
-	return p.cleanup(ctx, a, c.h, c.workspaceID, landResult{Commit: commit, Into: p.into, Source: p.source, Note: strings.TrimSpace(p.note + " " + note)}), nil
+	return p.cleanup(ctx, a, c.h, c.workspaceID, landResult{Commit: commit, Into: p.into, Source: p.source, Note: strings.Join(slices.DeleteFunc([]string{strings.TrimSpace(p.note), strings.TrimSpace(note), neighbours}, func(s string) bool { return s == "" }), " ")}), nil
 }
 
 func planLand(ctx context.Context, a *app, c call) (*landPlan, error) {

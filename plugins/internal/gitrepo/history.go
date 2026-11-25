@@ -3,6 +3,7 @@ package gitrepo
 import (
 	"context"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -51,6 +52,43 @@ func ChangedFiles(ctx context.Context, repo, base, commit string) ([]string, err
 		}
 	}
 	return names, nil
+}
+
+type Touched struct {
+	MergeBase string
+	Files     []string
+	Untracked []string
+}
+
+func TouchedFiles(ctx context.Context, worktree, base string) (Touched, error) {
+	mb, err := output(ctx, worktree, nil, "merge-base", "--end-of-options", base, "HEAD")
+	if err != nil {
+		return Touched{}, err
+	}
+	changed, err := Run(ctx, worktree, "diff", "--name-only", "-z", "--no-renames", "--no-ext-diff", mb, "--")
+	if err != nil {
+		return Touched{}, err
+	}
+	fresh, err := Run(ctx, worktree, "ls-files", "-z", "--others", "--exclude-standard")
+	if err != nil {
+		return Touched{}, err
+	}
+	t := Touched{MergeBase: mb, Untracked: nulList(fresh)}
+	t.Files = append(nulList(changed), t.Untracked...)
+	slices.Sort(t.Files)
+	t.Files = slices.Compact(t.Files)
+	return t, nil
+}
+
+func nulList(out []byte) []string {
+	var names []string
+	for name := range strings.SplitSeq(string(out), "\x00") {
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 func DiffZero(ctx context.Context, repo, base, commit, path string) (string, error) {
