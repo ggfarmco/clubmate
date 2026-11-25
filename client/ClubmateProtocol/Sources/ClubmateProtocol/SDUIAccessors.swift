@@ -88,6 +88,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let pinned: Bool
     public let open: String?
     public let mirrorOf: String?
+    public let keepFolded: Bool
     public let help: String?
     public let number: Int?
 
@@ -101,7 +102,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
 
     public var tap: SDUITreeTap {
         guard hasChildren else { return .select(target) }
-        if opensPage { return .open(target, unfold: !expanded) }
+        if opensPage { return .open(target, unfold: !expanded && !keepFolded) }
         return action ? .fold(expand: !expanded) : .select(target)
     }
 
@@ -131,6 +132,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
         pinned = fields["pinned"]?.boolValue ?? false
         open = fields["open"]?.stringValue
         mirrorOf = fields["mirrorOf"]?.stringValue
+        keepFolded = fields["keepFolded"]?.boolValue ?? false
         help = fields["help"]?.stringValue
         number = fields["number"]?.numberValue.map(Int.init)
     }

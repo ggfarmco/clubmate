@@ -134,6 +134,7 @@ final class SDUITests: XCTestCase {
         XCTAssertEqual(try item(#"{"id": "dir:a/p", "label": "p", "action": true, "hasChildren": true, "expanded": true}"#).tap, .fold(expand: false))
         XCTAssertEqual(try item(#"{"id": "new:a/x.md", "label": "X", "mirrorOf": "a/x.md"}"#).tap, .select("a/x.md"))
         XCTAssertEqual(try item(#"{"id": "gate-repo:/r", "label": "r", "hasChildren": true, "expanded": true}"#).tap, .select("gate-repo:/r"))
+        XCTAssertEqual(try item(#"{"id": "agt_p", "label": "P", "open": "session", "keepFolded": true, "hasChildren": true}"#).tap, .open("agt_p", unfold: false))
     }
 
     func testTableColumnsDropByPriority() {

@@ -154,15 +154,16 @@ type olderSide struct {
 }
 
 const (
-	sessionsTree  = "sessions"
-	removeKey     = "cmd+delete"
-	actRemoveRun  = "removeRun"
-	openRun       = "run"
-	actNewGate    = "newGate"
-	actNewGraph   = "newGraph"
-	dockGateHelp  = "gate-help"
-	dockGraphHelp = "graph-help"
-	dockCap       = 6
+	sessionsTree    = "sessions"
+	removeKey       = "cmd+delete"
+	actRemoveRun    = "removeRun"
+	openRun         = "run"
+	openSessionPage = "session"
+	actNewGate      = "newGate"
+	actNewGraph     = "newGraph"
+	dockGateHelp    = "gate-help"
+	dockGraphHelp   = "graph-help"
+	dockCap         = 6
 )
 
 func runMenu(r api.RunRow) []sdui.MenuEntry {
@@ -986,6 +987,8 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 		Tone:        tone,
 		Menu:        menu,
 		Badges:      badges,
+		Open:        openSessionPage,
+		KeepFolded:  true,
 	}
 }
 

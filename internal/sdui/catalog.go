@@ -977,7 +977,7 @@ func treeItemCheck(c *validator, v any) error {
 	fields := map[string]propCheck{
 		"muted": isBool, "faint": isBool, "action": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
 		"badges": listOf(headerBadgeCheck), "changes": changesCheck, "detailTone": oneOf(detailTones), "detailFaint": isBool,
-		"labelIcon": isString, "pinned": isBool, "open": oneOf(treeOpens), "mirrorOf": isString, "help": isString,
+		"labelIcon": isString, "pinned": isBool, "open": oneOf(treeOpens), "mirrorOf": isString, "keepFolded": isBool, "help": isString,
 		"number": rowNumber,
 	}
 	for k, f := range itemFields {

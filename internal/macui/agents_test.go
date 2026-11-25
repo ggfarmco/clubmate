@@ -180,3 +180,28 @@ func TestCloseSessionAsksWhileATerminalRunsAProcess(t *testing.T) {
 	in.eventually("esc keeps the terminal", func() bool { return in.alert() == nil })
 	testutil.Never(t, func() bool { return !slices.Contains(ids(), id) }, testutil.Timeout(time.Second))
 }
+
+func TestReturnOnASessionRowOpensItAndNeverUnfoldsIt(t *testing.T) {
+	in := start(t, "macui-session-return", "")
+	in.focusSection("agents", "agents.sidebar")
+	parent := in.idleSession("Hello")
+	before := in.sessions()
+	in.runAs(parent, "command", "run", "--agent", "agents.new", "prompt=Hello")
+	child := in.added(before).ID
+	kid := "sessions#" + child
+
+	in.pointer("click", "sessions#"+parent)
+	in.mode("TREE")
+	in.key("return")
+	in.focusIn(parent)
+	testutil.Never(t, func() bool { return in.snapshot().main().has(kid) }, testutil.Timeout(time.Second))
+
+	in.stepOut("opt+cmd+left")
+	in.mode("TREE")
+	in.key("l")
+	in.eventually("the child row shows under its parent", func() bool { return in.snapshot().main().has(kid) })
+	in.pointer("click", kid)
+	in.mode("TREE")
+	in.key("return")
+	in.focusIn(child)
+}

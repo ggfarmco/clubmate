@@ -63,6 +63,7 @@ type TreeItem struct {
 	Pinned      bool          `json:"pinned,omitempty"`
 	Open        string        `json:"open,omitempty"`
 	MirrorOf    string        `json:"mirrorOf,omitempty"`
+	KeepFolded  bool          `json:"keepFolded,omitempty"`
 	Help        string        `json:"help,omitempty"`
 	Number      int           `json:"number,omitempty"`
 }

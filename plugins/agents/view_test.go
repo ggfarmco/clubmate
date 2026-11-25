@@ -322,6 +322,8 @@ func TestSidebarNestsChildren(t *testing.T) {
 	assert.True(t, folded.HasChildren)
 	assert.False(t, folded.Expanded)
 	assert.Empty(t, folded.Children)
+	assert.Equal(t, "session", folded.Open, "↩ on a parent session opens it instead of folding it")
+	assert.True(t, folded.KeepFolded, "opening a parent session leaves its children folded")
 
 	tree := sidebarView(rows, "agt_c", map[string]bool{"s:agt_p": false}, now, "/r/a", nil, false, "", sidebarSearch{}, 0, sidebarPlus{}, nil)
 	require.NoError(t, internalsdui.Validate(tree))
