@@ -1,0 +1,18 @@
+{
+  "title": "Agents keyboard · round 1",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 25 Nov. Problems: move between the sessions tree, the transcript and the composer; switch sessions fast. Shared by all three directions: ⌃⌘1–9 open the N-th visible session (⌃⌘↓ order), ⌃⌘J the next one that needs you; every jump lands in the prompt, so ⌃⌘J then 1 = go there and allow once. ⌃⌘ instead of ⌥⌘ for numbers: without ⌘, ⌥1 would answer a card.",
+    "A · Ring: ⌃⇥ / ⌃⇧⇥ step through the panes (tree → transcript → composer → aside), the key macOS uses to leave a text field. Esc still stops the turn.",
+    "B · Modes: Esc steps out instead of stopping (composer → transcript → tree → composer); ⌘. stops the turn from any pane, Mac and iPad. The tree's j/k, h/l, g… work in the transcript too, plus g1–g9, gl (last session), gn (next that needs you). The status bar names the pane: TREE · READ · TYPE.",
+    "C · Switcher: a quick ⌃⇥ flips to the last session, holding ⌃ and tapping ⇥ opens a most-recent-first list; ⌥⌘ + arrows move between panes by direction; ⌃⌘1–9 open sessions pinned with p.",
+    "Designer's pick: B, with C's ⌃⇥ for the last session. Open questions: ship the Esc change with a “⌘. stops” hint or a setting “Esc stops the turn”; should numbers skip asides and graph steps; C's pins and held switcher later?"
+  ],
+  "boards": [
+    {"file": "r1-Directions.dc.html", "w": 2880, "title": "Directions A · B · C side by side, key tables and checks", "caption": "Each direction's keys for panes and sessions, what each replaces, and the check against app, macOS, iPadOS and the iPad keyboard."},
+    {"file": "r1-Handoff.dc.html", "w": 1800, "title": "Recommendation: B + ⌃⇥ · rules · handoff", "caption": "The key set with iPad keys, docs/shortcuts.md changes, 10 rules, edge cases, build notes, tests, open questions."},
+    {"file": "r1-Mac-1280-dark.dc.html", "w": 4232, "title": "Mac 1280 · Mate dark · A B C × tree, transcript, composer focused", "caption": "The focus mark, row digits and status-bar hints of each direction."},
+    {"file": "r1-Mac-640-light.dc.html", "w": 2312, "title": "Mac 640 · Mate light · A B C × tree, transcript, composer focused", "caption": "At 640 pt the tree is a drawer that opens when it gets focus."},
+    {"file": "r1-iPad.dc.html", "w": 2536, "title": "iPad Companion · hardware keyboard", "caption": "The same model on the iPad: ⌃[ as Esc, a hint strip only while a hardware keyboard is attached. Drawn without seeing the Companion."}
+  ]
+}

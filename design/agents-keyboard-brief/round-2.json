@@ -1,0 +1,15 @@
+{
+  "title": "Agents keyboard · round 2 · B, final",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 25 Nov. The user picked B (Esc steps out, ⌘. stops) with ⌃⇥ for the last session; the Esc change ships with a “⌘. stops” hint (4 s, first 20 times); session numbers skip asides and graph steps. Their nuance: an Esc that no view takes reaches the window, and in full screen AppKit then leaves full screen.",
+    "Measured in the test app before the round: tree focused, a key monitor takes Esc; composer focused, Esc stops a running turn or the text view takes it; the leaks are (d) a row click while typing drops focus and (e) a click on transcript text or a card area gives focus to the hosting view, so Esc goes on to the window.",
+    "Ruling: every Agents pane (tree, transcript, composer, cards, aside, 640 drawer) takes every Esc, also where there is nothing to step out of (the status bar says so); a row click gives the tree key focus, a transcript click focuses that block. Full screen ends only with ⌃⌘F, Globe F or the green button. A second way out that is not Esc: ⌥⌘← ↑ ↓ → go straight to tree, transcript, composer, aside, from the composer too; ⌃[ stays an Esc alias.",
+    "⌘O stays Open Folder…; “open in nvim” on a focused file block moves to gf, and the diff card prints gf only while its block has the bar."
+  ],
+  "boards": [
+    {"file": "r2-StepOut.dc.html", "w": 1800, "title": "1 · Stepping out without ending full screen", "caption": "Where Esc goes in 18 cases (first match wins, leaks d and e closed), the step-out keys that were weighed, the status-bar hints."},
+    {"file": "r2-OpenFile.dc.html", "w": 1800, "title": "2 · ⌘O stays Open Folder…, open in nvim on gf", "caption": "Options weighed, the diff card with and without the bar, Mate dark and light."},
+    {"file": "r2-Handoff.dc.html", "w": 1800, "title": "3 · Final handoff: B with ⌃⇥", "caption": "The full key table with iPad keys, 14 rules, docs/shortcuts.md changes, edge cases, build notes, tests. Replaces the r1 handoff."}
+  ]
+}
