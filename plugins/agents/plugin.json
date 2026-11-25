@@ -45,7 +45,7 @@
       {"keys": "cmd+shift+\\", "action": "Aside: full page or beside its parent", "when": "an aside is open"},
       {"keys": "cmd+shift+return", "action": "Aside: open the Send back panel", "when": "an aside is open"},
       {"keys": "cmd+shift+k", "action": "Aside: keep it as its own session", "when": "an aside is open"},
-      {"keys": "cmd+.", "action": "Stop the run (confirmed)", "when": "a running run is open in Graphs"}
+      {"keys": "cmd+.", "action": "Stop the running turn (the session header's Stop prints it; in an aside beside its parent, the Stop of the column with focus); on a running graph run's page, stop the run (confirmed)", "when": "Agents, a turn runs or a running run is open in Graphs, from any pane, the prompt too"}
     ],
     "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "opensFirst": true, "slots": ["sheet", "aside"]}, {"id": "agents.graphs", "title": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "order": 37, "rail": false}, {"id": "agents.gates", "title": "Gates", "icon": "checkmark.shield", "order": 38, "rail": false}],
     "views": [{"slot": "editor-nvim.chat"}, {"slot": "wiki.chat"}, {"slot": "agents.settings"}],

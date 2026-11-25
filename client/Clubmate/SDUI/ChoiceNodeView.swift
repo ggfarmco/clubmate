@@ -206,7 +206,7 @@ struct ChoiceNodeView: View {
                 form?.submit()
                 keysRefocus?.take()
             }
-            .onExitCommand { keysRefocus?.take() }
+            .modifier(ExitToKeys(refocus: keysRefocus, focused: otherFocused))
             .onAppear {
                 guard focusOther else { return }
                 focusOther = false

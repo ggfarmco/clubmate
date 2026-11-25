@@ -39,6 +39,7 @@ const (
 
 	actSend            = "send"
 	actStop            = "stop"
+	stopKey            = "cmd+."
 	actSelectParent    = "selectParent"
 	actSibling         = "sibling"
 	actFolderRemove    = "folderRemove"

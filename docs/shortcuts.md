@@ -25,6 +25,9 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌃⌘1…⌃⌘9 | In Agents: open the Nth numbered row of the sidebar: the first nine top-level sessions and graph runs it shows (filter, search and folded groups apply), never asides, graph steps, reviewer rows or inbox copies; a session's prompt gets the focus, a run opens its page (`agents.jump`). Hold ⌃ for ½ s in Agents to see the digits on the rows (Window › Go to Session) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`), `plugins/agents/jump.go`, `Windows/Workspace/AgentsSessionKeys.swift` |
 | ⌃⌘J, ⌃⇧⌘J | In Agents: next, previous session that needs you, oldest first (asides, graph steps and runs included), wrapping around; focus goes to its prompt; "nothing needs you" when none waits (`agents.needs`) | `ClubmateApp.swift`, `plugins/agents/jump.go` |
 | ⌃⇥ | In Agents, with focus in any Agents pane (the prompt too): the last session, and back with a second ⌃⇥; "no previous session" when it is closed or gone (`agents.last`). Not a menu key: in terminals, nvim and text fields of other sections ⌃⇥ keeps its own meaning | `Windows/Workspace/AgentsSessionKeys.swift`, `plugins/agents/jump.go` |
+| Esc, ⌃[ | In Agents (sessions tree, transcript, prompt, cards, aside): step out, prompt → transcript → tree → the prompt you left (an aside's transcript steps to its parent's transcript first; a session with no messages skips its transcript). Open things close first (a menu, the palette, a sheet, the / command list, the Always allow confirm, text in the tree's search field). Agents always takes Esc, also where there is nothing to step out of (the status bar then says why, e.g. "No session open · ↩ open · ⌘N new"), so Esc never reaches the window and never ends full screen there; ⌃⌘F, Globe F or the green button do. Other sections keep their Esc | `SDUI/Agents/AgentsFocus.swift`, `SDUI/KeyMonitor.swift` (a fallback monitor that runs after all others), `ClubmateKit/AgentsKeys.swift` |
+| ⌥⌘←, ⌥⌘→, ⌥⌘↑, ⌥⌘↓ | In Agents, also from the prompt: go to the sessions tree; the main pane's prompt (from the main pane: the aside's prompt); the transcript of the column you are in; the prompt of the column you are in | `SDUI/Agents/AgentsFocus.swift`, `ClubmateKit/AgentsKeys.swift` |
+| ⌘. | In Agents, from any pane (the prompt too): stop the running turn of the column with focus (the session header's Stop prints ⌘.; in an aside beside its parent, the aside's Stop when focus is in the aside, else the parent's). On a running graph run's page it stops the run (confirmed). With nothing to stop the status bar says "Nothing runs here"; ⌘. never reaches the window | `plugins/agents/view.go`, `plugins/agents/aside_view.go`, `SDUI/InputViews.swift` (`ButtonNodeView`), `ClubmateKit/AgentsKeys.swift` |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |
 | ⇧⌘I | Notifications inbox (bell popover) | `ClubmateApp.swift` |
 | ⌥⌘A | Keep Awake: with no choice active keeps the Mac awake until turned off, with any choice active turns it off (`awake.toggle`). Printed next to Until Turned Off or Turn Off in the status bar's Keep Awake menu and Settings → Keep Awake; ⌥-click on the gourd does the same. Disabled while the awake plugin doesn't answer | `ClubmateApp.swift`, `Windows/KeepAwakeItem.swift`, `ClubmateKit/KeepAwake.swift` |
@@ -142,7 +145,7 @@ The title picker adds these to the keys above:
 | gn, gN | Agents: next, previous session that needs you, as ⌃⌘J, ⌃⇧⌘J |
 | gt, gi | Agents: stay in the tree, go to the prompt |
 | < / > | Previous / next chip of the sidebar's filter row, when it has one (Agents: All · Needs you · Open · Running) |
-| Esc | Fold the open docked row (also from a row inside it); elsewhere back to the main pane |
+| Esc, ⌃[ | Fold the open docked row (also from a row inside it); elsewhere back to the main pane (in Agents: the prompt you last typed in, see § App and windows) |
 | ⌃L (sidebar on the left), ⌃H (sidebar on the right) | Back to the main pane |
 
 `g` waits for the next key; a key that is not listed is swallowed. The Agents chords (g1…g9, gl, gn, gN, gt, gi) work only in the Agents sidebar; the tree sends them to the plugin as `jump`, `last` and `needs` events. In other trees a key with ⇧, ⌘, ⌃ or ⌥ after g ends the wait and goes on to the app. Defined in `ClubmateKit/TreeKeys.swift` (`TreeChord`).
@@ -217,7 +220,8 @@ Focus moving to the Agents main pane (switching to the section, Esc or ⌃L/⌃H
 |---|---|
 | ↩ (or ⌘↩) | Send the prompt; while a turn runs, add it to the running turn (agents that support steering) or queue it for the next turn. While the command list is open ↩ inserts the command instead |
 | ⇧↩ / ⌥↩ | Insert a newline |
-| Esc | Stop the running turn |
+| Esc, ⌃[ | Agents: step out to the transcript (to the tree when the session has no messages); the turn keeps running. The first 20 times on this Mac that Esc leaves the prompt of a running turn, the status bar says "⎋ left the prompt · ⌘. stops" for 4 s. With the command list open, Esc closes it first. Code and Wiki chat panels: stop the running turn |
+| ⌘. | Agents: stop the running turn (see § App and windows) |
 | @ (at the start of a word) | Attach a file through the file picker |
 | ⌘V | With an image on the clipboard (a screenshot copied with ⌃⇧⌘4, an image copied in a browser) or image files copied in Finder: attach them as images (`Pasted image.png`) instead of pasting; text on the clipboard pastes as usual. A pasted or dropped path to an image file is taken out of the text and attached too |
 | / (at the start of the prompt) | List the agent's commands, filtered by what follows |
@@ -231,6 +235,11 @@ While an input method is composing (marked text), ↩ and Esc go to it. Defined 
 | Keys | Action | Where defined |
 |---|---|---|
 | ⌘D | Full diff: open the turn of the newest edit card in the transcript in nvim's diffview (printed on that card's Full diff) | `SDUI/Agents/TranscriptView.swift` |
+| click, Esc from the prompt, ⌥⌘↑ | Agents: focus the transcript (an accent bar at its left edge, status bar READ). A click on message text keeps the text selection |
+| i, a | Agents, transcript focused: go to the prompt, the draft kept | `SDUI/Agents/TranscriptView.swift`, `ClubmateKit/AgentsKeys.swift` (`TranscriptKey`) |
+| Space, ⇧Space | Agents, transcript focused: page down, up | `SDUI/Agents/TranscriptView.swift` |
+| ⌃H, ⌃L | Agents, transcript focused: one column left, right (tree ← main pane → aside; with the sidebar on the right, the tree is the rightmost column) | `SDUI/Agents/TranscriptView.swift`, `ClubmateKit/AgentsKeys.swift` |
+| Esc, ⌃[ | Agents, transcript focused: step out to the tree (from an aside's transcript, to its parent's transcript first) | `SDUI/Agents/AgentsFocus.swift` |
 | ⌘\ | Ask aside: about the passage selected in an agent message (also the first item of the message's right-click menu), else about the whole last answer; it opens beside the session (Agents section, a session that can have asides) | `SDUI/Agents/TranscriptView.swift`, `SDUI/MarkdownView.swift` |
 
 Open in nvim on an edit card has no key: the board's ⌘O is the app's Open Folder….
@@ -252,7 +261,7 @@ A pending request is docked above the composer.
 | 1 2 3 | The same without ⌥ (bare 2 opens and confirms Always allow too), only while the session's prompt is focused and empty or the request card has focus (click it); typed into a prompt with a draft, the digit goes into the draft |
 | y / n | Allow once / Reject once, under the same condition as bare digits |
 
-Outside the Always allow confirm, Esc still stops the turn and does not answer the request. Defined in `ClubmateKit/PermissionKeys.swift` and `SDUI/Agents/PermissionCardView.swift`.
+Outside the Always allow confirm, Esc does not answer the request: in Agents it steps out of the prompt and ⌘. stops the turn; in the Code and Wiki chat panels Esc stops the turn. Defined in `ClubmateKit/PermissionKeys.swift` and `SDUI/Agents/PermissionCardView.swift`.
 
 ## Repo requests (Agents section or Code chat panel)
 
@@ -345,7 +354,12 @@ Defined by the `keys` scope in `plugins/agents/open_view.go`, handled in `plugin
 | ⌃⌘S | iPad: show or hide the current tab's list column (list + detail ↔ detail only), the same as the sidebar button at the edge of the bar; where the detail would keep less than 640 pt (11-inch portrait) the list slides over the open page. Each tab keeps its state; from the reading view it leaves the reading view (View menu, Show List / Hide List) |
 | ⌘B | iPad, on a wiki page: show or hide the chat panel (the Chat button in the page toolbar; View menu, Show Chat / Hide Chat). A 400 pt panel beside the page in a window wider than 1000 pt, which hides the list column until it closes; a sheet otherwise. ⌃⌘S while the panel is beside the page closes it. In the picker (focus in the panel) ↩ takes the suggested row, ↑ ↓ j k move, `/` focuses the filter and N starts a new session; All sessions has no ⌘[ on the iPad, ⌘[ stays Back in the detail column |
 | ⌃⌘F | iPad: reading view on or off on a wiki page, a doc page or a session: no bars, no columns, prose min(780, width − 56) pt centred (a session: 680 pt), code and tables up to 1060 pt, the wiki margin folded; leaving restores the columns (View menu) |
-| Esc | iPad, in order: leave the reading view → close the list over the open page (11-inch portrait) → otherwise the key goes on (the voice panel's Cancel or No). Never stops a turn (View menu) |
+| Esc, ⌃[ | iPad, in order: leave the reading view → close the list over the open page (11-inch portrait; when the list was the focused pane, the composer then gets focus) → with an Agents session open, step out: composer → transcript → session list → the composer you left. The focused pane shows a 2 pt accent bar at its leading edge (transcript, list). Empty stops are skipped: a session with no messages steps from the composer to the list; a closed session has no composer stop; the iPhone layout has no list stop. A sheet or dialog over the session, and the voice panel's Cancel or No, take the key first. Never stops a turn (View menu: Close, or Step Out while the list is the focused pane; the ⌃[ item is "… (Alternate)"). Esc in the composer while it holds marked text (an input method) goes to the input method. The list stop ends on a tab switch, a push or pop, and in the iPhone layout |
+| ⌘. | Stop the running turn, from the list, the transcript or the composer: opens the same Stop confirmation as the Stop button. Only while a turn runs (Session menu, Stop) |
+| ⌥⌘← ⌥⌘→ ⌥⌘↑ ⌥⌘↓ | Go straight to a pane, also from the composer: the session list (shows a hidden list), the open session's composer, the transcript (only when it has messages), the composer (Session menu, Go to List / Session / Transcript / Composer) |
+| i, a | Transcript focused (2 pt accent bar at its leading edge): focus the composer, the draft is kept |
+| Space, ⇧Space | Transcript focused: page down, page up |
+| Esc (note) | When Esc leaves the composer of a running turn, a note "⎋ left the prompt · ⌘. stops" shows above the composer for 4 s, the first 20 times on this device (count in the app's preferences, `agents.stopHintShown`) |
 | ⌘[ | Back (the chevron or the back chip); on the iPad only inside the detail column (Go menu) |
 | ⌘1 ⌘2 ⌘3 ⌘4 | Tabs Agents · Backlog · Wiki · More (⌘3 only when the workspace has a wiki); on the iPad the tabs are buttons at the bottom of the list column, and the keys also work while the list is hidden (Go menu) |
 | ⇧⌘I | Inbox, pushed on the current tab (Go menu) |
@@ -355,7 +369,7 @@ Defined by the `keys` scope in `plugins/agents/open_view.go`, handled in `plugin
 | ⌃⇥ | The last session opened in this window, and back; a closed one drops out (Go menu) |
 | ⌘N | The current tab's create action: New Session on Agents, New Task on Backlog; nothing on Wiki and More (File menu) |
 
-Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`, the run card's in `RunRequestCard` (`client/Companion/Plugins/Agents/RunDetailView.swift`); the voice keys in `client/Companion/App/VoicePanel.swift`; reading mode's Esc in `client/Companion/App/ReadingModeModifier.swift`; ⇧⌘F (`TabSearchCommands`) and the per-tab field (`TabSearch`) in `client/Companion/App/TabSearch.swift`; the Backlog search field's ↩ in `client/Companion/Plugins/Backlog/BacklogPlugin.swift` (`TaskListView`); ⌃⌘S, ⌃⌘F, the iPad Esc, ⌘[, ⌘1–⌘4, ⇧⌘I, ⌘N and the session keys (⌃⌘↓ ⌃⌘↑ ⌃⌘1…⌃⌘9 ⌃⌘J ⌃⇧⌘J ⌃⇥, with CompanionKit `SessionJumps`) in `client/Companion/App/AppKeys.swift` (View, Go and File menus).
+Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`, the run card's in `RunRequestCard` (`client/Companion/Plugins/Agents/RunDetailView.swift`); the pane ladder, the ⌥⌘ arrow targets and the hint count in CompanionKit `PaneLadder.swift`; ⌘. and the ⌥⌘ arrows in `SessionCommands` (`SessionKeys.swift`); Esc and ⌃[ in the composer in `ComposerTextView.swift`; the transcript focus, its Esc, ⌃[, i, a, Space and the hint in `client/Companion/Plugins/Agents/SessionDetailView.swift`; the list's focus bar in `AgentsPlugin.swift` (`SessionListView`); the voice keys in `client/Companion/App/VoicePanel.swift`; reading mode's Esc in `client/Companion/App/ReadingModeModifier.swift`; ⇧⌘F (`TabSearchCommands`) and the per-tab field (`TabSearch`) in `client/Companion/App/TabSearch.swift`; the Backlog search field's ↩ in `client/Companion/Plugins/Backlog/BacklogPlugin.swift` (`TaskListView`); ⌃⌘S, ⌃⌘F, the iPad Esc and ⌃[ (`AppNavigation.stepOut`), ⌘[, ⌘1–⌘4, ⇧⌘I, ⌘N and the session keys (⌃⌘↓ ⌃⌘↑ ⌃⌘1…⌃⌘9 ⌃⌘J ⌃⇧⌘J ⌃⇥, with CompanionKit `SessionJumps`) in `client/Companion/App/AppKeys.swift` (View, Go and File menus).
 
 ## Review (Code section, a review tab current in Neovim)
 
@@ -471,6 +485,9 @@ Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode 
 Paths are relative to `nvim-distro/`.
 
 ## Ergonomics notes
+
+- The status bar names the focused Agents pane at its left: TREE, READ (the transcript) or TYPE (the prompt), and shows that pane's keys at its right; a note ("⎋ left the prompt · ⌘. stops", "No session open · ↩ open · ⌘N new") replaces the keys for 4 s.
+- Esc means two things: in Agents it steps out of a pane and ⌘. stops the turn; in the Code and Wiki chat panels Esc still stops the turn. Consider the Agents model there too.
 
 - ⌘W does different things by focus and section: the popup, VS Code, the selected terminal in Terminals, the window without a workspace, nothing in other sections.
 - ↩ and o in a tree differ only on items with children (↩ toggles, o selects). Consider merging them.

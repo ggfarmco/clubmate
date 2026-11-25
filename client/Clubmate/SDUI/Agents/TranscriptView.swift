@@ -13,6 +13,15 @@ struct TranscriptNodeView: View {
     @Environment(\.theme) private var theme
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.composerDrafts) private var drafts
+    @Environment(\.composerFocusSlot) private var focusSlot
+    @Environment(\.focusRouter) private var router
+    @Environment(\.agentsFocus) private var agentsFocus
+    @FocusState private var focused: Bool
+    @State private var inside = false
+    @State private var page = TranscriptPage()
+
+    private var column: AgentsColumn? { agentsFocus == nil ? nil : AgentsColumn(slot: focusSlot) }
+    private var reading: Bool { column != nil && (focused || inside) }
 
     private var ownsFocus: Bool {
         guard let focused = drafts?.focused, let id = node.id else { return true }
@@ -62,6 +71,7 @@ struct TranscriptNodeView: View {
         .onScrollGeometryChange(for: TranscriptGeometry.self) { geometry in
             TranscriptGeometry(offset: geometry.contentOffset.y, content: geometry.contentSize.height, container: geometry.containerSize.height)
         } action: { _, geometry in
+            page.geometry = geometry
             guard watching || geometry.pastEnd else { return }
             transcriptLog.notice("geometry \(node.id ?? "", privacy: .public) offset=\(geometry.offset, format: .fixed(precision: 0)) content=\(geometry.content, format: .fixed(precision: 0)) container=\(geometry.container, format: .fixed(precision: 0)) pastEnd=\(geometry.pastEnd)")
         }
@@ -116,6 +126,36 @@ struct TranscriptNodeView: View {
             dispatch(fullDiff, .named(review.action, review.value))
             return true
         }
+        .focusable(column != nil)
+        .focusEffectDisabled()
+        .focused($focused)
+        .overlay(alignment: .leading) {
+            if reading { theme.accent.frame(width: 2).allowsHitTesting(false) }
+        }
+        .background {
+            if column != nil { ResponderInside { inside = $0 } }
+        }
+        .reportsFocus(.transcript, reading, slot: focusSlot)
+        .keyMonitor(active: reading, fallback: true, handle: read)
+        .onChange(of: router?.pending, initial: true) {
+            guard let column, router?.take(column.slot + AgentsKeys.transcriptSuffix) == true else { return }
+            focused = true
+        }
+    }
+
+    private func read(_ event: NSEvent) -> Bool {
+        if (event.window?.firstResponder as? NSTextView)?.isEditable == true { return false }
+        let flags = event.modifierFlags
+        guard let column, let agentsFocus, let key = TranscriptKey.resolve(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers, command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift)) else { return false }
+        switch key {
+        case .type: agentsFocus.apply(.focus(.composer(column)))
+        case .column(let delta): agentsFocus.apply(AgentsKeys.column(delta, from: .transcript(column), in: agentsFocus.layout))
+        case .page(let delta):
+            let geometry = page.geometry
+            let end = max(geometry.content - geometry.container, 0)
+            position.scrollTo(y: min(max(geometry.offset + CGFloat(delta) * geometry.container * 0.9, 0), end))
+        }
+        return true
     }
 
     private var watching: Bool {
@@ -179,6 +219,10 @@ private struct TranscriptGeometry: Equatable {
     var pastEnd: Bool {
         content > container && offset > content - container + 1
     }
+}
+
+private final class TranscriptPage {
+    var geometry = TranscriptGeometry(offset: 0, content: 0, container: 0)
 }
 
 private struct TranscriptFit: Equatable {

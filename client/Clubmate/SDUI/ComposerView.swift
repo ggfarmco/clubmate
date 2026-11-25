@@ -62,7 +62,8 @@ struct ComposerNodeView: View {
     private var queues: Bool { running && node.bool("steers") != true }
     private var disabled: Bool { node.bool("disabled") == true }
     private var suggestion: String? { node.string("suggestion").flatMap { $0.isEmpty ? nil : $0 } }
-    private var pane: FocusedPane { .composer(running: running, queues: queues) }
+    private var stepsOut: Bool { AgentsKeys.isAgents(slot: focusSlot) }
+    private var pane: FocusedPane { .composer(running: running, queues: queues, steps: stepsOut) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.l) {
@@ -533,6 +534,7 @@ struct ComposerNodeView: View {
         if key != .send, (event.window?.firstResponder as? NSTextInputClient)?.hasMarkedText() == true { return false }
         if key == .attach, filePicker == nil || !node.attachKinds().contains("file") { return false }
         if drafts.confirming.contains(ComposerDrafts.session(of: node.id ?? "")), event.keyCode == 53 || event.keyCode == 36 { return false }
+        model.stepsOut = stepsOut
         switch model.handle(key, before: model.character(before: caret)) {
         case .send(let text): send(text)
         case .stop: dispatch(node, .named("stop", .null))

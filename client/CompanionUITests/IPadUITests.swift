@@ -322,6 +322,69 @@ final class IPadUITests: XCTestCase {
         XCTAssertTrue(press(app, "1", .option, until: wait(timeout: 3) { !reject.exists }))
     }
 
+    func testStepOutLadderAndPaneKeys() {
+        let app = launch(open: "agents/agt_0000000000000004", ["-longTranscript", "YES"])
+        let composer = app.textViews["composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 15))
+        composer.tap()
+        composer.typeText("draft")
+        let focus = app.descendants(matching: .any)["transcript.focus"]
+        app.typeKey("[", modifierFlags: .control)
+        XCTAssertTrue(focus.waitForExistence(timeout: 5))
+        app.typeKey("i", modifierFlags: [])
+        XCTAssertTrue(wait(timeout: 5) { !focus.exists })
+        app.typeKey("s", modifierFlags: [])
+        XCTAssertTrue(wait(timeout: 5) { composer.value as? String == "drafts" })
+        app.typeKey("[", modifierFlags: .control)
+        XCTAssertTrue(focus.waitForExistence(timeout: 5))
+        app.typeKey("[", modifierFlags: .control)
+        XCTAssertTrue(app.descendants(matching: .any)["list.focus"].waitForExistence(timeout: 5))
+        XCTAssertFalse(focus.exists)
+        app.typeKey("[", modifierFlags: .control)
+        app.typeKey("!", modifierFlags: [])
+        XCTAssertTrue(wait(timeout: 5) { composer.value as? String == "drafts!" })
+        app.typeKey(.upArrow, modifierFlags: [.option, .command])
+        XCTAssertTrue(focus.waitForExistence(timeout: 5))
+        let last = app.staticTexts["Last reply of the long session"]
+        XCTAssertTrue(wait(timeout: 5) { self.onScreen(last) })
+        app.typeKey(" ", modifierFlags: .shift)
+        XCTAssertTrue(wait(timeout: 5) { !self.onScreen(last) })
+        app.typeKey(" ", modifierFlags: [])
+        XCTAssertTrue(wait(timeout: 5) { self.onScreen(last) })
+        app.typeKey(.downArrow, modifierFlags: [.option, .command])
+        XCTAssertTrue(wait(timeout: 5) { !focus.exists })
+    }
+
+    func testStepOutClosesTheReadingViewFirstAndHintsThatCommandPeriodStops() {
+        let app = launch(open: "agents/agt_0000000000000004", ["-agents.stopHintShown", "0", "-stopHintSeconds", "300"])
+        let composer = app.textViews["composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 15))
+        composer.tap()
+        let bar = app.navigationBars["Add stock reservation expiry"]
+        app.typeKey("f", modifierFlags: [.control, .command])
+        XCTAssertTrue(wait(timeout: 5) { !bar.exists })
+        app.typeKey("[", modifierFlags: .control)
+        XCTAssertTrue(bar.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["stopHint"].exists)
+        composer.tap()
+        app.typeKey("[", modifierFlags: .control)
+        XCTAssertTrue(app.staticTexts["stopHint"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["list.focus"].exists)
+        app.typeKey(".", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Stop '")).firstMatch.waitForExistence(timeout: 5))
+    }
+
+    func testStepOutDoesNothingUnderASheet() {
+        let app = launch(open: "agents/agt_0000000000000001")
+        XCTAssertTrue(app.buttons["Reject"].waitForExistence(timeout: 15))
+        let confirm = app.staticTexts["Always allow this command?"]
+        XCTAssertTrue(press(app, "2", .option, until: confirm.waitForExistence(timeout: 1.5)))
+        app.typeKey("[", modifierFlags: .control)
+        app.typeKey(.upArrow, modifierFlags: [.option, .command])
+        XCTAssertFalse(app.descendants(matching: .any)["transcript.focus"].waitForExistence(timeout: 2))
+        XCTAssertTrue(confirm.exists)
+    }
+
     func testAFallbackTabTakesAPushAndItsBack() {
         let app = launch(open: "tab:wiki")
         let agents = tab(app, "Agents")

@@ -32,6 +32,8 @@ final class PaneFocusTests: XCTestCase {
         XCTAssertEqual(FocusedPane.graph(history: false, edges: true, opens: false).hints, "j/k · tab edge")
         XCTAssertEqual(FocusedPane.composer(running: false, queues: false).hints, "↩ send")
         XCTAssertEqual(FocusedPane.composer(running: true, queues: true).hints, "↩ queue · Esc stop")
+        XCTAssertEqual(FocusedPane.composer(running: true, queues: false, steps: true).hints, "↩ send · ⎋ read · ⌥⌘← tree · ⌘. stop")
+        XCTAssertEqual(FocusedPane.composer(running: false, queues: false, steps: true).hints, "↩ send · ⎋ read · ⌥⌘← tree")
         XCTAssertNil(FocusedPane.terminal.hints)
     }
 
@@ -45,5 +47,20 @@ final class PaneFocusTests: XCTestCase {
 
         focus.report(.field, from: "f", slot: "agents.sidebar.field", focused: true)
         XCTAssertEqual(focus.fontSlot, "agents.sidebar")
+    }
+
+    func testAgentsPanesNameTheModeAndANoteReplacesTheKeys() {
+        let focus = PaneFocus()
+        focus.report(.transcript, from: "t", slot: "agents.main", focused: true)
+        XCTAssertEqual(focus.mode, "READ")
+        focus.report(.composer(running: false, queues: false), from: "c", slot: "code.chat", focused: true)
+        XCTAssertNil(focus.mode)
+        focus.report(.composer(running: true, queues: false, steps: true), from: "c", slot: "agents.aside", focused: true)
+        XCTAssertEqual(focus.mode, "TYPE")
+        XCTAssertEqual(focus.typedIn, "agents.aside")
+
+        focus.flash(StopHint.text, for: .seconds(60))
+
+        XCTAssertEqual(focus.hints, StopHint.text)
     }
 }

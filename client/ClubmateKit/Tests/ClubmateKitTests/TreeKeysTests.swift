@@ -98,6 +98,7 @@ final class TreeKeysTests: XCTestCase {
             (36, false, .open),
             (31, false, .activate),
             (53, false, .escape),
+            (33, true, .escape),
         ]
         for (keyCode, control, action) in rows {
             for side in SidebarSide.allCases {

@@ -87,6 +87,7 @@ public enum AgentsSection {
     public static let needsCommand = "agents.needs"
     public static let sidebarSlot = "agents.sidebar"
     public static let asideSlot = "agents.aside"
+    public static let mainSlot = "agents.main"
     static let trees = ["sessions", "searchResults"]
 
     public static func showsAside(_ tree: SDUINode?) -> Bool {

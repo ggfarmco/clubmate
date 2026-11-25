@@ -159,6 +159,12 @@ struct SessionListView: View {
                 }
             }
         }
+        .overlay(alignment: .leading) {
+            if context.navigation.menu.state.listStop {
+                PaneBar(label: "Session list has keyboard focus", id: "list.focus")
+                    .padding(.leading, 4)
+            }
+        }
         .columnList()
         .tabSearch(.agents, text: Bindable(store).searchQuery, prompt: "Search sessions")
         .overlay {

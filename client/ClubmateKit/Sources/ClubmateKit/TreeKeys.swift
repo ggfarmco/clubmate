@@ -257,6 +257,7 @@ public enum TreeKeys {
         case 36: return .open
         case 31: return .activate
         case 53: return .escape
+        case 33: return control ? .escape : nil
         default: return nil
         }
     }

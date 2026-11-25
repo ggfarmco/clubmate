@@ -9,6 +9,7 @@ struct ComposerTextView: UIViewRepresentable {
     let placeholder: String
     let enabled: Bool
     let pasteImage: (Data) -> Void
+    var escape: (() -> Void)?
 
     static let maxLines = 6
 
@@ -30,6 +31,7 @@ struct ComposerTextView: UIViewRepresentable {
 
     func updateUIView(_ view: UITextView, context: Context) {
         context.coordinator.parent = self
+        (view as? ImagePastingTextView)?.escape = escape
         context.coordinator.updating = true
         defer { context.coordinator.updating = false }
         let replaced = view.text != text
@@ -139,6 +141,19 @@ final class ComposerCaret {
 }
 
 final class ImagePastingTextView: UITextView {
+    var escape: (() -> Void)?
+
+    override var keyCommands: [UIKeyCommand]? {
+        guard escape != nil, markedTextRange == nil, window?.rootViewController?.presentedViewController == nil else { return super.keyCommands }
+        let keys = [UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(stepOut)), UIKeyCommand(input: "[", modifierFlags: .control, action: #selector(stepOut))]
+        for key in keys { key.wantsPriorityOverSystemBehavior = true }
+        return keys + (super.keyCommands ?? [])
+    }
+
+    @objc private func stepOut() {
+        escape?()
+    }
+
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
         if action == #selector(paste(_:)), isEditable, UIPasteboard.general.hasImages { return true }
         return super.canPerformAction(action, withSender: sender)

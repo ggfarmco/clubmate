@@ -165,3 +165,9 @@ public enum TranscriptEntryKind: String, FallbackEnum {
 
     public static let fallback = Self.other
 }
+
+public enum StopNote {
+    public static let text = "⎋ left the prompt · ⌘. stops"
+    public static let shows = 20
+    public static let seconds = 4
+}

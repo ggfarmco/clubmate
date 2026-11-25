@@ -11,6 +11,7 @@ struct SessionDetailView: View {
     @Environment(AppNavigation.self) private var navigation
     @Environment(VoiceSession.self) private var voice
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.ownerTab) private var ownerTab
     @State private var draft = ""
     @State private var attachments: [ComposerAttachment] = []
     @State private var sending = false
@@ -28,6 +29,9 @@ struct SessionDetailView: View {
     @State private var width = 0.0
     @State private var composerFocused = false
     @FocusState private var cardField: String?
+    @FocusState private var transcriptFocused: Bool
+    @State private var stopHint = 0
+    @State private var page = PageMetrics()
     @State private var reviewing: LandCard?
     @State private var archiving = false
     @State private var window = TranscriptWindow()
@@ -168,6 +172,8 @@ struct SessionDetailView: View {
         let cardTyping = typingInCard(screen)
         let echoes = entries.count { $0.isOutgoing }
         let keySend: (() -> Void)? = cardTyping ? nil : { send() }
+        let keyStop = stopKey(session)
+        let keyPanes = paneKeys(session, hasMessages: !entries.isEmpty, cardTyping: cardTyping)
         let answerDocked = switch screen.dock {
         case .permission, .elicitation, .connect, .land: true
         case .open(let card): !closing && (!folded(card) || store.openDraft(sessionID).unfolded)
@@ -324,6 +330,8 @@ struct SessionDetailView: View {
         }
         .onScrollGeometryChange(for: ScrollGeometry.self) { $0 } action: { _, new in
             scrollY.value = new.contentOffset.y + new.contentInsets.top
+            page.viewport = new.containerSize.height - new.contentInsets.top - new.contentInsets.bottom
+            page.bottom = new.contentSize.height + new.contentInsets.top + new.contentInsets.bottom - new.containerSize.height
             drawAtRest(rows)
             if new.contentSize.height < new.containerSize.height { drawMore(rows, keepingOffset: false) }
             if !scrolled, !moreVisible, new.contentSize.height > new.containerSize.height, TranscriptWindow.atBottom(offset: new.contentOffset.y, insetTop: new.contentInsets.top, container: new.containerSize.height, content: new.contentSize.height) { scrolled = true }
@@ -350,6 +358,11 @@ struct SessionDetailView: View {
                 loadState(loaded: transcript != nil, empty: entries.isEmpty)
             }
         }
+        .modifier(PaneFocusMark(focused: $transcriptFocused, label: "Transcript has keyboard focus", id: "transcript.focus") { press in
+            guard let escape = keyPanes?.escape, press.key == .escape || (press.key == "[" && press.modifiers == .control) else { return transcriptKey(press) }
+            escape()
+            return .handled
+        })
         .simultaneousGesture(TapGesture().onEnded {
             if composerFocused || cardField != nil {
                 composerFocused = false
@@ -380,6 +393,7 @@ struct SessionDetailView: View {
                     .padding(.horizontal, 12)
                     .frame(maxWidth: 820)
                 }
+                stopHintBanner
                 if answeredElsewhere > 0 {
                     AnsweredElsewhereBanner()
                         .transition(.opacity)
@@ -466,7 +480,7 @@ struct SessionDetailView: View {
                     }
                 }
                 if let session {
-                    composer(session, screen: screen, blocked: blocked, answerDocked: answerDocked, hidden: cardTyping)
+                    composer(session, screen: screen, blocked: blocked, answerDocked: answerDocked, hidden: cardTyping, escape: keyPanes?.escape)
                 }
             }
             .animation(.snappy, value: screen.dock)
@@ -588,7 +602,7 @@ struct SessionDetailView: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: sent)
         .sessionKeys(scope: sessionID, enabled: context.connection.state == .online, pending: store.pendingPermission(sessionID), answer: { request, option in
             perform { try await answer(request: request.id, option: option) }
-        }, confirmAlways: { alwaysAsked = AlwaysAsk(option: $0) }, send: keySend)
+        }, confirmAlways: { alwaysAsked = AlwaysAsk(option: $0) }, send: keySend, stop: keyStop, panes: keyPanes)
         .followingRows(entries.count, echoes: echoes, atBottom: { atBottom.value }) {
             withAnimation { position.scrollTo(edge: .bottom) }
         }
@@ -891,7 +905,7 @@ struct SessionDetailView: View {
         return !store.openDraft(sessionID).answered(card.items).isEmpty
     }
 
-    private func composer(_ session: AgentSession, screen: SessionScreen, blocked: String?, answerDocked: Bool, hidden: Bool) -> some View {
+    private func composer(_ session: AgentSession, screen: SessionScreen, blocked: String?, answerDocked: Bool, hidden: Bool, escape: (() -> Void)?) -> some View {
         ComposerView(
             draft: $draft,
             dictation: sessionID,
@@ -911,12 +925,129 @@ struct SessionDetailView: View {
                     }
                 }
             },
+            escape: escape,
             send: send
         )
         .frame(height: hidden ? 0 : nil, alignment: .top)
         .opacity(hidden ? 0 : 1)
         .disabled(hidden)
         .accessibilityHidden(hidden)
+        .onChange(of: composerFocused) { _, focused in
+            if focused { navigation.menu.panes.listFocused = false }
+        }
+    }
+
+    @ViewBuilder private var stopHintBanner: some View {
+        if stopHint > 0 {
+            StopHintBanner()
+                .transition(.opacity)
+                .task(id: stopHint) {
+                    try? await Task.sleep(for: .seconds(Self.stopHintSeconds))
+                    withAnimation { stopHint = 0 }
+                }
+        }
+    }
+
+    private static var stopHintSeconds: Double {
+        #if DEBUG
+        let asked = UserDefaults.standard.double(forKey: "stopHintSeconds")
+        if asked > 0 { return asked }
+        #endif
+        return StopHint.seconds
+    }
+
+    private var presenting: Bool {
+        showingSettings || showingInfo || showingAsides || archiving || reviewing != nil || sendingBack != nil || closeQuestion != nil
+            || confirmingStop || confirmingHeaderStop || confirmingClose || asideSheet.wrappedValue != nil
+    }
+
+    private func paneKeys(_ session: AgentSession?, hasMessages: Bool, cardTyping: Bool) -> PaneKeys? {
+        guard let session, !presenting, voice.phase != .sending, voice.phase != .confirm else { return nil }
+        let facts = PaneFacts(
+            hasMessages: hasMessages,
+            canType: !session.isClosed && !cardTyping,
+            listReachable: navigation.layout != .compact && (ownerTab ?? navigation.tab) == .agents && mode != .asideSheet,
+            turnRunning: session.isTurnActive
+        )
+        return PaneKeys(facts: facts) {
+            guard !WindowCover.shown else { return }
+            guard !navigation.canEscape else { return navigation.stepOut() }
+            stepOut(facts)
+        } go: { arrow in
+            guard !WindowCover.shown, let pane = PaneLadder.arrow(arrow, facts) else { return }
+            focusPane(pane)
+        }
+    }
+
+    private func stepOut(_ facts: PaneFacts) {
+        let from: AgentsPane? = navigation.menu.panes.listFocused ? .list : composerFocused ? .composer : transcriptFocused ? .transcript : nil
+        let step = PaneLadder.escape(from: from, facts)
+        focusPane(step.pane)
+        if step.leftRunningPrompt, StopHint.take(from: .standard) {
+            withAnimation { stopHint += 1 }
+        }
+    }
+
+    private func focusPane(_ pane: AgentsPane) {
+        switch pane {
+        case .composer:
+            navigation.menu.panes.listFocused = false
+            transcriptFocused = false
+            composerFocused = true
+        case .transcript:
+            navigation.menu.panes.listFocused = false
+            composerFocused = false
+            transcriptFocused = true
+            Task {
+                try? await Task.sleep(for: .milliseconds(150))
+                if !composerFocused { transcriptFocused = true }
+            }
+        case .list:
+            composerFocused = false
+            transcriptFocused = false
+            if !navigation.listShown {
+                withAnimation(.easeInOut(duration: 0.3)) { navigation.toggleList() }
+            }
+            navigation.menu.panes.listFocused = true
+        }
+    }
+
+    private func stopKey(_ session: AgentSession?) -> (() -> Void)? {
+        guard session?.isTurnActive == true else { return nil }
+        return { askStop() }
+    }
+
+    private func askStop() {
+        if stopInHeader && mode == .plain {
+            confirmingHeaderStop = true
+        } else {
+            confirmingStop = true
+        }
+    }
+
+    private func transcriptKey(_ press: KeyPress) -> KeyPress.Result {
+        guard press.modifiers.isDisjoint(with: [.command, .control, .option]) else { return .ignored }
+        switch press.key {
+        case .space:
+            pageBy(press.modifiers.contains(.shift) ? -1 : 1)
+        case "i", "a":
+            focusPane(.composer)
+        default:
+            return .ignored
+        }
+        return .handled
+    }
+
+    private func pageBy(_ direction: Double) {
+        scrolled = true
+        let target = scrollY.value + direction * max(80, page.viewport - 60)
+        withAnimation(.easeInOut(duration: 0.25)) {
+            if target >= page.bottom {
+                position.scrollTo(edge: .bottom)
+            } else {
+                position.scrollTo(y: max(0, target))
+            }
+        }
     }
 
     private func typingInCard(_ screen: SessionScreen) -> Bool {
@@ -1278,6 +1409,7 @@ struct ComposerView: View {
     var hint: String?
     var trailing: String?
     var reopen: (FailureAction) -> Void = { _ in }
+    var escape: (() -> Void)?
     let send: () -> Void
     @State private var picked: [PhotosPickerItem] = []
     @State private var importing = 0
@@ -1367,7 +1499,7 @@ struct ComposerView: View {
                         .fileImporter(isPresented: $choosingFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
                             if case .success(let urls) = result { addFiles(urls) }
                         }
-                        ComposerTextView(text: $draft, caret: caret, focused: $focused, placeholder: placeholder, enabled: enabled, pasteImage: paste)
+                        ComposerTextView(text: $draft, caret: caret, focused: $focused, placeholder: placeholder, enabled: enabled, pasteImage: paste, escape: escape)
                             .overlay(alignment: .topLeading) {
                                 if draft.isEmpty {
                                     Text(placeholder)
@@ -1512,4 +1644,67 @@ private final class ScrollFlag {
 
 private final class ScrollOffset {
     var value = 0.0
+}
+
+@MainActor
+private enum WindowCover {
+    static var shown: Bool {
+        UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows).contains { $0.isKeyWindow && $0.rootViewController?.presentedViewController != nil }
+    }
+}
+
+private final class PageMetrics {
+    var viewport = 0.0
+    var bottom = 0.0
+}
+
+private struct PaneFocusMark: ViewModifier {
+    var focused: FocusState<Bool>.Binding
+    let label: String
+    let id: String
+    let key: (KeyPress) -> KeyPress.Result
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                Color.clear
+                    .focusable()
+                    .focused(focused)
+                    .focusEffectDisabled()
+                    .onKeyPress(phases: .down, action: key)
+                    .accessibilityHidden(true)
+            }
+            .overlay(alignment: .leading) {
+                if focused.wrappedValue {
+                    PaneBar(label: label, id: id)
+                }
+            }
+    }
+}
+
+struct PaneBar: View {
+    let label: String
+    let id: String
+
+    var body: some View {
+        Capsule()
+            .fill(Color.accentColor)
+            .frame(width: 2)
+            .padding(.vertical, 8)
+            .accessibilityElement()
+            .accessibilityLabel(label)
+            .accessibilityIdentifier(id)
+    }
+}
+
+struct StopHintBanner: View {
+    var body: some View {
+        Text(StopHint.text)
+            .font(.footnote)
+            .foregroundStyle(Color.captionInk)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .glassEffect(in: .capsule)
+            .accessibilityIdentifier("stopHint")
+    }
 }

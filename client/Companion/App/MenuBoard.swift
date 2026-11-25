@@ -13,6 +13,7 @@ struct MenuState: Equatable {
     var canChat = false
     var chatShown = false
     var canEscape = false
+    var listStop = false
     var canGoBack = false
     var shownTabs: [CompanionTab] = []
     var hasComputer = false
@@ -25,17 +26,27 @@ struct MenuState: Equatable {
         if wide { items.insert("list") }
         if readingView || canRead { items.insert("read") }
         if chatShown || canChat { items.insert("chat") }
-        if canEscape { items.insert("escape") }
+        if canEscape || listStop { items.insert("escape") }
         if canGoBack { items.insert("back") }
         if hasComputer { items.insert("inbox") }
         if tabHasSearch { items.insert("search") }
         items.formUnion(shownTabs.map { "tab." + $0.rawValue })
+        if let keys {
+            for arrow in [PaneArrow.left, .right, .up, .down] where keys.pane(arrow) != nil { items.insert("pane.\(arrow)") }
+        }
         if let keys, keys.enabled {
             if keys.send != nil { items.insert("send") }
+            if keys.stop != nil { items.insert("stop") }
             items.formUnion(keys.answers.keys.map { "answer.\($0)" })
         }
         return items
     }
+}
+
+private struct PaneScope: Equatable {
+    let tab: CompanionTab
+    let depth: Int
+    let compact: Bool
 }
 
 struct MenuMove: Equatable {
@@ -49,6 +60,7 @@ final class MenuBoard {
     private(set) var state = MenuState()
     @ObservationIgnored private(set) var live = MenuState()
     @ObservationIgnored let keys = SessionKeyBoard()
+    @ObservationIgnored let panes = PaneFocus()
     @ObservationIgnored private var pending: MenuState?
     @ObservationIgnored private var move: MenuMove?
     @ObservationIgnored private var settling: Task<Void, Never>?
@@ -94,6 +106,9 @@ struct MenuFeed: View {
             .onChange(of: state, initial: true) { _, state in
                 board.offer(state, move: MenuMove(tab: navigation.tab, depth: navigation.path.count))
             }
+            .onChange(of: PaneScope(tab: navigation.tab, depth: navigation.path.count, compact: navigation.layout == .compact)) {
+                board.panes.listFocused = false
+            }
     }
 
     private var state: MenuState {
@@ -107,6 +122,7 @@ struct MenuFeed: View {
             canChat: navigation.canChat,
             chatShown: navigation.chatShown,
             canEscape: navigation.canEscape,
+            listStop: navigation.menu.panes.listFocused && board.keys.keys(for: navigation.listTab, top: navigation.path.last)?.panes != nil,
             canGoBack: navigation.canGoBack,
             shownTabs: CompanionTab.keyed.filter { navigation.shows($0, model) },
             hasComputer: navigation.computer != nil,

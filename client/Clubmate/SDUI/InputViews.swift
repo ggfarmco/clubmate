@@ -19,6 +19,13 @@ struct ButtonNodeView: View {
     @Environment(\.sduiPopover) private var popover
     @Environment(\.formDocked) private var docked
     @Environment(\.sduiClientAction) private var clientAction
+    @Environment(\.paneFocus) private var panes
+
+    private static let stopCombo = KeyCombo("cmd+.")
+
+    private var ownsKey: Bool {
+        combo != Self.stopCombo || AgentsKeys.stopsHere(button: dispatch.slot, focused: panes?.slot)
+    }
 
     private var variant: String? { node.string("variant") }
     private var disabled: Bool { press.disabled }
@@ -40,7 +47,7 @@ struct ButtonNodeView: View {
                 return .handled
             }
             .onHover { hovering = $0 }
-            .keyMonitor(active: combo != nil && (!disabled || press.unanswered) && !popoverShown, overTerminals: combo?.passesTerminals == true && !docked, claims: docked ? claim : nil, handle: press.handle)
+            .keyMonitor(active: combo != nil && (!disabled || press.unanswered) && !popoverShown && ownsKey, overTerminals: combo?.passesTerminals == true && !docked, claims: docked ? claim : nil, handle: press.handle)
             .keyMonitor(active: popoverShown, handle: popoverLink.handle)
             .help(iconOnly ? tooltip : "")
             .accessibilityLabel(node.string("label") ?? "")
@@ -445,7 +452,7 @@ struct TextFieldNodeView: View {
             }
             .modifier(FileDrop(active: drops, targeted: $targeted, drop: drop))
             .onSubmit(submit)
-            .modifier(ExitToKeys(refocus: keysRefocus))
+            .modifier(ExitToKeys(refocus: keysRefocus, focused: focused))
             .onChange(of: focused) { _, now in
                 if now, node.id == sidebarField { treeHold?.land() }
                 guard !now else { return }
@@ -864,12 +871,20 @@ enum MenuKeys {
     }
 }
 
-private struct ExitToKeys: ViewModifier {
+struct ExitToKeys: ViewModifier {
     let refocus: KeysRefocus?
+    let focused: Bool
 
     func body(content: Content) -> some View {
         if let refocus {
-            content.onExitCommand { refocus.take() }
+            content
+                .onExitCommand { refocus.take() }
+                .keyMonitor(active: focused) { event in
+                    guard event.keyCode == 53, event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty else { return false }
+                    if (event.window?.firstResponder as? NSTextInputClient)?.hasMarkedText() == true { return false }
+                    refocus.take()
+                    return true
+                }
         } else {
             content
         }

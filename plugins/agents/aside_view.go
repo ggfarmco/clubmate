@@ -329,7 +329,7 @@ func asideHeader(sc screen) sdui.Node {
 	}
 	var buttons []sdui.Node
 	if turnActive(rec) {
-		buttons = append(buttons, sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/stop", "Stop", "stop.fill"), actStop), sdui.VariantGhost))
+		buttons = append(buttons, sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/stop", "Stop", "stop.fill"), actStop), sdui.VariantGhost), stopKey))
 	}
 	buttons = append(buttons, sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/"+sendBackButtonNode, sendBackLabel, sendBackIcon), actSendBackOpen), sdui.VariantPrimary), sendBackKey))
 	if sc.Beside {

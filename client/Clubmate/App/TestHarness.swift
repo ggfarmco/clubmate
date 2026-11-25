@@ -157,7 +157,7 @@ final class TestHarness {
             if let voiceKeys, voiceKeys(down) {
                 _ = voiceKeys(up)
                 routes.append("voice")
-            } else if monitors.allObjects.contains(where: { $0.deliver(down) }) {
+            } else if KeyMonitorView.ordered(monitors.allObjects).contains(where: { $0.deliver(down) }) {
                 routes.append(overTerminal ? "monitor over terminal" : "monitor")
             } else if combo.command || combo.control, overTerminal, let title = menuKey(down, targeted: true) {
                 routes.append("menu \(title) over terminal")

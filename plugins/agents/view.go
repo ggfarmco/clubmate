@@ -338,7 +338,7 @@ func header(sc screen) sdui.Node {
 	meta = append(meta, shareParts(sc.Share)...)
 	var buttons []sdui.Node
 	if turnActive(rec) {
-		buttons = append(buttons, sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/stop", "Stop", "stop.fill"), actStop), sdui.VariantGhost))
+		buttons = append(buttons, sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/stop", "Stop", "stop.fill"), actStop), sdui.VariantGhost), stopKey))
 	}
 	if sc.Parent != "" {
 		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/parent", "from "+sc.Parent, "arrow.turn.up.left"), actSelectParent))

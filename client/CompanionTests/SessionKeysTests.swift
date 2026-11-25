@@ -14,6 +14,15 @@ final class SessionKeysTests: XCTestCase {
         XCTAssertEqual(keys(), keys())
         XCTAssertNotEqual(keys(), keys(scope: "agt_2|req"))
         XCTAssertNotEqual(keys(), keys(answers: [1: "Allow once", 3: "Reject"]))
+        var running = keys()
+        running.stop = KeyedAction(label: "Stop") {}
+        XCTAssertNotEqual(keys(), running)
+        var paned = keys()
+        paned.panes = PaneKeys(facts: PaneFacts(hasMessages: true, listReachable: true), escape: {}, go: { _ in })
+        var emptied = paned
+        emptied.panes = PaneKeys(facts: PaneFacts(hasMessages: false, listReachable: true), escape: {}, go: { _ in })
+        XCTAssertNotEqual(keys(), paned)
+        XCTAssertNotEqual(paned, emptied)
     }
 
     func testTheBoardGivesTheNewestKeysOfTheTopPageOfTheAskedTabOnly() {

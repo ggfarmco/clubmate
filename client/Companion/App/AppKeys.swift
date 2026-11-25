@@ -22,12 +22,12 @@ struct AppCommands: Commands {
             Button(state.readingView ? "Leave Reading View" : "Reading View") { withAnimation(.easeInOut(duration: 0.3)) { navigation.toggleReading() } }
                 .keyboardShortcut("f", modifiers: [.control, .command])
                 .disabled(!state.readingView && !state.canRead)
-            Button("Close") {
-                guard navigation.canEscape else { return }
-                withAnimation(.easeInOut(duration: 0.3)) { navigation.escape() }
-            }
+            Button(state.canEscape ? "Close" : "Step Out") { navigation.stepOut() }
                 .keyboardShortcut(.cancelAction)
-                .disabled(!state.canEscape)
+                .disabled(!state.canEscape && !state.listStop)
+            Button(state.canEscape ? "Close (Alternate)" : "Step Out (Alternate)") { navigation.stepOut() }
+                .keyboardShortcut("[", modifiers: .control)
+                .disabled(!state.canEscape && !state.listStop)
         }
         CommandMenu("Go") {
             Button("Back") { navigation.back() }
@@ -118,6 +118,17 @@ extension AppNavigation {
     func agentsStore(_ model: CompanionModel) -> AgentsStore? {
         guard let computer, let connection = model.connection(computer), let workspace = workspace(for: connection) else { return nil }
         return model.agents(computer: computer, workspace: workspace.id, settled: false)
+    }
+
+    func stepOut() {
+        let panes = menu.live.keys?.panes
+        guard canEscape else {
+            if menu.panes.listFocused { panes?.escape() }
+            return
+        }
+        let fromList = menu.panes.listFocused && !readingView
+        withAnimation(.easeInOut(duration: 0.3)) { escape() }
+        if fromList { panes?.escape() }
     }
 
     func openInbox() {

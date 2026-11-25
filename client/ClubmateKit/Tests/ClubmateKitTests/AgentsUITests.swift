@@ -70,8 +70,14 @@ final class AgentsUITests: XCTestCase {
         XCTAssertNil(model.handle(escape))
         model.running = true
         XCTAssertEqual(model.handle(escape), .stop)
+        model.stepsOut = true
+        XCTAssertNil(model.handle(escape), "in Agents Esc steps out and never stops the turn")
         XCTAssertEqual(model.handle(send), .send("fix it"))
 
+        model.text = "/co"
+        XCTAssertEqual(model.handle(escape), .handled)
+        XCTAssertEqual(model.suggestions, [], "Esc closes the command list first")
+        model.text = "/c"
         model.text = "/co"
         XCTAssertEqual(model.suggestions.map(\.name), ["compact", "context"])
         XCTAssertEqual(model.handle(down), .handled)

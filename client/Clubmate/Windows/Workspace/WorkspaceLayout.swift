@@ -11,6 +11,7 @@ struct WorkspaceLayout: View {
     @Environment(WindowRouter.self) private var windows
     @Environment(\.theme) private var theme
     @Environment(\.paneFocus) private var panes
+    @Environment(\.focusRouter) private var router
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
@@ -78,7 +79,7 @@ struct WorkspaceLayout: View {
                         .padding(voice.dictating ? .top : .bottom, theme.spacing.xl)
                 }
             }
-            StatusBar(voice: voice, connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage, awake: app.awake, hints: panes?.hints, pairPhone: pairPhone) { [app] in
+            StatusBar(voice: voice, connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage, awake: app.awake, hints: panes?.hints, mode: panes?.mode, pairPhone: pairPhone) { [app] in
                 app.retry()
             } awakeSettings: { [app, openSettings] in
                 app.settingsRequest = .plugin("awake")
@@ -92,6 +93,7 @@ struct WorkspaceLayout: View {
             }
         }
         .environment(\.voice, voice)
+        .modifier(AgentsKeysSink(focus: agentsFocus))
         .onChange(of: reviewLayout, initial: true) { _, layout in
             guard let layout else { return }
             Task { [store] in
@@ -101,6 +103,11 @@ struct WorkspaceLayout: View {
         .onChange(of: app.voiceSettings.isOn) { _, on in
             if !on { app.sessions.existing(store.workspaceID)?.voice.cancel() }
         }
+    }
+
+    private var agentsFocus: AgentsFocus? {
+        guard AgentsKeys.steps(section: section), let panes, let router else { return nil }
+        return AgentsFocus(store: store, panes: panes, router: router, side: app.settings.sidebarSide)
     }
 
     private var pairPhone: (() -> Void)? {
@@ -121,6 +128,7 @@ struct WorkspaceLayout: View {
         let split = stacked ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
         return split {
             SlotPane(store: store, slot: "\(section).main")
+                .background(PaneMarker(slot: "\(section).main"))
                 .environment(\.chatColumnShown, store.columnShown)
                 .modifier(MainFocus(store: store, slot: "\(section).main"))
                 .overlay(alignment: .top) {

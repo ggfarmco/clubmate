@@ -16,6 +16,7 @@ struct StatusBar<Trailing: View>: View {
     let usage: SubscriptionUsage?
     let awake: KeepAwakeModel?
     let hints: String?
+    var mode: String?
     var pairPhone: (() -> Void)?
     let retry: () -> Void
     let awakeSettings: () -> Void
@@ -30,6 +31,13 @@ struct StatusBar<Trailing: View>: View {
         HStack(spacing: theme.gutter * 1.5) {
             if let voice {
                 VoiceButton(voice: voice)
+            }
+            if let mode {
+                Text(mode)
+                    .font(theme.uiSmall.weight(.semibold))
+                    .foregroundStyle(theme.text2)
+                    .fixedSize()
+                    .testNode("statusbar.mode", role: "text", label: mode)
             }
             HStack(spacing: theme.spacing.s) {
                 Text(dot).foregroundStyle(tone)
@@ -79,6 +87,7 @@ struct StatusBar<Trailing: View>: View {
             if let hints {
                 Text(hints)
                     .foregroundStyle(theme.muted)
+                    .testNode("statusbar.hints", role: "text", label: hints)
                     .truncationMode(.tail)
                     .help(hints)
                     .layoutPriority(-1)

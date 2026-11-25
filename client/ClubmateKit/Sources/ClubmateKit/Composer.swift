@@ -62,14 +62,20 @@ public enum ComposerEffect: Sendable, Equatable {
 @Observable
 public final class ComposerModel {
     public var text = "" {
-        didSet { if text != oldValue { highlighted = 0 } }
+        didSet {
+            guard text != oldValue else { return }
+            highlighted = 0
+            if text != dismissed { dismissed = nil }
+        }
     }
     public var commands: [ComposerCommand] = []
     public var running = false
+    public var stepsOut = false
     public var prompt: String?
     public var caret: Int?
     public private(set) var highlighted = 0
     public private(set) var draftRev = 0
+    private var dismissed: String?
 
     public init() {}
 
@@ -83,7 +89,7 @@ public final class ComposerModel {
     }
 
     public var suggestions: [ComposerCommand] {
-        guard text.hasPrefix("/") else { return [] }
+        guard text.hasPrefix("/"), text != dismissed else { return [] }
         let typed = text.dropFirst()
         guard !typed.contains(where: \.isWhitespace) else { return [] }
         return commands.filter { $0.name.lowercased().hasPrefix(typed.lowercased()) }
@@ -97,7 +103,11 @@ public final class ComposerModel {
         case .enter:
             return suggestions.isEmpty ? handle(.send) : handle(.accept)
         case .escape:
-            return running ? .stop : nil
+            if !suggestions.isEmpty {
+                dismissed = text
+                return .handled
+            }
+            return running && !stepsOut ? .stop : nil
         case .up, .down:
             let count = suggestions.count
             guard count > 0 else { return nil }

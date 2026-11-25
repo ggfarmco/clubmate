@@ -12,14 +12,33 @@ struct KeyedAction {
     let run: () -> Void
 }
 
+struct PaneKeys {
+    let facts: PaneFacts
+    let escape: () -> Void
+    let go: (PaneArrow) -> Void
+}
+
+@MainActor
+@Observable
+final class PaneFocus {
+    var listFocused = false
+}
+
 struct SessionKeyActions: Equatable {
     let scope: String
     let enabled: Bool
     let answers: [Int: KeyedAction]
     let send: KeyedAction?
+    var stop: KeyedAction?
+    var panes: PaneKeys?
 
     static func == (lhs: SessionKeyActions, rhs: SessionKeyActions) -> Bool {
         lhs.scope == rhs.scope && lhs.enabled == rhs.enabled && lhs.send?.label == rhs.send?.label && lhs.answers.mapValues(\.label) == rhs.answers.mapValues(\.label)
+            && lhs.stop?.label == rhs.stop?.label && lhs.panes?.facts == rhs.panes?.facts
+    }
+
+    func pane(_ arrow: PaneArrow) -> AgentsPane? {
+        panes.flatMap { PaneLadder.arrow(arrow, $0.facts) }
     }
 }
 
@@ -88,8 +107,8 @@ struct SessionKeysRegistration: ViewModifier {
 }
 
 extension View {
-    func sessionKeys(scope: String, enabled: Bool, pending: PermissionRequest?, answer: @escaping (PermissionRequest, String) -> Void, confirmAlways: @escaping (String) -> Void, send: (() -> Void)?) -> some View {
-        modifier(SessionKeysModifier(scope: scope, enabled: enabled, pending: pending, answer: answer, confirmAlways: confirmAlways, send: send))
+    func sessionKeys(scope: String, enabled: Bool, pending: PermissionRequest?, answer: @escaping (PermissionRequest, String) -> Void, confirmAlways: @escaping (String) -> Void, send: (() -> Void)?, stop: (() -> Void)? = nil, panes: PaneKeys? = nil) -> some View {
+        modifier(SessionKeysModifier(scope: scope, enabled: enabled, pending: pending, answer: answer, confirmAlways: confirmAlways, send: send, stop: stop, panes: panes))
     }
 }
 
@@ -100,12 +119,14 @@ struct SessionKeysModifier: ViewModifier {
     let answer: (PermissionRequest, String) -> Void
     let confirmAlways: (String) -> Void
     let send: (() -> Void)?
+    let stop: (() -> Void)?
+    let panes: PaneKeys?
     @State private var answered: String?
     @State private var armed: String?
 
     func body(content: Content) -> some View {
         content
-            .modifier(SessionKeysRegistration(keys: SessionKeyActions(scope: scope + "|" + (pending?.id ?? ""), enabled: enabled, answers: answers, send: send.map { KeyedAction(label: "Send", run: $0) })))
+            .modifier(SessionKeysRegistration(keys: SessionKeyActions(scope: scope + "|" + (pending?.id ?? ""), enabled: enabled, answers: answers, send: send.map { KeyedAction(label: "Send", run: $0) }, stop: stop.map { KeyedAction(label: "Stop", run: $0) }, panes: panes)))
             .task(id: pending?.id) {
                 armed = nil
                 try? await Task.sleep(for: .milliseconds(600))
@@ -154,7 +175,27 @@ struct SessionCommands: Commands {
                     }
                 }
             }
+            Divider()
+            Button("Stop") {
+                guard let live = menu.live.keys, live.enabled else { return }
+                live.stop?.run()
+            }
+            .keyboardShortcut(".", modifiers: .command)
+            .disabled(keys?.enabled != true || keys?.stop == nil)
+            Divider()
+            paneButton("Go to List", .left, .leftArrow)
+            paneButton("Go to Session", .right, .rightArrow)
+            paneButton("Go to Transcript", .up, .upArrow)
+            paneButton("Go to Composer", .down, .downArrow)
         }
+    }
+
+    private func paneButton(_ title: String, _ arrow: PaneArrow, _ key: KeyEquivalent) -> some View {
+        Button(title) {
+            menu.live.keys?.panes?.go(arrow)
+        }
+        .keyboardShortcut(key, modifiers: [.option, .command])
+        .disabled(keys?.pane(arrow) == nil)
     }
 
     private var keys: SessionKeyActions? {

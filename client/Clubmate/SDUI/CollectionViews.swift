@@ -551,7 +551,9 @@ struct TreeNodeView: View {
         if plain, let key = event.charactersIgnoringModifiers, menuKey(key) { return true }
         let rows = TreeCursor.rows(node.treeItems(), dock: dock)
         guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side, shift: flags.contains(.shift), option: flags.contains(.option)) else { return false }
-        switch TreeCursor.resolve(action, cursor: cursor, in: rows) {
+        let command = TreeCursor.resolve(action, cursor: cursor, in: rows)
+        if action == .escape, command == .focusMain, sidebarSlot == AgentsSection.sidebarSlot { return false }
+        switch command {
         case .cursor(let id):
             if !dock.contains(where: { $0.id == id }), !dock.flatMap(\.rows).contains(where: { $0.id == id }), let target = TreeCursor.scrollTarget(id, from: cursor, in: rows, limit: Self.stickyLimit) { scroller?.scrollTo(target) }
             cursor = id
