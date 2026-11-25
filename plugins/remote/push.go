@@ -141,13 +141,13 @@ type agentsChanged struct {
 	RequestKind string `json:"requestKind"`
 }
 
-type sessionPolicy struct {
-	ID              string `json:"id"`
-	NotifyEffective string `json:"notifyEffective"`
+type sessionArgs struct {
+	Session string  `json:"session"`
+	Since   *string `json:"since,omitempty"`
 }
 
-type sessionArgs struct {
-	Session string `json:"session"`
+type sessionsPage struct {
+	Sessions []sessionRow `json:"sessions"`
 }
 
 type alertBody struct {
@@ -252,6 +252,18 @@ func (s *server) pushCommand(ctx context.Context, workspace string, enabled bool
 	if held := s.held(ctx, workspace, enabled, n); held != "" {
 		return pushResult{Summary: held}, nil
 	}
+	here := s.quietHere(n)
+	if here {
+		s.quiet.hold(ctx, n)
+	}
+	devices, err := s.sendAlert(ctx, workspace, n, here, false)
+	if err != nil {
+		return pushResult{}, err
+	}
+	return pushResult{Summary: summary(devices), Devices: devices}, nil
+}
+
+func (s *server) sendAlert(ctx context.Context, workspace string, n notifyPayload, here, anyStream bool) ([]devicePush, error) {
 	comp := s.identity.get()
 	id := n.ID
 	if id == "" {
@@ -262,7 +274,7 @@ func (s *server) pushCommand(ctx context.Context, workspace string, enabled bool
 		Sound:    alertSound,
 		ThreadID: comp.ID,
 	}
-	if n.Quiet {
+	if n.Quiet || here {
 		aps.Sound, aps.Interruption = "", passiveLevel
 	}
 	body, err := json.Marshal(alertBody{
@@ -275,13 +287,20 @@ func (s *server) pushCommand(ctx context.Context, workspace string, enabled bool
 		Request:   n.Request,
 	})
 	if err != nil {
-		return pushResult{}, err
+		return nil, err
 	}
-	devices := s.pushAll(ctx, relayPush{pushType: apns.TypeAlert, collapseID: truncate(n.collapseID(), apns.MaxCollapseID), notification: n.ID, payload: body})
+	devices := s.pushAll(ctx, relayPush{pushType: apns.TypeAlert, collapseID: truncate(n.collapseID(), apns.MaxCollapseID), notification: n.ID, payload: body, anyStream: anyStream})
 	if i := slices.IndexFunc(devices, func(d devicePush) bool { return d.err != nil }); i >= 0 {
 		s.alertRelayDown(ctx, workspace, devices[i].err)
 	}
-	return pushResult{Summary: summary(devices), Devices: devices}, nil
+	if here {
+		for i := range devices {
+			if devices[i].Outcome == strconv.Itoa(http.StatusOK) {
+				devices[i].Outcome += outcomeAtMac
+			}
+		}
+	}
+	return devices, nil
 }
 
 func (s *server) held(ctx context.Context, workspace string, enabled bool, n notifyPayload) string {
@@ -356,7 +375,7 @@ func (s *server) pushAll(ctx context.Context, p relayPush) []devicePush {
 			continue
 		}
 		r := devicePush{Device: d.ID, Name: d.Name}
-		if s.hub.connected(d.ID) {
+		if !p.anyStream && s.hub.connected(d.ID) {
 			r.Outcome = outcomeStreamOpen
 			out = append(out, r)
 			continue
@@ -394,21 +413,18 @@ func (s *server) replayed(device string, ev pluginsdk.Event) pluginsdk.Event {
 	if ev.Topic != notifyTopic {
 		return ev
 	}
-	var payload map[string]json.RawMessage
-	if err := json.Unmarshal(ev.Payload, &payload); err != nil {
+	var n notifyPayload
+	if err := json.Unmarshal(ev.Payload, &n); err != nil || n.ID == "" {
 		return ev
 	}
-	var id string
-	if err := json.Unmarshal(payload["id"], &id); err != nil || !s.pushed.has(device, id) {
-		return ev
+	var marks []string
+	if s.pushed.has(device, n.ID) {
+		marks = append(marks, "pushed")
 	}
-	payload["pushed"] = json.RawMessage("true")
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return ev
+	if !n.Quiet && s.quiet.quieted(n.ID) {
+		marks = append(marks, "quiet")
 	}
-	ev.Payload = raw
-	return ev
+	return markPayload(ev, marks...)
 }
 
 func (l *pushLog) add(device, notification string) {
@@ -442,23 +458,42 @@ func (s *server) policy(ctx context.Context, workspace, session string) string {
 	if !strings.HasPrefix(session, agentSessionPrefix) {
 		return ""
 	}
-	args, err := json.Marshal(sessionArgs{Session: session})
+	row, _, err := s.sessionRow(ctx, workspace, session)
 	if err != nil {
 		return ""
+	}
+	return row.NotifyEffective
+}
+
+func (s *server) sessionRow(ctx context.Context, workspace, session string) (sessionRow, bool, error) {
+	q := sessionArgs{Session: session}
+	if !strings.HasPrefix(session, agentSessionPrefix) {
+		q.Since = new(string)
+	}
+	args, err := json.Marshal(q)
+	if err != nil {
+		return sessionRow{}, false, err
 	}
 	out, err := s.backend.Run(ctx, sessionsCommand, workspace, args)
 	if err != nil {
-		return ""
+		return sessionRow{}, false, err
 	}
-	var sessions []sessionPolicy
-	if err := json.Unmarshal(out, &sessions); err != nil {
-		return ""
+	var sessions []sessionRow
+	if q.Since != nil {
+		var page sessionsPage
+		err = json.Unmarshal(out, &page)
+		sessions = page.Sessions
+	} else {
+		err = json.Unmarshal(out, &sessions)
 	}
-	i := slices.IndexFunc(sessions, func(p sessionPolicy) bool { return p.ID == session })
+	if err != nil {
+		return sessionRow{}, false, err
+	}
+	i := slices.IndexFunc(sessions, func(r sessionRow) bool { return r.ID == session })
 	if i < 0 {
-		return ""
+		return sessionRow{}, false, nil
 	}
-	return sessions[i].NotifyEffective
+	return sessions[i], true, nil
 }
 
 func (s *server) alertTitle(ctx context.Context, mac, workspace string) string {

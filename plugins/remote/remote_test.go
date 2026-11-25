@@ -797,6 +797,8 @@ func newFixture(t *testing.T) *fixture {
 		identity: &identity{kv: f.kv, publish: f.topics.add, comp: computer{ID: "cmp", Name: "Mac"}},
 		relay:    newRelayClient(f.kv, http.DefaultClient),
 		requests: newRequestLog(f.kv, f.clock.Now),
+		presence: fixedPresence(false),
+		quiet:    newQuietLog(f.kv, f.clock.Now),
 		changed:  func() {},
 		watching: f.watched.add,
 		ping:     time.Hour,

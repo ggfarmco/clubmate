@@ -75,6 +75,7 @@ type relayPush struct {
 	collapseID   string
 	notification string
 	payload      json.RawMessage
+	anyStream    bool
 }
 
 type relayDevices struct {

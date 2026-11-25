@@ -58,6 +58,8 @@ type server struct {
 	ping      time.Duration
 	now       func() time.Time
 	pushed    pushLog
+	presence  presence
+	quiet     *quietLog
 
 	relayAlert relayAlert
 

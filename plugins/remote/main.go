@@ -233,6 +233,8 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		identity:  a.ident,
 		relay:     relay,
 		requests:  newRequestLog(h, time.Now),
+		presence:  newPresence(os.Getenv),
+		quiet:     newQuietLog(h, time.Now),
 		changed:   a.changed,
 		watching:  a.watching,
 		ping:      pingInterval,
@@ -260,6 +262,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	go a.rescanLoop(ctx)
 	go a.srv.requests.pruneLoop(ctx)
 	go a.seedPushTriggers(ctx)
+	go a.escalateLoop(ctx)
 	return nil
 }
 
@@ -413,7 +416,10 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 	if ev.Topic == pluginChangedTopic {
 		a.srv.forgetCommands()
 	}
-	a.srv.hub.publish(ev)
+	a.srv.hub.publish(a.srv.quietEvent(ev))
+	if ev.Topic == agentsChangedTopic {
+		go a.srv.quiet.resolved(a.ctx, ev)
+	}
 	if enabled && ev.Topic == agentsChangedTopic && a.srv.relay.configured() {
 		go func() {
 			ctx, cancel := context.WithTimeout(a.ctx, pushTimeout)
