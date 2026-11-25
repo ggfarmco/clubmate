@@ -17,6 +17,7 @@ struct StatusBar<Trailing: View>: View {
     let awake: KeepAwakeModel?
     let hints: String?
     var mode: String?
+    var note: String?
     var pairPhone: (() -> Void)?
     let retry: () -> Void
     let awakeSettings: () -> Void
@@ -35,7 +36,7 @@ struct StatusBar<Trailing: View>: View {
             if let mode {
                 Text(mode)
                     .font(theme.uiSmall.weight(.semibold))
-                    .foregroundStyle(theme.text2)
+                    .foregroundStyle(theme.foreground)
                     .fixedSize()
                     .testNode("statusbar.mode", role: "text", label: mode)
             }
@@ -85,8 +86,7 @@ struct StatusBar<Trailing: View>: View {
                 .frame(height: 22)
                 .clipped()
             if let hints {
-                Text(hints)
-                    .foregroundStyle(theme.muted)
+                hintText(hints)
                     .testNode("statusbar.hints", role: "text", label: hints)
                     .truncationMode(.tail)
                     .help(hints)
@@ -113,6 +113,15 @@ struct StatusBar<Trailing: View>: View {
     }
 
     private static var reconnectQuiet: Duration { .milliseconds(500) }
+
+    private func hintText(_ hints: String) -> Text {
+        guard hints == note, hints == StopHint.text, let split = hints.range(of: Self.noteSeparator) else {
+            return Text(hints).foregroundStyle(theme.muted)
+        }
+        return Text(hints[..<split.lowerBound]).foregroundStyle(theme.foreground) + Text(hints[split.lowerBound...]).foregroundStyle(theme.muted)
+    }
+
+    private static var noteSeparator: String { " · " }
 
     private var connected: Bool {
         if case .connected = connection { return true }

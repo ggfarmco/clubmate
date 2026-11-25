@@ -616,7 +616,6 @@ struct HeaderNodeView: View {
         if let stop = node.headerStop {
             SDUINodeView(node: compact ? Self.iconOnly(stop.node) : stop.node)
                 .equatable()
-                .environment(\.buttonKeyHint, Self.stopHint)
                 .fixedSize()
         }
     }
@@ -626,8 +625,6 @@ struct HeaderNodeView: View {
         props["iconOnly"] = .bool(true)
         return SDUINode(type: button.type, id: button.id, props: props)
     }
-
-    private static let stopHint = "⎋"
 
     @ViewBuilder
     private var filter: some View {

@@ -79,7 +79,7 @@ struct WorkspaceLayout: View {
                         .padding(voice.dictating ? .top : .bottom, theme.spacing.xl)
                 }
             }
-            StatusBar(voice: voice, connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage, awake: app.awake, hints: panes?.hints, mode: panes?.mode, pairPhone: pairPhone) { [app] in
+            StatusBar(voice: voice, connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage, awake: app.awake, hints: panes?.hints, mode: panes?.mode, note: panes?.note, pairPhone: pairPhone) { [app] in
                 app.retry()
             } awakeSettings: { [app, openSettings] in
                 app.settingsRequest = .plugin("awake")
