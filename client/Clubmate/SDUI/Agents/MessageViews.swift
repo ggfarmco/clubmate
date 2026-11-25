@@ -30,7 +30,7 @@ struct MessageNodeView: View, Equatable {
             .help(sending ? "Sending…" : "")
             .accessibilityValue(sending ? "Sending" : "")
         case .thought:
-            ThoughtView(text: text, seconds: node.props["seconds"]?.numberValue.map(Int.init), open: node.bool("open") == true)
+            ThoughtView(id: node.id ?? "", text: text, seconds: node.props["seconds"]?.numberValue.map(Int.init), open: node.bool("open") == true)
         case .agent:
             let open = { [node, dispatch] (target: String) in dispatch(node, .named("openDoc", .string(target))) }
             let message = node.id ?? ""
@@ -183,6 +183,7 @@ private struct VoicePromptView: View {
     static let shared = MessageExpansion()
 
     private(set) var expanded: Set<String> = []
+    private(set) var thoughts: [String: Bool] = [:]
 
     func toggle(_ id: String) {
         Motion.disclose {
@@ -192,6 +193,19 @@ private struct VoicePromptView: View {
 
     func set(_ id: String, expanded shown: Bool) {
         if shown { expanded.insert(id) } else { expanded.remove(id) }
+    }
+
+    func thought(_ id: String, open: Bool) -> Bool {
+        thoughts[id] ?? open
+    }
+
+    func set(thought id: String, expanded shown: Bool) {
+        Motion.disclose { thoughts[id] = shown }
+    }
+
+    func prune(_ transcript: SDUINode) {
+        let kept = TranscriptFolds.pruned(thoughts, in: transcript)
+        if kept != thoughts { thoughts = kept }
     }
 }
 
@@ -243,23 +257,17 @@ private struct AttachmentLabels: View {
 }
 
 private struct ThoughtView: View {
+    let id: String
     let text: String
     let seconds: Int?
     let open: Bool
 
-    @State private var expanded: Bool
     @Environment(\.theme) private var theme
 
-    init(text: String, seconds: Int?, open: Bool) {
-        self.text = text
-        self.seconds = seconds
-        self.open = open
-        _expanded = State(initialValue: open)
-    }
-
     var body: some View {
+        let expanded = MessageExpansion.shared.thought(id, open: open)
         VStack(alignment: .leading, spacing: theme.spacing.s) {
-            Button { Motion.disclose { expanded.toggle() } } label: {
+            Button { MessageExpansion.shared.set(thought: id, expanded: !expanded) } label: {
                 HStack(spacing: theme.spacing.s) {
                     DisclosureChevron(expanded: expanded)
                     Text(seconds.map(ShortAge.thought) ?? "Thinking")
@@ -277,6 +285,6 @@ private struct ThoughtView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .onChange(of: open) { _, now in expanded = now }
+        .onChange(of: open) { MessageExpansion.shared.set(thought: id, expanded: open) }
     }
 }

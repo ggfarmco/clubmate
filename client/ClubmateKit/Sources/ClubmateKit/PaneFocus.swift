@@ -26,7 +26,7 @@ public enum FocusedPane: Equatable, Sendable {
         case .runstrip(let title): title ? "←/→ run · h fold" : "←/→ run"
         case .composer(let running, let queues, false): queues ? "↩ queue · Esc stop" : running ? "↩ send · Esc stop" : "↩ send"
         case .composer(let running, let queues, true): (queues ? "↩ queue" : "↩ send") + " · ⎋ read · ⌥⌘← tree" + (running ? " · ⌘. stop" : "")
-        case .transcript: "i type · Space page · ⎋ tree · ⌃H/⌃L column"
+        case .transcript: "j/k block · h/l fold · G newest · i type · ? keys"
         case .openItems: "1–4 pick · L later · ⌘↩ send"
         case .connectCard: "⌥1 connect · space un-tick · ⌥3 don't"
         case .keys(let hints): hints
@@ -49,7 +49,10 @@ public final class PaneFocus {
     public private(set) var note: String?
     @ObservationIgnored private var noteSerial = 0
 
-    public var hints: String? { note ?? pane?.hints }
+    public var whichKey: String?
+    public var keysShown = false
+
+    public var hints: String? { note ?? whichKey ?? pane?.hints }
 
     public var mode: String? {
         guard AgentsKeys.isAgents(slot: slot) else { return nil }

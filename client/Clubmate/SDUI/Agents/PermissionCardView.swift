@@ -11,6 +11,8 @@ struct PermissionCardNodeView: View {
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
     @Environment(\.composerDrafts) private var drafts
+    @Environment(\.paneFocus) private var panes
+    @Environment(\.composerFocusSlot) private var slot
 
     var body: some View {
         if let outcome = node.string("outcome") {
@@ -100,10 +102,12 @@ struct PermissionCardNodeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.toneBg(theme.warning)))
         .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(focused ? theme.accent : theme.toneBorder(theme.warning), lineWidth: focused ? theme.focusRing : 1))
+        .blockBar(node.id)
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
         .onTapGesture { focused = true }
+        .modifier(CardFocusTarget(focused: $focused))
         .padding(.horizontal, theme.gutter * 2)
         .padding(.bottom, theme.spacing.l)
         .onChange(of: confirming) { _, id in
@@ -116,11 +120,11 @@ struct PermissionCardNodeView: View {
         }
         .keyMonitor(active: true) { event in
             let flags = event.modifierFlags
-            let composing = (event.window?.firstResponder as? NSTextInputClient)?.hasMarkedText() == true
+            let bare = CardBareKeys.on(event, focused: focused, panes: panes, slot: slot, drafts: drafts, node: node)
             if let id = confirming, let option = options.first(where: { $0.id == id }) {
-                return AlwaysAllowConfirm.handle(event, option: option, options: options, bare: !composing && bareKeys) { confirming = nil } confirm: { choose(option) }
+                return AlwaysAllowConfirm.handle(event, option: option, options: options, bare: bare) { confirming = nil } confirm: { choose(option) }
             }
-            guard let index = PermissionKeys.option(characters: event.charactersIgnoringModifiers, option: flags.contains(.option), otherModifiers: !flags.intersection([.command, .control, .shift]).isEmpty, bare: !composing && bareKeys, options: options) else { return false }
+            guard let index = PermissionKeys.option(characters: event.charactersIgnoringModifiers, option: flags.contains(.option), otherModifiers: !flags.intersection([.command, .control, .shift]).isEmpty, bare: bare, options: options) else { return false }
             press(options[index])
             return true
         }
@@ -132,12 +136,6 @@ struct PermissionCardNodeView: View {
         }
         let caption = node.string("caption").map { Text("  " + $0).font(theme.uiSmall).foregroundStyle(theme.muted) } ?? Text("")
         return Text(title).font(theme.strong).foregroundStyle(theme.foreground) + caption
-    }
-
-    private var bareKeys: Bool {
-        guard !focused else { return true }
-        guard let drafts, let id = node.id else { return false }
-        return drafts.focusedEmpty(session: ComposerDrafts.session(of: id))
     }
 
     private func confirmation(_ option: SDUIPermissionOption) -> Binding<Bool> {
@@ -257,5 +255,29 @@ private struct AlwaysAllowConfirm: View {
         guard let typed, options[typed].id == option.id else { return false }
         if !event.isARepeat { confirm() }
         return true
+    }
+}
+
+@MainActor
+enum CardBareKeys {
+    static func on(_ event: NSEvent, focused: Bool, panes: PaneFocus?, slot: String?, drafts: ComposerDrafts?, node: SDUINode, cardOnly: Bool = false) -> Bool {
+        let composing = (event.window?.firstResponder as? NSTextInputClient)?.hasMarkedText() == true
+        let reading = panes.map { $0.pane == .transcript && $0.slot == slot && $0.whichKey == nil && slot != nil } ?? false
+        let promptEmpty = node.id.map { id in drafts?.focusedEmpty(session: ComposerDrafts.session(of: id)) ?? false } ?? false
+        return PermissionKeys.bare(cardOnly: cardOnly, focused: focused, composing: composing, reading: reading, promptEmpty: promptEmpty)
+    }
+}
+
+struct CardFocusTarget: ViewModifier {
+    var focused: FocusState<Bool>.Binding
+
+    @Environment(\.focusRouter) private var router
+    @Environment(\.composerFocusSlot) private var slot
+
+    func body(content: Content) -> some View {
+        content.onChange(of: router?.pending) {
+            guard let slot, router?.take(slot + AgentsKeys.cardSuffix) == true else { return }
+            focused.wrappedValue = true
+        }
     }
 }

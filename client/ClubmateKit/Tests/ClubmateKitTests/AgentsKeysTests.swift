@@ -58,6 +58,23 @@ final class AgentsKeysTests: XCTestCase {
         XCTAssertEqual(TranscriptKey.resolve(keyCode: 49, characters: " ", command: false, control: false, option: false, shift: true), .page(-1))
         XCTAssertEqual(TranscriptKey.resolve(keyCode: 4, characters: "h", command: false, control: true, option: false, shift: false), .column(-1))
         XCTAssertNil(TranscriptKey.resolve(keyCode: 0, characters: "a", command: true, control: false, option: false, shift: false))
+        XCTAssertEqual(TranscriptKey.resolve(keyCode: 38, characters: "j", command: false, control: false, option: false, shift: false), .step(.move(1)))
+        XCTAssertEqual(TranscriptKey.resolve(keyCode: 123, characters: nil, command: false, control: false, option: false, shift: false), .step(.fold))
+        XCTAssertEqual(TranscriptKey.resolve(keyCode: 36, characters: "\r", command: false, control: false, option: false, shift: false), .step(.toggle))
+        XCTAssertEqual(TranscriptKey.resolve(keyCode: 5, characters: "G", command: false, control: false, option: false, shift: true), .step(.last))
+        XCTAssertEqual(TranscriptKey.resolve(keyCode: 5, characters: "g", command: false, control: false, option: false, shift: false), .leader)
+        XCTAssertEqual(TranscriptKey.resolve(keyCode: 44, characters: "?", command: false, control: false, option: false, shift: true), .help)
+    }
+
+    func testTranscriptChordsReuseTheTreeChords() {
+        XCTAssertEqual(TranscriptChord.resolve(5, shift: false), .first)
+        XCTAssertEqual(TranscriptChord.resolve(3, shift: false), .file)
+        XCTAssertEqual(TranscriptChord.resolve(19, shift: false), .go(.jump(2)))
+        XCTAssertEqual(TranscriptChord.resolve(45, shift: true), .go(.needs(-1)))
+        XCTAssertEqual(TranscriptChord.resolve(8, shift: false), .go(.focusField))
+        XCTAssertTrue(TranscriptChord.whichKey(file: true).contains("f file"))
+        XCTAssertFalse(TranscriptChord.whichKey(file: false).contains("f file"))
+        XCTAssertEqual(AgentsChord.resolve(keyCode: 44, command: true, control: false, option: false, shift: false), .keys)
     }
 
     func testCommandPeriodStopsOnlyInTheColumnWithFocus() {

@@ -107,7 +107,7 @@ struct WorkspaceLayout: View {
 
     private var agentsFocus: AgentsFocus? {
         guard AgentsKeys.steps(section: section), let panes, let router else { return nil }
-        return AgentsFocus(store: store, panes: panes, router: router, side: app.settings.sidebarSide)
+        return AgentsFocus(store: store, panes: panes, router: router, side: app.settings.sidebarSide, commands: app.commands)
     }
 
     private var pairPhone: (() -> Void)? {

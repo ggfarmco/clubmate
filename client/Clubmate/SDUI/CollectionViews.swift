@@ -362,6 +362,7 @@ struct TreeNodeView: View {
     @Environment(\.sidebarTabs) private var sidebarTabs
     @Environment(\.treeHold) private var treeHold
     @Environment(\.rowNumbers) private var rowNumbers
+    @Environment(\.paneFocus) private var panes
 
     private static let stickyLimit = 4
 
@@ -546,6 +547,10 @@ struct TreeNodeView: View {
         }
         if plain, event.keyCode == TreeChord.leader {
             leader = true
+            return true
+        }
+        if sidebarSlot == AgentsSection.sidebarSlot, let panes, flags.intersection([.command, .control, .option]).isEmpty, event.charactersIgnoringModifiers == "?" {
+            panes.keysShown.toggle()
             return true
         }
         if plain, let key = event.charactersIgnoringModifiers, menuKey(key) { return true }

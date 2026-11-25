@@ -30,6 +30,10 @@ struct SessionDetailView: View {
     @State private var composerFocused = false
     @FocusState private var cardField: String?
     @FocusState private var transcriptFocused: Bool
+    @State private var cursor: String?
+    @State private var leader = false
+    @State private var keysShown = false
+    @State private var newNote: String?
     @State private var stopHint = 0
     @State private var page = PageMetrics()
     @State private var reviewing: LandCard?
@@ -317,6 +321,7 @@ struct SessionDetailView: View {
             }
         } : nil)
         .environment(\.openDoc, docOpener)
+        .environment(\.foldScope, sessionID)
         .environment(\.openTask, taskOpener)
         .environment(\.openSession, Opener(key: "\(context.connection.computer.id)/\(store.workspace)/\(sessionID)") { id in reachSession(id) })
         .environment(\.toolCallLoader, ToolCallLoader(session: sessionID) { [store, sessionID] id in await store.toolCall(id, in: sessionID) })
@@ -359,9 +364,14 @@ struct SessionDetailView: View {
             }
         }
         .modifier(PaneFocusMark(focused: $transcriptFocused, label: "Transcript has keyboard focus", id: "transcript.focus") { press in
-            guard let escape = keyPanes?.escape, press.key == .escape || (press.key == "[" && press.modifiers == .control) else { return transcriptKey(press) }
-            escape()
-            return .handled
+            transcriptPress(press, escape: keyPanes?.escape, rows: rows, drawn: drawn)
+        })
+        .modifier(CursorWatch(focused: transcriptFocused, rows: rows.map(\.id), cursor: cursor, keysShown: $keysShown) { focused in
+            focusChanged(focused, rows: Array(rows[drawn...]))
+        } rowsChanged: { old in
+            rowsChanged(old, rows: rows, drawn: drawn)
+        } cursorChanged: {
+            showBar()
         })
         .simultaneousGesture(TapGesture().onEnded {
             if composerFocused || cardField != nil {
@@ -394,6 +404,17 @@ struct SessionDetailView: View {
                     .frame(maxWidth: 820)
                 }
                 stopHintBanner
+                if leader {
+                    CursorNote(text: TranscriptLeader.whichKey, id: "transcript.leader")
+                        .transition(.opacity)
+                } else if let newNote {
+                    CursorNote(text: newNote, id: "transcript.newer")
+                        .transition(.opacity)
+                        .task(id: newNote) {
+                            try? await Task.sleep(for: .seconds(StopHint.seconds))
+                            withAnimation { self.newNote = nil }
+                        }
+                }
                 if answeredElsewhere > 0 {
                     AnsweredElsewhereBanner()
                         .transition(.opacity)
@@ -602,7 +623,7 @@ struct SessionDetailView: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: sent)
         .sessionKeys(scope: sessionID, enabled: context.connection.state == .online, pending: store.pendingPermission(sessionID), answer: { request, option in
             perform { try await answer(request: request.id, option: option) }
-        }, confirmAlways: { alwaysAsked = AlwaysAsk(option: $0) }, send: keySend, stop: keyStop, panes: keyPanes)
+        }, confirmAlways: { alwaysAsked = AlwaysAsk(option: $0) }, send: keySend, stop: keyStop, panes: keyPanes, help: { keysShown = true })
         .followingRows(entries.count, echoes: echoes, atBottom: { atBottom.value }) {
             withAnimation { position.scrollTo(edge: .bottom) }
         }
@@ -1025,17 +1046,131 @@ struct SessionDetailView: View {
         }
     }
 
-    private func transcriptKey(_ press: KeyPress) -> KeyPress.Result {
-        guard press.modifiers.isDisjoint(with: [.command, .control, .option]) else { return .ignored }
-        switch press.key {
-        case .space:
-            pageBy(press.modifiers.contains(.shift) ? -1 : 1)
-        case "i", "a":
-            focusPane(.composer)
-        default:
+    private func transcriptKey(_ press: KeyPress, rows: [TranscriptRow], all: [TranscriptRow]) -> KeyPress.Result {
+        if press.modifiers == .command, press.characters == "c" {
+            guard let cursor, let text = TranscriptCursorRows.markdown(cursor, in: rows) else { return .ignored }
+            UIPasteboard.general.string = text
+            return .handled
+        }
+        guard press.modifiers.isDisjoint(with: [.command, .control, .option]) else {
+            leader = false
             return .ignored
         }
+        if leader {
+            leader = false
+            if let chord = TranscriptLeader.resolve(press.characters) { go(chord, rows: rows, all: all) }
+            return .handled
+        }
+        let arrow: TranscriptArrow? = switch press.key {
+        case .downArrow: .down
+        case .upArrow: .up
+        case .leftArrow: .left
+        case .rightArrow: .right
+        case .return: .enter
+        case .space: .space
+        default: nil
+        }
+        guard let key = TranscriptPress.resolve(press.characters, arrow: arrow, shift: press.modifiers.contains(.shift)) else { return .ignored }
+        switch key {
+        case .page(let direction): pageBy(Double(direction))
+        case .type: focusPane(.composer)
+        case .leader: leader = true
+        case .help: keysShown = true
+        case .answer(let characters): answerBare(characters)
+        case .step(let step): stepCursor(step, rows: rows, all: all)
+        }
         return .handled
+    }
+
+    private func transcriptPress(_ press: KeyPress, escape: (() -> Void)?, rows: [TranscriptRow], drawn: Int) -> KeyPress.Result {
+        guard let escape, press.key == .escape || (press.key == "[" && press.modifiers == .control) else { return transcriptKey(press, rows: Array(rows[drawn...]), all: rows) }
+        if leader {
+            leader = false
+        } else {
+            escape()
+        }
+        return .handled
+    }
+
+    private func focusChanged(_ focused: Bool, rows: [TranscriptRow]) {
+        let blocks = cursorBlocks(rows)
+        if focused, cursor == nil || !blocks.contains(where: { $0.id == cursor }) { cursor = TranscriptCursor.landing(blocks) }
+        if !focused { leader = false }
+        showBar()
+    }
+
+    private func rowsChanged(_ old: [String], rows: [TranscriptRow], drawn: Int) {
+        FoldStore.shared.prune(scope: sessionID, keep: TranscriptCursorRows.ids(rows))
+        guard transcriptFocused else { return }
+        let kept = Set(old)
+        let follow = TranscriptCursor.follow(cursor, from: cursorBlocks(rows.filter { kept.contains($0.id) }), to: cursorBlocks(Array(rows[drawn...])))
+        cursor = follow.cursor
+        if follow.newer > 0 { withAnimation { newNote = TranscriptNote.newer(follow.newer) } }
+    }
+
+    private func cursorBlocks(_ rows: [TranscriptRow]) -> [TranscriptBlock] {
+        TranscriptCursorRows.blocks(rows, open: { FoldStore.shared.isOpen($0, $1, scope: sessionID) }, listed: navigation.layout == .compact ? nil : ToolGroupRow.listed)
+    }
+
+    private func showBar() {
+        if transcriptFocused {
+            CursorBar.shared.block = cursor
+        } else if CursorBar.shared.block == cursor {
+            CursorBar.shared.block = nil
+        }
+    }
+
+    private func stepCursor(_ step: TranscriptStep, rows: [TranscriptRow], all: [TranscriptRow]) {
+        guard let command = TranscriptCursor.resolve(step, cursor: cursor, in: cursorBlocks(rows)) else { return }
+        switch command {
+        case .cursor(let id):
+            reveal(id, rows: rows)
+        case .expand(let id):
+            FoldStore.shared.set(id, true, scope: sessionID)
+        case .collapse(let id, let to):
+            FoldStore.shared.set(id, false, scope: sessionID)
+            reveal(to, rows: rows)
+        case .press:
+            break
+        case .top(let id, _):
+            if window.earlier(all) != nil { window.showEarlier(all) }
+            reveal(id, rows: rows)
+        case .bottom(let id):
+            cursor = id
+            withAnimation { position.scrollTo(edge: .bottom) }
+        }
+    }
+
+    private func reveal(_ id: String, rows: [TranscriptRow]) {
+        cursor = id
+        scrolled = true
+        let row = TranscriptCursorRows.row(of: id, in: rows) ?? id
+        withAnimation(.easeInOut(duration: 0.2)) { position.scrollTo(id: row, anchor: .center) }
+    }
+
+    private func answerBare(_ characters: String) {
+        guard let request = store.pendingPermission(sessionID), let digit = request.bareDigit(characters) else { return }
+        navigation.menu.live.keys?.answers[digit]?.run()
+    }
+
+    private func go(_ chord: TranscriptLeader, rows: [TranscriptRow], all: [TranscriptRow]) {
+        let current = navigation.selected(.agents)
+        let target: String?
+        switch chord {
+        case .first:
+            return stepCursor(.first, rows: rows, all: all)
+        case .tree:
+            return focusPane(.list)
+        case .composer:
+            return focusPane(.composer)
+        case .jump(let n):
+            target = SessionJumps.numbered(store.shownSections).dropFirst(n - 1).first
+        case .needs(let by):
+            target = SessionJumps.step(SessionJumps.needs(store.sessions), from: current, by: by)
+        case .last:
+            target = navigation.lastSession.flatMap { store.session($0) }.flatMap { $0.isClosed ? nil : $0.id }
+        }
+        if let target { navigation.openSession(target) }
     }
 
     private func pageBy(_ direction: Double) {
@@ -1706,5 +1841,25 @@ struct StopHintBanner: View {
             .padding(.vertical, 8)
             .glassEffect(in: .capsule)
             .accessibilityIdentifier("stopHint")
+    }
+}
+
+private struct CursorWatch: ViewModifier {
+    let focused: Bool
+    let rows: [String]
+    let cursor: String?
+    @Binding var keysShown: Bool
+    let focusChanged: (Bool) -> Void
+    let rowsChanged: ([String]) -> Void
+    let cursorChanged: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: focused) { _, now in focusChanged(now) }
+            .onChange(of: rows) { old, _ in rowsChanged(old) }
+            .onChange(of: cursor) { cursorChanged() }
+            .sheet(isPresented: $keysShown) {
+                PaneKeysSheet { keysShown = false }
+            }
     }
 }

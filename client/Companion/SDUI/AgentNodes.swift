@@ -144,9 +144,9 @@ struct MessageNode: View {
                 if let gate {
                     GateMessageBubble(message: gate)
                 } else {
-                    UserBubble(text: text, fromAgent: node.string("from")?.isEmpty == false, images: [], files: attachments)
+                    UserBubble(text: text, fromAgent: node.string("from")?.isEmpty == false, images: [], files: attachments, key: node.id)
                 }
-            case .thought: ThoughtView(text: text, title: thought, open: node.bool("open") == true)
+            case .thought: ThoughtView(key: node.id, text: text, title: thought, open: node.bool("open") == true)
             case .agent:
                 AgentMessage(cards: node.docCards, entry: entry, images: node.images) { MarkdownView(text: text, docLinks: node.docLinks, imageLinks: node.imageLinks, taskLinks: node.taskLinks) }
                     .environment(\.openDoc, Opener(key: node.id ?? "") { target in
@@ -164,7 +164,7 @@ struct PlanNode: View {
     @Environment(\.sduiInset) private var inset
 
     var body: some View {
-        PlanCard(items: (node.props["entries"]?.arrayValue ?? []).map(PlanItem.init))
+        PlanCard(items: (node.props["entries"]?.arrayValue ?? []).map(PlanItem.init), key: node.id)
             .padding(.horizontal, inset)
     }
 }

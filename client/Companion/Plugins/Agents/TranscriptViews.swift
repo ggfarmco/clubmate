@@ -8,6 +8,10 @@ struct RowView: View, Equatable {
     let row: TranscriptRow
 
     var body: some View {
+        content.cursorBar(row.id)
+    }
+
+    @ViewBuilder private var content: some View {
         switch row {
         case .entry(let entry):
             EntryView(entry: entry)
@@ -15,16 +19,16 @@ struct RowView: View, Equatable {
         case .agent(let id, let text, let blocks, let docLinks, let docCards, let images, let imageLinks, let taskLinks):
             AgentMessage(cards: docCards, entry: id, images: images) { MarkdownView(blocks: blocks, docLinks: docLinks, imageLinks: imageLinks, taskLinks: taskLinks) }
                 .messageAsideMenu(id, text: text)
-        case .tools(_, let group):
+        case .tools(let id, let group):
             if group.calls.count == 1 {
-                ToolRow(tool: group.calls[0])
+                ToolRow(tool: group.calls[0], key: id)
             } else {
-                ToolGroupRow(group: group)
+                ToolGroupRow(id: id, group: group)
             }
         case .held(_, let call):
             HeldCallBlock(call: call)
-        case .thought(_, let text, let title, let open):
-            ThoughtView(text: text, title: title, open: open)
+        case .thought(let id, let text, let title, let open):
+            ThoughtView(key: id, text: text, title: title, open: open)
         case .answered(let request):
             AnsweredRow(request: request)
         case .asked(let question):
@@ -41,19 +45,19 @@ struct EntryView: View {
     var body: some View {
         switch entry.content {
         case .user(let text, let fromAgent, let images, let files):
-            UserBubble(text: text, fromAgent: fromAgent, images: images, files: files)
+            UserBubble(text: text, fromAgent: fromAgent, images: images, files: files, key: entry.id)
         case .voice(let prompt):
-            VoicePromptRow(prompt: prompt)
+            VoicePromptRow(prompt: prompt, key: entry.id)
         case .gateMessage(let message):
             GateMessageBubble(message: message)
         case .agent(let text):
             AgentMessage(cards: entry.docCards, entry: entry.id, images: entry.images) { MarkdownView(text: text, docLinks: entry.docLinks, imageLinks: entry.imageLinks, taskLinks: entry.taskLinks) }
         case .thought(let text):
-            ThoughtView(text: text, title: "Thought", open: entry.open)
+            ThoughtView(key: entry.id, text: text, title: "Thought", open: entry.open)
         case .tool(let tool):
-            ToolRow(tool: tool)
+            ToolRow(tool: tool, key: entry.id)
         case .plan(let items):
-            PlanCard(items: items)
+            PlanCard(items: items, key: entry.id)
         case .permission(let request):
             AnsweredRow(request: request)
         case .elicitation(let question):
@@ -79,6 +83,7 @@ struct UserBubble: View {
     let fromAgent: Bool
     let images: [Data]
     var files: [String] = []
+    var key: String?
 
     private var shown: [Data] {
         images.filter { !$0.isEmpty }
@@ -132,7 +137,7 @@ struct UserBubble: View {
                 .defaultScrollAnchor(.trailing)
             }
             if !text.isEmpty {
-                UserText(text: text)
+                UserText(text: text, key: key)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .foregroundStyle(.primary)
@@ -146,7 +151,12 @@ struct UserBubble: View {
 
 struct VoicePromptRow: View {
     let prompt: VoicePrompt
-    @State private var expanded = false
+    @Fold private var expanded: Bool
+
+    init(prompt: VoicePrompt, key: String? = nil) {
+        self.prompt = prompt
+        _expanded = Fold(key)
+    }
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 6) {
@@ -192,7 +202,12 @@ struct VoicePromptRow: View {
 
 private struct UserText: View {
     let text: String
-    @State private var expanded = false
+    @Fold private var expanded: Bool
+
+    init(text: String, key: String?) {
+        self.text = text
+        _expanded = Fold(key)
+    }
 
     var body: some View {
         if let long = LongMessage(text) {
@@ -585,13 +600,13 @@ struct ThoughtView: View {
     let text: String
     let title: String
     let open: Bool
-    @State private var expanded: Bool
+    @Fold private var expanded: Bool
 
-    init(text: String, title: String, open: Bool) {
+    init(key: String? = nil, text: String, title: String, open: Bool) {
         self.text = text
         self.title = title
         self.open = open
-        _expanded = State(initialValue: open)
+        _expanded = Fold(key, initial: open)
     }
 
     var body: some View {
@@ -670,7 +685,12 @@ struct CompactionView: View {
 
 struct ToolRow: View {
     let tool: ToolCall
-    @State private var expanded = false
+    @Fold private var expanded: Bool
+
+    init(tool: ToolCall, key: String? = nil) {
+        self.tool = tool
+        _expanded = Fold(key)
+    }
 
     var body: some View {
         ToolLine(tool: tool, expanded: $expanded)
@@ -880,11 +900,16 @@ struct ToolLine: View {
 
 struct ToolGroupRow: View {
     let group: ToolGroup
-    @State private var expanded = false
-    @State private var open: Set<String> = []
+    @Fold private var expanded: Bool
     @Environment(AppNavigation.self) private var navigation
+    @Environment(\.foldScope) private var scope
 
-    private static let listed = 3
+    init(id: String, group: ToolGroup) {
+        self.group = group
+        _expanded = Fold(id)
+    }
+
+    static let listed = 3
 
     var body: some View {
         if navigation.layout == .compact {
@@ -925,9 +950,10 @@ struct ToolGroupRow: View {
 
     private func line(_ call: ToolCall, link: Bool = false) -> some View {
         ToolLine(tool: call, expanded: Binding(
-            get: { open.contains(call.id) },
-            set: { if $0 { open.insert(call.id) } else { open.remove(call.id) } }
+            get: { FoldStore.shared.isOpen(call.id, false, scope: scope) },
+            set: { FoldStore.shared.set(call.id, $0, scope: scope) }
         ), link: link)
+        .cursorBar(call.id)
     }
 
     private var folded: some View {
@@ -1148,7 +1174,12 @@ struct DiffView: View {
 
 struct PlanCard: View {
     let items: [PlanItem]
-    @State private var showingDone = false
+    @Fold private var showingDone: Bool
+
+    init(items: [PlanItem], key: String? = nil) {
+        self.items = items
+        _showingDone = Fold(key)
+    }
 
     var body: some View {
         let fold = PlanFold(items.map(\.status))

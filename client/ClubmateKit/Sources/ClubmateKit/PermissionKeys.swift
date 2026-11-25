@@ -14,6 +14,12 @@ public enum PermissionKeys {
 
     private static let letters: [String: PermissionKind] = ["y": .allowOnce, "n": .rejectOnce]
 
+    public static func bare(cardOnly: Bool, focused: Bool, composing: Bool, reading: Bool, promptEmpty: Bool) -> Bool {
+        if composing { return false }
+        if focused { return true }
+        return !cardOnly && (reading || promptEmpty)
+    }
+
     public static func label(_ index: Int, in options: [SDUIPermissionOption]) -> String? {
         digit(index, in: options).map { "⌥\($0)" }
     }

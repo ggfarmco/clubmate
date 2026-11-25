@@ -141,7 +141,20 @@ extension SDUINode {
     public static let fileBarActions: Set<String> = ["openLocation", "review"]
 
     public var fullDiffCard: SDUINode? {
-        children.last { $0.type == "toolCard" && $0.toolBody()?.format == .diff && $0.cardActions().contains { $0.action == "review" } }
+        children.last(where: \.reviewsDiff)
+    }
+
+    public func fullDiffCard(focused id: String?) -> SDUINode? {
+        guard let id, let node = transcriptChild(id), node.reviewsDiff else { return fullDiffCard }
+        return node
+    }
+
+    public func transcriptChild(_ id: String) -> SDUINode? {
+        identifiedChildren.first { $0.id == id }?.node
+    }
+
+    var reviewsDiff: Bool {
+        type == "toolCard" && toolBody()?.format == .diff && cardActions().contains { $0.action == "review" }
     }
 }
 

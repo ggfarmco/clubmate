@@ -45,6 +45,9 @@ struct ToolActionsView: View {
                 LazyVStack(alignment: .leading, spacing: theme.spacing.xs) {
                     ForEach(cards) { card in
                         ToolActionLine(id: card.id, node: card.node, expanded: state.isExpanded(card: card.id)).equatable()
+                            .overlay(alignment: .leading) {
+                                if TranscriptBar.shared.block == card.id { BlockBar(id: card.id) }
+                            }
                     }
                 }
                 .padding(.leading, theme.indent)
@@ -130,6 +133,7 @@ struct ToolActionLine: View, Equatable {
         }
         .font(theme.ui)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .testNode(id, role: "toolLine", label: fullTitle)
     }
 
     private var kindIcon: some View {

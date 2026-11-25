@@ -374,6 +374,36 @@ final class IPadUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Stop '")).firstMatch.waitForExistence(timeout: 5))
     }
 
+    func testTranscriptBlocksStepAndGFollowsTheNewest() {
+        let app = launch(open: "agents/agt_0000000000000004", ["-longTranscript", "YES"])
+        let composer = app.textViews["composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 15))
+        composer.tap()
+        app.typeKey(.upArrow, modifierFlags: [.option, .command])
+        let bar = {
+            let found = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'transcript.bar.'")).firstMatch
+            return found.exists ? found.identifier : nil
+        }
+        XCTAssertTrue(wait { bar() != nil })
+        let newest = bar()
+        app.typeKey("k", modifierFlags: [])
+        XCTAssertTrue(wait { bar() != nil && bar() != newest })
+        app.typeKey("g", modifierFlags: .shift)
+        XCTAssertTrue(wait { bar() == newest })
+    }
+
+    func testBareKeyAnswersTheCardFromTheTranscript() {
+        let app = launch(open: "agents/agt_0000000000000001")
+        let reject = app.buttons["Reject"]
+        XCTAssertTrue(reject.waitForExistence(timeout: 15))
+        let composer = app.textViews["composer"]
+        composer.tap()
+        XCTAssertTrue(wait { (composer.value(forKey: "hasKeyboardFocus") as? Bool) == true })
+        app.typeKey(.upArrow, modifierFlags: [.option, .command])
+        XCTAssertTrue(app.descendants(matching: .any)["transcript.focus"].waitForExistence(timeout: 5))
+        XCTAssertTrue(press(app, "n", [], until: wait(timeout: 3) { !reject.exists }))
+    }
+
     func testStepOutDoesNothingUnderASheet() {
         let app = launch(open: "agents/agt_0000000000000001")
         XCTAssertTrue(app.buttons["Reject"].waitForExistence(timeout: 15))

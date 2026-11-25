@@ -50,4 +50,12 @@ final class PermissionKeysTests: XCTestCase {
         XCTAssertEqual(PermissionKeys.label(1, in: keyed), "⌥2")
         XCTAssertNil(PermissionKeys.label(2, in: keyed))
     }
+
+    func testBareKeysReachTheLandCardOnlyWithItsOwnFocus() {
+        XCTAssertTrue(PermissionKeys.bare(cardOnly: false, focused: false, composing: false, reading: true, promptEmpty: false))
+        XCTAssertTrue(PermissionKeys.bare(cardOnly: false, focused: false, composing: false, reading: false, promptEmpty: true))
+        XCTAssertFalse(PermissionKeys.bare(cardOnly: true, focused: false, composing: false, reading: true, promptEmpty: true))
+        XCTAssertTrue(PermissionKeys.bare(cardOnly: true, focused: true, composing: false, reading: false, promptEmpty: false))
+        XCTAssertFalse(PermissionKeys.bare(cardOnly: false, focused: true, composing: true, reading: true, promptEmpty: true))
+    }
 }

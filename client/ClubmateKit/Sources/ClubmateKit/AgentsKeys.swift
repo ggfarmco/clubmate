@@ -37,12 +37,14 @@ public enum AgentsChord: Equatable, Sendable {
     case right
     case transcript
     case composer
+    case keys
 
     public static func resolve(keyCode: UInt16, command: Bool, control: Bool, option: Bool, shift: Bool) -> AgentsChord? {
         if shift { return nil }
         switch (keyCode, command, control, option) {
         case (53, false, false, false), (33, false, true, false): return .stepOut
         case (47, true, false, false): return .stop
+        case (44, true, false, false): return .keys
         case (123, true, false, true): return .tree
         case (124, true, false, true): return .right
         case (126, true, false, true): return .transcript
@@ -56,12 +58,43 @@ public enum TranscriptKey: Equatable, Sendable {
     case type
     case page(Int)
     case column(Int)
+    case step(TranscriptStep)
+    case leader
+    case help
 
     public static func resolve(keyCode: UInt16, characters: String?, command: Bool, control: Bool, option: Bool, shift: Bool) -> TranscriptKey? {
         if command || option { return nil }
         if control { return shift ? nil : keyCode == 4 ? .column(-1) : keyCode == 37 ? .column(1) : nil }
         if keyCode == 49 { return .page(shift ? -1 : 1) }
-        return !shift && (characters == "i" || characters == "a") ? .type : nil
+        if shift { return keyCode == 5 ? .step(.last) : characters == "?" ? .help : nil }
+        if characters == "i" || characters == "a" { return .type }
+        switch keyCode {
+        case 38, 125: return .step(.move(1))
+        case 40, 126: return .step(.move(-1))
+        case 37, 124: return .step(.unfold)
+        case 4, 123: return .step(.fold)
+        case 36, 76: return .step(.toggle)
+        case TreeChord.leader: return .leader
+        default: return nil
+        }
+    }
+}
+
+public enum TranscriptChord: Equatable, Sendable {
+    case first
+    case file
+    case go(TreeChord)
+
+    public static func resolve(_ keyCode: UInt16, shift: Bool) -> TranscriptChord? {
+        if !shift, keyCode == TreeChord.leader { return .first }
+        if !shift, keyCode == 3 { return .file }
+        return TreeChord.resolve(keyCode, shift: shift, sessions: true).map(TranscriptChord.go)
+    }
+
+    public static let fileLabel = "gf"
+
+    public static func whichKey(file: Bool) -> String {
+        "g → " + (file ? "f file · " : "") + "g first · 1–9 session · l last · n needs you · t tree · i reply"
     }
 }
 
@@ -101,6 +134,7 @@ public enum AgentsMove: Equatable, Sendable {
 
 public enum AgentsKeys {
     public static let transcriptSuffix = ".transcript"
+    public static let cardSuffix = ".card"
     public static let noSession = "No session open · ↩ open · ⌘N new"
     public static let nothingRuns = "Nothing runs here"
 
@@ -116,6 +150,7 @@ public enum AgentsKeys {
         switch chord {
         case .stepOut: stepOut(from: place, in: layout)
         case .stop: .note(nothingRuns)
+        case .keys: .stay
         case .tree: .focus(.tree)
         case .right: right(from: place, in: layout)
         case .transcript: layout.transcripts.contains(place?.column ?? .main) ? .focus(.transcript(place?.column ?? .main)) : .stay

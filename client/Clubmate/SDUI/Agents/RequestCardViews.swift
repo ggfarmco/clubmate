@@ -20,6 +20,8 @@ struct ConnectRepoCardView: View {
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
     @Environment(\.composerDrafts) private var drafts
+    @Environment(\.paneFocus) private var panes
+    @Environment(\.composerFocusSlot) private var slot
 
     private static let spaceKey: UInt16 = 49
     private static let downKey: UInt16 = 125
@@ -46,11 +48,13 @@ struct ConnectRepoCardView: View {
         .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.toneBg(theme.warning)))
         .clipShape(RoundedRectangle(cornerRadius: theme.radius.l))
         .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(theme.toneBorder(theme.warning), lineWidth: 1))
+        .blockBar(node.id)
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
         .reportsFocus(.connectCard, focused)
         .onTapGesture { focused = true }
+        .modifier(CardFocusTarget(focused: $focused))
         .padding(.horizontal, theme.gutter * 2)
         .padding(.bottom, theme.spacing.l)
         .task(id: node.string("request")) {
@@ -249,7 +253,13 @@ struct ConnectRepoCardView: View {
             if !event.isARepeat { answer() }
             return true
         }
-        guard focused, flags.isEmpty else { return false }
+        guard flags.isEmpty else { return false }
+        let bare = ["1": connect, "2": pickOther, "3": decline, "y": connect, "n": decline]
+        if let key = event.charactersIgnoringModifiers?.lowercased(), let answer = bare[key], CardBareKeys.on(event, focused: focused, panes: panes, slot: slot, drafts: drafts, node: node) {
+            if !event.isARepeat { answer() }
+            return true
+        }
+        guard focused else { return false }
         switch event.keyCode {
         case Self.spaceKey where !single:
             if !event.isARepeat { model.toggle(repos) }
@@ -301,6 +311,8 @@ struct LandRequestCardView: View {
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
     @Environment(\.composerDrafts) private var drafts
+    @Environment(\.paneFocus) private var panes
+    @Environment(\.composerFocusSlot) private var slot
 
     private var options: [SDUIPermissionOption] { node.permissionOptions() }
     private var gate: Bool { node.bool("gate") == true }
@@ -394,11 +406,13 @@ struct LandRequestCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.toneBg(theme.warning)))
         .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(theme.toneBorder(theme.warning), lineWidth: 1))
+        .blockBar(node.id)
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
         .reportsFocus(.keys(keyHints), focused)
         .onTapGesture { focused = true }
+        .modifier(CardFocusTarget(focused: $focused))
         .padding(.horizontal, theme.gutter * 2)
         .padding(.bottom, theme.spacing.l)
         .task(id: node.string("request")) {
@@ -418,7 +432,8 @@ struct LandRequestCardView: View {
                 return LeaveConfirm.handle(event, option: option, options: options) { confirming = nil } confirm: { answer(option) }
             }
             let flags = event.modifierFlags
-            guard let index = PermissionKeys.option(characters: event.charactersIgnoringModifiers, option: flags.contains(.option), otherModifiers: !flags.intersection([.command, .control, .shift]).isEmpty, options: options) else { return false }
+            let bare = CardBareKeys.on(event, focused: focused, panes: panes, slot: slot, drafts: drafts, node: node, cardOnly: true)
+            guard let index = PermissionKeys.option(characters: event.charactersIgnoringModifiers, option: flags.contains(.option), otherModifiers: !flags.intersection([.command, .control, .shift]).isEmpty, bare: bare, options: options) else { return false }
             guard !event.isARepeat else { return true }
             press(options[index])
             return true

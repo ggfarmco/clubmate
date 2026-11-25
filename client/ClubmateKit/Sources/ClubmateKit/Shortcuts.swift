@@ -119,6 +119,7 @@ public enum AppShortcuts {
             Shortcut("trees.needs", ["gn", "gN"], "Next, previous agent session that needs you", when: "Agents sidebar focused"),
             Shortcut("trees.panes", ["gt", "gi"], "Stay in the tree, go to the prompt", when: "Agents sidebar focused"),
             Shortcut("trees.chips", ["<", ">"], "Previous, next filter chip", when: "Sidebar focused"),
+            Shortcut("trees.keys", ["?"], "Show the keys of the focused pane", when: "Agents sidebar focused"),
             Shortcut("trees.back", ["esc", "ctrl+l", "ctrl+h"], "Back to the main pane", when: "Sidebar focused"),
         ]),
         ShortcutGroup(id: "sidebar-lists", title: "Sidebar lists", shortcuts: [
@@ -146,12 +147,23 @@ public enum AppShortcuts {
             Shortcut("agents-panes.main", ["opt+cmd+right"], "Go to the main pane's prompt; from the main pane, to the aside", when: "Agents"),
             Shortcut("agents-panes.transcript", ["opt+cmd+up"], "Go to the transcript of the column you are in", when: "Agents"),
             Shortcut("agents-panes.composer", ["opt+cmd+down"], "Go to the prompt of the column you are in", when: "Agents"),
+            Shortcut("agents-panes.keys", ["cmd+/"], "Show or hide the keys of the focused pane", when: "Agents"),
         ]),
         ShortcutGroup(id: "transcript", title: "Agent transcript", shortcuts: [
+            Shortcut("transcript.move", ["j", "down", "k", "up"], "Next, previous block: prompt, thought, plan, actions, answer, card", when: "Agents, transcript focused"),
+            Shortcut("transcript.fold", ["l", "right", "h", "left"], "Unfold, fold the block; into, out of an actions group", when: "Agents, transcript focused"),
+            Shortcut("transcript.toggle", ["return"], "Fold or unfold the block; on a pending card, give the card the keys", when: "Agents, transcript focused"),
+            Shortcut("transcript.ends", ["gg", "G"], "First block (Show earlier first), newest block and follow new output", when: "Agents, transcript focused"),
+            Shortcut("transcript.copy", ["cmd+c"], "Copy the focused block as Markdown; a text selection copies as usual", when: "Agents, transcript focused"),
+            Shortcut("transcript.file", ["gf"], "Open the focused block's file in nvim", when: "Agents, a Read or Edit block focused"),
+            Shortcut("transcript.sessions", ["g1…g9", "gl", "gn", "gN"], "Nth session, last session, next or previous that needs you", when: "Agents, transcript focused"),
+            Shortcut("transcript.panes", ["gt", "gi", "gc"], "Go to the tree, the prompt, the search field", when: "Agents, transcript focused"),
+            Shortcut("transcript.keys", ["?"], "Show the keys of the focused pane", when: "Agents, transcript focused"),
             Shortcut("transcript.type", ["i", "a"], "Go to the prompt, the draft kept", when: "Agents, transcript focused"),
             Shortcut("transcript.page", ["space", "shift+space"], "Page down, up", when: "Agents, transcript focused"),
             Shortcut("transcript.column", ["ctrl+h", "ctrl+l"], "Column left, right: tree, main pane, aside", when: "Agents, transcript focused"),
-            Shortcut("transcript.full-diff", ["cmd+d"], "Full diff of the newest edit in nvim"),
+            Shortcut("transcript.full-diff", ["cmd+d"], "Full diff of the focused edit, else of the newest edit, in nvim"),
+            Shortcut("transcript.aside", ["cmd+\\"], "Ask aside about the selection, else the focused answer, else the last answer", when: "Agents"),
         ]),
         ShortcutGroup(id: "tasks", title: "Multi-repo tasks", shortcuts: [
             Shortcut("tasks.sibling", ["opt+up", "opt+down"], "Previous, next repo of the task", when: "A repo child of a task, not in a text field"),
@@ -163,8 +175,8 @@ public enum AppShortcuts {
             Shortcut("permissions.answer", ["opt+1", "opt+2", "opt+3"], "Allow once, Always allow…, Reject"),
             Shortcut("permissions.confirm", ["opt+2"], "Store the rule and allow", when: "Always allow confirm"),
             Shortcut("permissions.cancel", ["esc", "return"], "Cancel", when: "Always allow confirm"),
-            Shortcut("permissions.bare", ["1", "2", "3"], "Allow once, Always allow…, Reject", when: "Prompt empty or card focused"),
-            Shortcut("permissions.yes-no", ["y", "n"], "Allow once, Reject once", when: "Prompt empty or card focused"),
+            Shortcut("permissions.bare", ["1", "2", "3"], "Allow once, Always allow…, Reject", when: "Prompt empty, transcript or card focused"),
+            Shortcut("permissions.yes-no", ["y", "n"], "Allow once, Reject once", when: "Prompt empty, transcript or card focused"),
         ]),
         ShortcutGroup(id: "questions", title: "Agent questions", shortcuts: [
             Shortcut("questions.send", ["return"], "Send the form", when: "Text field of the question"),
@@ -176,4 +188,16 @@ public enum AppShortcuts {
             Shortcut("vscode.popup", ["cmd+j"], "Stays Switch Popup Focus", when: "VS Code focused"),
         ]),
     ]
+}
+
+public enum PaneKeysHelp {
+    public static func groups(_ pane: FocusedPane?) -> [ShortcutGroup] {
+        let ids: [String] = switch pane {
+        case .tree, .field: ["trees", "agents-panes"]
+        case .transcript: ["transcript", "permissions", "agents-panes"]
+        case .composer: ["composer", "permissions", "agents-panes"]
+        default: ["agents-panes"]
+        }
+        return ids.compactMap { id in AppShortcuts.groups.first { $0.id == id } }
+    }
 }

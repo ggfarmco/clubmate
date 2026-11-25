@@ -27,6 +27,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌃⇥ | In Agents, with focus in any Agents pane (the prompt too): the last session, and back with a second ⌃⇥; "no previous session" when it is closed or gone (`agents.last`). Not a menu key: in terminals, nvim and text fields of other sections ⌃⇥ keeps its own meaning | `Windows/Workspace/AgentsSessionKeys.swift`, `plugins/agents/jump.go` |
 | Esc, ⌃[ | In Agents (sessions tree, transcript, prompt, cards, aside): step out, prompt → transcript → tree → the prompt you left (an aside's transcript steps to its parent's transcript first; a session with no messages skips its transcript). Open things close first (a menu, the palette, a sheet, the / command list, the Always allow confirm, text in the tree's search field). Agents always takes Esc, also where there is nothing to step out of (the status bar then says why, e.g. "No session open · ↩ open · ⌘N new"), so Esc never reaches the window and never ends full screen there; ⌃⌘F, Globe F or the green button do. Other sections keep their Esc | `SDUI/Agents/AgentsFocus.swift`, `SDUI/KeyMonitor.swift` (a fallback monitor that runs after all others), `ClubmateKit/AgentsKeys.swift` |
 | ⌥⌘←, ⌥⌘→, ⌥⌘↑, ⌥⌘↓ | In Agents, also from the prompt: go to the sessions tree; the main pane's prompt (from the main pane: the aside's prompt); the transcript of the column you are in; the prompt of the column you are in | `SDUI/Agents/AgentsFocus.swift`, `ClubmateKit/AgentsKeys.swift` |
+| ⌘/ | In Agents, from any pane: show or hide the keys of the focused pane (a card at the bottom right, from the `AppShortcuts` groups of that pane: tree, transcript, prompt). Esc closes it first | `SDUI/Agents/AgentsFocus.swift`, `ClubmateKit/Shortcuts.swift` (`PaneKeysHelp`) |
 | ⌘. | In Agents, from any pane (the prompt too): stop the running turn of the column with focus (the session header's Stop prints ⌘.; in an aside beside its parent, the aside's Stop when focus is in the aside, else the parent's). On a running graph run's page it stops the run (confirmed). With nothing to stop the status bar says "Nothing runs here"; ⌘. never reaches the window | `plugins/agents/view.go`, `plugins/agents/aside_view.go`, `SDUI/InputViews.swift` (`ButtonNodeView`), `ClubmateKit/AgentsKeys.swift` |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |
 | ⇧⌘I | Notifications inbox (bell popover) | `ClubmateApp.swift` |
@@ -144,6 +145,7 @@ The title picker adds these to the keys above:
 | gl | Agents: the last session, and back, as ⌃⇥ |
 | gn, gN | Agents: next, previous session that needs you, as ⌃⌘J, ⌃⇧⌘J |
 | gt, gi | Agents: stay in the tree, go to the prompt |
+| ? | Agents: show or hide the keys of the focused pane, as ⌘/ |
 | < / > | Previous / next chip of the sidebar's filter row, when it has one (Agents: All · Needs you · Open · Running) |
 | Esc, ⌃[ | Fold the open docked row (also from a row inside it); elsewhere back to the main pane (in Agents: the prompt you last typed in, see § App and windows) |
 | ⌃L (sidebar on the left), ⌃H (sidebar on the right) | Back to the main pane |
@@ -232,17 +234,28 @@ While an input method is composing (marked text), ↩ and Esc go to it. Defined 
 
 ## Agent transcript (Agents section or Code chat panel)
 
+In Agents the transcript moves like the tree: the focused block has a 2 pt accent bar at its left edge. Blocks are the prompt, a thought, the plan, an actions group (each action while the group is unfolded), the answer and a card (in-transcript cards and the pending request docked above the prompt); notes and turn lines are not blocks. Focus arrives on the newest block; a click on a block focuses it. While the bar is on an older block, new output does not move the transcript and the status bar says "↓ N new · G" (only blocks below count, not rows Show earlier loads above; the bar on the pending card follows new output like the newest block). The cursor rules are shared with the iPad (ClubmateProtocol `TranscriptCursor`); the Mac's blocks come from ClubmateKit `TranscriptBlocks`.
+
 | Keys | Action | Where defined |
 |---|---|---|
-| ⌘D | Full diff: open the turn of the newest edit card in the transcript in nvim's diffview (printed on that card's Full diff) | `SDUI/Agents/TranscriptView.swift` |
-| click, Esc from the prompt, ⌥⌘↑ | Agents: focus the transcript (an accent bar at its left edge, status bar READ). A click on message text keeps the text selection |
+| ⌘D | Full diff: open the turn of the focused edit card in nvim's diffview, else of the newest edit card in the transcript (printed on that card's Full diff) | `SDUI/Agents/TranscriptView.swift` |
+| click, Esc from the prompt, ⌥⌘↑ | Agents: focus the transcript (status bar READ). A click on message text keeps the text selection |
+| j / ↓, k / ↑ | Agents, transcript focused: next, previous block | `SDUI/Agents/TranscriptView.swift`, `ClubmateKit/AgentsKeys.swift` (`TranscriptKey`), ClubmateProtocol `TranscriptCursor.swift` |
+| l / →, h / ← | Agents, transcript focused: unfold the block, then step into an unfolded actions group; fold the block, from an action in a group fold the group | same |
+| ↩ | Agents, transcript focused: fold or unfold the block; on the pending card docked above the prompt, give the card the keys; on Show earlier, show earlier rows | same |
+| gg, G | Agents, transcript focused: first block (when the transcript shows only its newest rows, Show earlier runs too), newest block, the transcript follows new output again | same |
+| ⌘C | Agents, transcript focused, no text selected: copy the focused block as Markdown (an action with its diff or output in a fence, a group as a list); the status bar says "Copied as Markdown". A text selection copies as usual | `SDUI/Agents/TranscriptView.swift`, `ClubmateKit/TranscriptBlocks.swift` |
+| gf | Agents, transcript focused, on a Read or Edit block (an action with Open in nvim): open its file in nvim. On other blocks the status bar says "No file on this block". The which-key line after g offers f only on such a block. ⌘O stays Open Folder… | `SDUI/Agents/TranscriptView.swift`, `ClubmateKit/AgentsKeys.swift` (`TranscriptChord`) |
+| g1…g9, gl, gn, gN | Agents, transcript focused: as in the tree (Nth numbered session, last session, next and previous that needs you) | `ClubmateKit/TreeKeys.swift` (`TreeChord`), `SDUI/Agents/AgentsFocus.swift` |
+| gt, gi, gc | Agents, transcript focused: go to the tree, the prompt, the sidebar's search field | same |
+| ? | Agents, transcript focused: show or hide the keys of the focused pane, as ⌘/ | `SDUI/Agents/TranscriptView.swift` |
 | i, a | Agents, transcript focused: go to the prompt, the draft kept | `SDUI/Agents/TranscriptView.swift`, `ClubmateKit/AgentsKeys.swift` (`TranscriptKey`) |
 | Space, ⇧Space | Agents, transcript focused: page down, up | `SDUI/Agents/TranscriptView.swift` |
 | ⌃H, ⌃L | Agents, transcript focused: one column left, right (tree ← main pane → aside; with the sidebar on the right, the tree is the rightmost column) | `SDUI/Agents/TranscriptView.swift`, `ClubmateKit/AgentsKeys.swift` |
-| Esc, ⌃[ | Agents, transcript focused: step out to the tree (from an aside's transcript, to its parent's transcript first) | `SDUI/Agents/AgentsFocus.swift` |
-| ⌘\ | Ask aside: about the passage selected in an agent message (also the first item of the message's right-click menu), else about the whole last answer; it opens beside the session (Agents section, a session that can have asides) | `SDUI/Agents/TranscriptView.swift`, `SDUI/MarkdownView.swift` |
+| Esc, ⌃[ | Agents, transcript focused: after g, end the wait; else step out to the tree (from an aside's transcript, to its parent's transcript first) | `SDUI/Agents/AgentsFocus.swift` |
+| ⌘\ | Ask aside: about the passage selected in an agent message (also the first item of the message's right-click menu), else about the focused answer (the bar on an agent message), else about the whole last answer (also when the bar is on any other block); it opens beside the session (Agents section, a session that can have asides) | `SDUI/Agents/TranscriptView.swift`, `SDUI/MarkdownView.swift` |
 
-Open in nvim on an edit card has no key: the board's ⌘O is the app's Open Folder….
+After g the status bar shows the which-key line ("g → f file · g first · 1–9 session · l last · n needs you · t tree · i reply"); the next key ends the wait, a key that is not listed is swallowed, a key with ⌘, ⌃ or ⌥ goes on to the app. Open in nvim on an edit card prints gf only while its block has the bar; a click works without a key.
 
 ## Agent Browser window (during a handoff)
 
@@ -258,7 +271,7 @@ A pending request is docked above the composer.
 |---|---|
 | ⌥1 ⌥2 ⌥3 | Allow once · Always allow… · Reject: the key each option carries (`shortcut`, printed on its button); works while the prompt has a draft and leaves it untouched. ⌥2 (or a click) opens the Always allow confirm instead of answering. Always reject sits in the card's ••• menu without a key. A request whose options carry no keys keeps ⌥N in button order, "always" options without a key |
 | ⌥2 again / ⎋ or ↩ | In the Always allow confirm: store the rule and allow / Cancel (the default); nothing is sent before ⌥2 |
-| 1 2 3 | The same without ⌥ (bare 2 opens and confirms Always allow too), only while the session's prompt is focused and empty or the request card has focus (click it); typed into a prompt with a draft, the digit goes into the draft |
+| 1 2 3 | The same without ⌥ (bare 2 opens and confirms Always allow too), only while the session's prompt is focused and empty, the session's transcript is focused (not while g waits), or the request card has focus (click it, or ↩ on its block in the transcript); typed into a prompt with a draft, the digit goes into the draft |
 | y / n | Allow once / Reject once, under the same condition as bare digits |
 
 Outside the Always allow confirm, Esc does not answer the request: in Agents it steps out of the prompt and ⌘. stops the turn; in the Code and Wiki chat panels Esc stops the turn. Defined in `ClubmateKit/PermissionKeys.swift` and `SDUI/Agents/PermissionCardView.swift`.
@@ -273,6 +286,8 @@ A connect request (`Connect a repo?`), a Land request (`Land ‹repo›?`) or a 
 | Space | Connect card: un-tick or tick the focused repo; un-ticked repos are skipped |
 | ↑ ↓ | Connect card: move between repos; moving past the third opens the folded ones |
 | ⌥1 ⌥2 ⌥3 | Land card: Review… (opens the repo's diff, never merges) · Merge · Leave it unlanded… (⌥3 again confirms, Esc or ↩ cancels) |
+| 1 2 3, y n | Connect card: the same without ⌥ (y Connect, n Don't connect), under the rule of § Permission requests: the card has the keys, the prompt is empty, or the transcript is focused |
+| 1 2 3, y n | Land card: the same without ⌥ (y the `allow_once` answer: Review…, or Merge on a gate's rounds card; n the `reject_once` answer: Leave it unlanded…, which asks to confirm), only while the card itself has the keys (it takes them when it shows, a click, or ↩ on its block in the transcript); never from an empty prompt or the transcript, so a stray digit does not merge |
 | ⌥1 ⌥2 ⌥3 | Land review card ("‹graph› still asks for changes after N rounds"): Land anyway · One more round · Stop |
 | ⌥1 ⌥2 ⌥3 | Held turn card ("‹graph› still asks for changes after N rounds" / "‹graph› ended without a verdict"): Accept as done · One more round (Check again on "Couldn't check this turn against its gates") · Stop |
 | ⌥1 ⌥2 ⌥3 | Held tool call card ("‹graph› still asks for changes after N rounds" / "N gates still ask for changes"): Run anyway · One more round · Stop |
@@ -359,6 +374,12 @@ Defined by the `keys` scope in `plugins/agents/open_view.go`, handled in `plugin
 | ⌥⌘← ⌥⌘→ ⌥⌘↑ ⌥⌘↓ | Go straight to a pane, also from the composer: the session list (shows a hidden list), the open session's composer, the transcript (only when it has messages), the composer (Session menu, Go to List / Session / Transcript / Composer) |
 | i, a | Transcript focused (2 pt accent bar at its leading edge): focus the composer, the draft is kept |
 | Space, ⇧Space | Transcript focused: page down, page up |
+| j k ↓ ↑, l → h ←, ↩ | Transcript focused: next, previous block (2 pt accent bar at the block's leading edge; focus arrives on the newest block), unfold, fold, fold or unfold. The same rules as the Mac (CompanionKit `TranscriptCursorRows`, ClubmateProtocol `TranscriptCursor`); on the iPad layout an actions group lists its first 3 actions as blocks, and l / h show all or 3 |
+| gg, G | Transcript focused: first block (Show earlier runs too), newest block. While the bar is on an older block, new rows do not move the bar and a note "↓ N new · G" shows above the composer for 4 s (rows loaded above by Show earlier are not counted) |
+| ⌘C | Transcript focused: copy the focused block as Markdown |
+| 1 2 3, y n | Transcript focused: answer the pending permission card, as ⌥1 ⌥2 ⌥3 (y Allow once, n Reject once) |
+| g1…g9, gl, gn, gN, gt, gi | Transcript focused: Nth numbered session, last session, next and previous that needs you, the session list, the composer; the which-key line shows above the composer while g waits |
+| ?, ⌘/ | Transcript focused (⌘/ while a session is open, Session menu, Transcript Keys, also in the hold-⌘ list): a sheet with the transcript keys |
 | Esc (note) | When Esc leaves the composer of a running turn, a note "⎋ left the prompt · ⌘. stops" shows above the composer for 4 s, the first 20 times on this device (count in the app's preferences, `agents.stopHintShown`) |
 | ⌘[ | Back (the chevron or the back chip); on the iPad only inside the detail column (Go menu) |
 | ⌘1 ⌘2 ⌘3 ⌘4 | Tabs Agents · Backlog · Wiki · More (⌘3 only when the workspace has a wiki); on the iPad the tabs are buttons at the bottom of the list column, and the keys also work while the list is hidden (Go menu) |

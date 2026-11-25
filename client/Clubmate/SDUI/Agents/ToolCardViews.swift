@@ -64,10 +64,14 @@ struct ToolCardButtons: View {
 
     var body: some View {
         ForEach(actions ?? node.cardActions()) { action in
-            CardButton(label: action.label, icon: icons ? action.icon : nil, shortcut: shortcuts[action.action]) {
+            CardButton(label: action.label, icon: icons ? action.icon : nil, shortcut: shortcuts[action.action] ?? fileKey(action)) {
                 dispatch(node, .named(action.action, action.value))
             }
         }
+    }
+
+    private func fileKey(_ action: SDUICardAction) -> String? {
+        action.action == TranscriptBlocks.openFile && node.id != nil && TranscriptBar.shared.block == node.id ? TranscriptChord.fileLabel : nil
     }
 
     static func below(_ node: SDUINode, body: SDUIToolBody?) -> [SDUICardAction] {
