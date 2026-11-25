@@ -37,13 +37,14 @@ type gateListed struct {
 
 type gateHistory struct {
 	Landings []struct {
-		Lander   string `json:"lander"`
-		Call     string `json:"call"`
-		State    string `json:"state"`
-		Round    int    `json:"round"`
-		Reviewer string `json:"reviewer"`
-		Wait     string `json:"wait"`
-		WaitsOn  string `json:"waitsOn"`
+		Lander   string    `json:"lander"`
+		Call     string    `json:"call"`
+		State    string    `json:"state"`
+		Round    int       `json:"round"`
+		Reviewer string    `json:"reviewer"`
+		Wait     string    `json:"wait"`
+		WaitsOn  string    `json:"waitsOn"`
+		Since    time.Time `json:"since"`
 	} `json:"landings"`
 	Verdicts []gateVerdictRow `json:"verdicts"`
 }

@@ -738,3 +738,37 @@ func TestSheetOffersAGateGraphOnlyToALandGate(t *testing.T) {
 	assert.NotContains(t, done, "test-gate")
 	assert.Contains(t, done, "fable-review")
 }
+
+func TestSheetShowsTestCommandOnlyForAGraphThatRunsIt(t *testing.T) {
+	t.Parallel()
+	tests := graphs.GateGraphInfo{Name: "test-gate", Title: "Tests", From: graphs.FromBuiltin, Decides: true, Land: true, Test: true}
+	repos := []gateRepo{{Path: "/src/shop", Primary: "/src/shop", Branch: "main"}}
+	d := gateDraft{Repo: "/src/shop", Into: gateIntoDefault, Graph: "fable-review", Rounds: 2, Repos: repos, Choices: []graphs.GateGraphInfo{fableChoice(), tests}}
+
+	review := fmt.Sprint(gateSheetView(d))
+	d.Test = "make test"
+	kept := fmt.Sprint(gateSheetView(d))
+	d.Test, d.TestTyped = "", true
+	cleared := fmt.Sprint(gateSheetView(d))
+
+	assert.NotContains(t, review, "gateSheet/test")
+	assert.Contains(t, kept, "gateSheet/test")
+	assert.Contains(t, cleared, "gateSheet/test")
+}
+
+func TestWeekLineCountsCheckVerdictsByOutcome(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	history := []gateVerdict{{Outcome: gateApproved, By: landgate.ByCheck, At: now}, {Outcome: gateChanges, By: landgate.ByCheck, At: now}, {Outcome: gateApproved, By: landgate.ByReviewer, At: now}}
+
+	assert.Equal(t, "History · last 7 days · approved 2 · changes 1", weekLine(history, now, gatePointLand))
+}
+
+func TestCheckFindingShowsItsOutputTailAsAMonoBlock(t *testing.T) {
+	t.Parallel()
+	nodes := findingLines(fmt.Sprintf(gateCheckFinding, "tests", "make test", 1, "--- FAIL: TestCart"))
+
+	require.Len(t, nodes, 2)
+	assert.Equal(t, "· tests: make test failed (exit 1)", nodes[0].Props["text"])
+	assert.Equal(t, []any{"--- FAIL: TestCart", "mono"}, []any{nodes[1].Props["text"], nodes[1].Props["style"]})
+}

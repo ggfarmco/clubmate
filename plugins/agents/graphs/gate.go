@@ -68,6 +68,7 @@ type GateStep struct {
 	Node    string
 	Command string
 	Waiting bool
+	Since   time.Time
 }
 
 func (e *Engine) GateGraph(_ context.Context, repo, name string) (string, bool, error) {
@@ -130,7 +131,7 @@ func (e *Engine) GateStepOpen(ctx context.Context, run string) (GateStep, bool) 
 		if !m.Open || n == nil || len(n.Decide) == 0 {
 			continue
 		}
-		st := GateStep{Node: n.ID, Command: r.stepCommand(n)}
+		st := GateStep{Node: n.ID, Command: r.stepCommand(n), Since: m.At}
 		if m.Step != nil {
 			st.Waiting = m.Step.Note == noteTestWait
 		}

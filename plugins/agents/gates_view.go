@@ -97,6 +97,11 @@ const (
 	gateTrustToolText  = "Until you trust it, the gate runs nothing. Calls it holds wait, and their review runs on the new version once you trust it."
 	gatePausedHeld     = "%s · %s"
 	gateWaitsWidth     = 230
+	gateCheckWidth     = 156
+	gateByCheck        = " · by check"
+	gateCheckRunning   = "Running %s"
+	gateCheckQueued    = "Waiting: another landing's tests run"
+	gateCheckTailLines = 6
 	gateRanUngated     = "ran ungated"
 )
 
@@ -347,9 +352,9 @@ func verdictLook(v gateVerdict, point string) gateVerdictLook {
 	case v.By == landgate.ByUser:
 		return gateVerdictLook{Word: "you: land", Tone: "accent", Icon: "person"}
 	case v.By == landgate.ByCheck && v.Outcome == gateChanges:
-		return gateVerdictLook{Word: "changes · by check", Tone: "warning", Cell: "warn", Icon: "exclamationmark.triangle"}
+		return gateVerdictLook{Word: gateChanges + gateByCheck, Tone: "warning", Cell: "warn", Icon: "exclamationmark.triangle"}
 	case v.By == landgate.ByCheck:
-		return gateVerdictLook{Word: "approved · by check", Tone: "success", Cell: "ok", Icon: "checkmark"}
+		return gateVerdictLook{Word: gateApproved + gateByCheck, Tone: "success", Cell: "ok", Icon: "checkmark"}
 	case v.Outcome == gateChanges:
 		return gateVerdictLook{Word: "changes", Tone: "warning", Cell: "warn", Icon: "exclamationmark.triangle"}
 	}
@@ -425,6 +430,9 @@ func gateMain(sc gateScreen) sdui.Node {
 		{ID: "verdict", Title: "Verdict", Width: 90},
 		{ID: "landing", Title: "Landing"},
 		{ID: "into", Title: "Into", Width: 120, Truncate: "middle", Priority: 1},
+	}
+	if slices.ContainsFunc(sc.History, func(v gateVerdict) bool { return v.By == landgate.ByCheck }) {
+		columns[1].Width = gateCheckWidth
 	}
 	if heldPoint(r.Point) {
 		verdict := columns[1]
@@ -591,7 +599,7 @@ func weekLine(history []gateVerdict, now time.Time, point string) string {
 		if now.Sub(v.At) > gateWeek {
 			break
 		}
-		counts[verdictLook(v, point).Word]++
+		counts[strings.TrimSuffix(verdictLook(v, point).Word, gateByCheck)]++
 		total++
 	}
 	if total == 0 {
@@ -752,7 +760,7 @@ func findingsCard(sc gateScreen, picked string) (sdui.Node, bool) {
 	}
 	lines := []sdui.Node{sdui.Text(title), sdui.MutedText(subject)}
 	for _, f := range v.Findings {
-		lines = append(lines, sdui.Text("· "+f))
+		lines = append(lines, findingLines(f)...)
 	}
 	if len(v.Deferred) > 0 {
 		lines = append(lines, sdui.MutedText("Deferred: "+strings.Join(v.Deferred, " · ")))
@@ -811,6 +819,8 @@ func liveCard(sc gateScreen, picked string) (sdui.Node, bool) {
 		lines = append(lines, sdui.WithTone(sdui.Text(l.Ask), toneWarning))
 	case sc.Lines[l.Reviewer] != "":
 		lines = append(lines, sdui.Text(sc.Lines[l.Reviewer]))
+	case l.check != "":
+		lines = append(lines, sdui.Text(l.check))
 	case l.WaitsOn != "":
 		for _, f := range l.Findings {
 			lines = append(lines, sdui.Text("· "+f))
@@ -857,4 +867,19 @@ func roundOptions(current int) []sdui.Option {
 		out = append(out, sdui.Option{Value: strconv.Itoa(n), Label: strconv.Itoa(n)})
 	}
 	return out
+}
+
+func checkLine(step graphs.GateStep) string {
+	if step.Waiting {
+		return gateCheckQueued
+	}
+	return fmt.Sprintf(gateCheckRunning, step.Command)
+}
+
+func findingLines(f string) []sdui.Node {
+	head, tail, ok := strings.Cut(f, gateCheckTail)
+	if !ok {
+		return []sdui.Node{sdui.Text("· " + f)}
+	}
+	return []sdui.Node{sdui.Text("· " + head), sdui.WithLines(sdui.MonoText(strings.TrimSuffix(tail, gateCheckFence)), gateCheckTailLines)}
 }

@@ -46,6 +46,8 @@ const (
 	gatePausedLine       = "a paused gate holds nothing new; what it holds stays held"
 	gatePausedToolLine   = "Paused: holds no new calls; calls it already holds stay held until their review ends."
 	gateTestHint         = "make test"
+	gateTestNeeded       = "required: this graph runs it"
+	gateTestLong         = "one line, at most 500 characters"
 	gateTestCaption      = "Runs in the gate's worktree on the exact tree that would land, without asking each time. The command is yours, but it runs the lander's Makefile, test code and scripts."
 )
 
@@ -69,6 +71,7 @@ type gateDraft struct {
 	How       string
 	Text      string
 	Test      string
+	TestTyped bool
 	Unhooked  int
 	Err       string
 	Repos     []gateRepo
@@ -150,7 +153,7 @@ func gateSheetView(d gateDraft) sdui.Node {
 	graph, ok := gateGraphField(d)
 	rows = append(rows, graph...)
 	disabled = disabled || !ok
-	if d.Point == gatePointLand || d.Point == "" {
+	if chosen, _ := d.choice(); (d.Point == gatePointLand || d.Point == "") && (chosen.Test || d.Test != "" || d.TestTyped) {
 		test, ok := gateTestField(d)
 		rows = append(rows, test...)
 		disabled = disabled || !ok
@@ -292,9 +295,9 @@ func gateTestField(d gateDraft) ([]sdui.Node, bool) {
 	chosen, _ := d.choice()
 	ok := true
 	if _, err := gateTest(gatePointLand, d.Test); err != nil {
-		field, ok = sdui.WithError(field, err.Error()), false
+		field, ok = sdui.WithError(field, gateTestLong), false
 	} else if chosen.Test && strings.TrimSpace(d.Test) == "" {
-		field, ok = sdui.WithError(field, graphs.ErrGateNoTest.Error()), false
+		field, ok = sdui.WithError(field, gateTestNeeded), false
 	}
 	return []sdui.Node{sdui.HStack(sdui.MutedText("Test command"), field), sdui.MutedText(gateTestCaption)}, ok
 }

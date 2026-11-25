@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,6 +51,10 @@ func TestTestGateApprovesTheLandingTreeWithoutAReviewer(t *testing.T) {
 		l := g.f.session(t, g.workspace, g.lander).Landing
 		return l != nil && l.Verdict == "reviewing" && g.f.gates(t, g.workspace)[0].State == "reviewing"
 	}, wait)
+	var h gateHistory
+	require.NoError(t, g.f.run(t, g.workspace, "agents.gate-verdicts", map[string]any{"id": g.gate}, &h))
+	require.Len(t, h.Landings, 1)
+	assert.WithinDuration(t, time.Now(), h.Landings[0].Since, time.Minute)
 	write(t, release, "")
 
 	require.ErrorContains(t, first, "review pending: the gate runs tests (until [")
@@ -124,7 +129,7 @@ func TestGatesSheetKeepsAndSavesTheTestCommand(t *testing.T) {
 	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return len(sheetNodes(n, "sheet")) == 1 })
 	f.h.Event(t, workspace, "agents.sheet", "gateSheet/graph", "gatePick", "test-gate")
 	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool {
-		return sheetFieldError(n, "gateSheet/test") == "this graph runs the gate's test command: set Test command"
+		return sheetFieldError(n, "gateSheet/test") == "required: this graph runs it"
 	})
 	f.h.Event(t, workspace, "agents.sheet", "gateSheet/test", "gateTest", "make test")
 	f.h.Event(t, workspace, "agents.sheet", "gateSheet/save", "gateSave", nil)

@@ -1980,7 +1980,7 @@
          "type": "text",
          "props": {
           "style": "muted",
-          "text": "Verdicts · last 7 days · approved 1 · changes 2"
+          "text": "Verdicts · last 7 days · approved 2 · changes 3"
          }
         },
         {
@@ -1997,7 +1997,7 @@
            {
             "id": "verdict",
             "title": "Verdict",
-            "width": 90
+            "width": 156
            },
            {
             "id": "landing",
@@ -2093,6 +2093,24 @@
             ]
            },
            {
+            "id": "1794831600000000000/test-gate/tests",
+            "cells": [
+             {
+              "text": "Nov 16 11:20"
+             },
+             {
+              "text": "changes · by check",
+              "tone": "warn"
+             },
+             {
+              "text": "Round the cart tax per line · round 1 · 1 finding"
+             },
+             {
+              "text": "main"
+             }
+            ]
+           },
+           {
             "id": "1794821400000000000/agt_00000000000000b9",
             "cells": [
              {
@@ -2106,6 +2124,24 @@
               "text": "Fix the flaky switcher test · round 1",
               "action": "gateReview",
               "label": "Open review"
+             },
+             {
+              "text": "main"
+             }
+            ]
+           },
+           {
+            "id": "1794817800000000000/test-gate/tests",
+            "cells": [
+             {
+              "text": "Nov 16 08:30"
+             },
+             {
+              "text": "approved · by check",
+              "tone": "ok"
+             },
+             {
+              "text": "Show the cart in the shop's currency · round 1"
              },
              {
               "text": "main"

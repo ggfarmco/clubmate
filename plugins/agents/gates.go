@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/graphs"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -67,6 +68,7 @@ type gateLanding struct {
 	Trust    bool      `json:"trust,omitempty"`
 	WaitsOn  string    `json:"waitsOn,omitempty"`
 	held     string
+	check    string
 }
 
 type gateRow struct {
@@ -232,11 +234,15 @@ func (a *app) reviewing(lander string, st landReview) (*session, bool) {
 }
 
 func (a *app) checking(st landReview) bool {
-	if st.Reviewer != "" || st.Run == "" || st.Old == "" {
-		return false
-	}
-	_, open := a.graphs.GateStepOpen(context.Background(), st.Run)
+	_, open := a.checkStep(st)
 	return open
+}
+
+func (a *app) checkStep(st landReview) (graphs.GateStep, bool) {
+	if st.Reviewer != "" || st.Run == "" || st.Old == "" {
+		return graphs.GateStep{}, false
+	}
+	return a.graphs.GateStepOpen(context.Background(), st.Run)
 }
 
 func (a *app) gateState(rec record) string {
@@ -281,8 +287,8 @@ func (a *app) gateLandings(workspaceID, gateID string) []gateLanding {
 			l := gateLanding{Lander: rec.ID, Title: rec.Title, Into: st.Into, Source: st.Source, Round: st.Rounds, Findings: st.Findings, Since: st.Since}
 			if r, ok := a.reviewing(rec.ID, st); ok && st.Request == "" {
 				l.State, l.Reviewer, l.Round, l.Since = gateStateReview, r.snapshot().ID, st.Rounds+1, cmp.Or(r.turnStart(), r.snapshot().UpdatedAt)
-			} else if st.Request == "" && a.checking(st) {
-				l.State, l.Round = gateStateReview, st.Rounds+1
+			} else if step, ok := a.checkStep(st); ok && st.Request == "" {
+				l.State, l.Round, l.Since, l.check = gateStateReview, st.Rounds+1, step.Since, checkLine(step)
 			}
 			if n := asks[st.Run]; n != nil {
 				l.State, l.Reviewer, l.Round, l.Since, l.Ask, l.Run = gateStateNeedsMe, st.Reviewer, st.Rounds+1, n.Since, n.Text, n.Run

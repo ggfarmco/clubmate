@@ -161,6 +161,29 @@ final class CompanionUITests: XCTestCase {
         add(screenshot(app, "end-rows"))
     }
 
+    func testACheckOnlyLandingNamesItsCheckOnTheRowAndTheGateScreen() {
+        let app = launch(open: "agents", ["-landReview", "YES"])
+        XCTAssertTrue(app.descendants(matching: .any)["inbox.agt_00000000000000b1"].waitForExistence(timeout: 10))
+        for words in ["review… · tests by check", "1 change · tests by check", "approved · tests by check"] {
+            let row = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", words)).firstMatch
+            reveal(row, in: app)
+            XCTAssertTrue(row.exists, words)
+            add(screenshot(app, words))
+        }
+        let gates = app.staticTexts["Gates"]
+        reveal(gates, in: app)
+        gates.tap()
+        let gate = app.staticTexts["clubmate"]
+        XCTAssertTrue(gate.waitForExistence(timeout: 10))
+        gate.tap()
+        for word in ["changes · by check", "approved · by check"] {
+            let cell = app.staticTexts[word]
+            XCTAssertTrue(cell.waitForExistence(timeout: 10), word)
+            reveal(cell, in: app)
+            add(screenshot(app, word))
+        }
+    }
+
     func testOpenReviewOnTheGateScreenOpensTheReviewersSession() {
         let app = launch(open: "agents", ["-landReview", "YES"])
         XCTAssertTrue(app.descendants(matching: .any)["inbox.agt_00000000000000b1"].waitForExistence(timeout: 10))

@@ -21,6 +21,9 @@ enum LandReviewFixture {
     static let callReviewer = "agt_00000000000000be"
     static let callCard = "agt_00000000000000bf"
     static let callRequest = "lg_00000000000000bf"
+    static let checking = "agt_00000000000000e1"
+    static let checkChanges = "agt_00000000000000e2"
+    static let checkApproved = "agt_00000000000000e3"
     static let permission = "permission-r1"
     static let command = "go test ./plugins/gates/..."
 
@@ -67,7 +70,7 @@ enum LandReviewFixture {
             if glyph { fields.merge(["glyph": .string("shield"), "glyphTone": .string("accent")]) { $1 } }
             return .object(fields)
         }
-        let branches = [heldCall: "fix-cart-total", twoGates: "fix-cart-total", callCard: "fix-cart-total", refusedCall: "fix-cart-total", held: "main", heldCard: "main", asking: "gate-graph", askingReviewer: "gate-graph", changes: "keep-awake", changesReviewer: "keep-awake", reviewing: "side-threads", reviewingReviewer: "side-threads", closedReviewer: "side-threads", approved: "flaky-switcher"]
+        let branches = [heldCall: "fix-cart-total", twoGates: "fix-cart-total", callCard: "fix-cart-total", refusedCall: "fix-cart-total", held: "main", heldCard: "main", asking: "gate-graph", askingReviewer: "gate-graph", changes: "keep-awake", changesReviewer: "keep-awake", reviewing: "side-threads", reviewingReviewer: "side-threads", closedReviewer: "side-threads", approved: "flaky-switcher", checking: "cart-tax", checkChanges: "cart-tax-rounding", checkApproved: "cart-currency"]
         let reviewer = { (lander: String) in JSONValue.object(["lander": .string(lander), "into": .string("main")]) }
         let rows = [
             record(asking, "Gate graph instead of a fixed guard", status: "idle", group: "needsYou", ago: 120, [
@@ -95,6 +98,15 @@ enum LandReviewFixture {
             ]),
             record(approved, "Fix the flaky switcher test", status: "done", group: "done", ago: 900, [
                 "landing": landing("approved", round: 2, words: "approved", tone: "success", badge: "approved", reviewer: ""),
+            ]),
+            record(checking, "Tax on the cart total", status: "idle", group: "running", ago: 30, [
+                "childStatus": .string("running"), "landing": landing("reviewing", round: 1, words: "review… · tests by check", tone: "accent", badge: "reviewing", reviewer: ""),
+            ]),
+            record(checkChanges, "Round the cart tax per line", status: "idle", group: "done", ago: 600, [
+                "landing": landing("changes", round: 1, words: "1 change · tests by check", tone: "plain", badge: "1 change", reviewer: "", findings: 1),
+            ]),
+            record(checkApproved, "Show the cart in the shop's currency", status: "done", group: "done", ago: 1_200, [
+                "landing": landing("approved", round: 1, words: "approved · tests by check", tone: "success", badge: "approved", reviewer: ""),
             ]),
             record(held, "Write the inbox plan", status: "running", group: "running", ago: 40, [
                 "turnStartedAt": stamp(400), "turnHeld": .bool(true), "heldRound": .object(["text": .string("Plan pipeline · round 1 changes · round 2 reviewing"), "run": .string("gr_00000000000000b9")]),

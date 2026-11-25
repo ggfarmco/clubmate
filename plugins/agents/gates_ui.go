@@ -447,6 +447,7 @@ func (a *app) gateSheetAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err := json.Unmarshal(ev.Value, &d.Test); err != nil {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
 		}
+		d.TestTyped = true
 	case actGatePick:
 		if err := json.Unmarshal(ev.Value, &d.Graph); err != nil {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
