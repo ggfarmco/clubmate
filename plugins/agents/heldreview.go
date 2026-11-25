@@ -688,9 +688,6 @@ func (a *app) resumeHolds() {
 	}
 	for _, s := range a.allSessions() {
 		a.resetStale(s, time.Now())
-		if rec := s.snapshot(); len(rec.Calls) > 0 {
-			a.branchOf(ctx, rec)
-		}
 		queued := false
 		for _, r := range s.holds() {
 			h := r.get()

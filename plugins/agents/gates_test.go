@@ -309,6 +309,9 @@ func TestOpenItInTheSheetOpensTheGateThatHasTheMatch(t *testing.T) {
 		return slices.ContainsFunc(sheetNodes(n, "button"), func(b sdui.Node) bool { return b.ID == "gateSheet/"+push.ID+"/gateOpenTaken" })
 	})
 
+	for _, node := range []string{"gateSheet/gateOpenTaken", "gateSheet//gateOpenTaken", push.ID + "/gateOpenTaken"} {
+		assert.ErrorContains(t, f.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": workspace, "slot": "agents.sheet", "nodeId": node, "action": "gateOpenTaken"}, nil), "no such land gate", node)
+	}
 	f.h.Event(t, workspace, "agents.sheet", "gateSheet/"+push.ID+"/gateOpenTaken", "gateOpenTaken", nil)
 
 	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return len(sheetNodes(n, "sheet")) == 0 })

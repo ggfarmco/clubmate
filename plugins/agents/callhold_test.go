@@ -103,6 +103,26 @@ func TestToolGateHoldsRequestWithoutPermission(t *testing.T) {
 	assert.Equal(t, []any{"Held by a gate — messages queue", "Messages queue while it's held", "Held", "shield", "accent", true}, []any{got.Landing.Hint, got.Landing.Phone, got.Landing.Accent, got.Landing.Glyph, got.Landing.GlyphOf, got.CallHeld})
 	header := "Held by a gate · " + git(t, got.Worktree, "rev-parse", "--abbrev-ref", "HEAD")
 	f.waitRecord(t, workspace, session, "the held header", func(r record) bool { return r.Landing != nil && r.Landing.Header == header })
+	git(t, got.Worktree, "checkout", "-q", "-b", "moved")
+	f.publish(t, "git.changed", map[string]string{"workspace": workspace})
+	type listed struct {
+		ID      string `json:"id"`
+		Label   string `json:"listGroupLabel"`
+		Landing struct {
+			Header string `json:"header"`
+		} `json:"landing"`
+	}
+	var row listed
+	testutil.Eventually(t, func() bool {
+		var list []listed
+		require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
+		i := slices.IndexFunc(list, func(r listed) bool { return r.ID == session })
+		if i >= 0 {
+			row = list[i]
+		}
+		return row.Label == "moved"
+	}, wait)
+	assert.Equal(t, header, row.Landing.Header)
 	assert.Equal(t, "git push origin main", got.Calls[0].Input)
 	assert.Equal(t, 1, got.Calls[0].Round)
 	tr := f.transcript(t, workspace, session)

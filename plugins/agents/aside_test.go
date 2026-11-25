@@ -753,7 +753,8 @@ func TestParentHandoffDeletesAsides(t *testing.T) {
 func TestAutoCloseWaitsForAsides(t *testing.T) {
 	t.Parallel()
 	gate := filepath.Join(t.TempDir(), "go")
-	f := startEnv(t, []string{"CLUBMATE_AGENTS_CLOSE_AFTER=300ms", "CLUBMATE_AGENTS_CLOSE_HOLD=1s"}, asideScript(map[string]any{"match": "aside forked", "wait": gate}),
+	hold := filepath.Join(t.TempDir(), "close")
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_CLOSE_AFTER=300ms", "CLUBMATE_AGENTS_CLOSE_GATE=" + hold}, asideScript(map[string]any{"match": "aside forked", "wait": gate}),
 		testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"),
 		testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"))
 	workspace := f.workspace(t, newRepo(t))
@@ -761,10 +762,12 @@ func TestAutoCloseWaitsForAsides(t *testing.T) {
 	aside := f.aside(t, workspace, parent.ID, "quote", "the title")
 	f.forkOf(t, workspace, aside.Session)
 	testutil.Eventually(t, func() bool {
-		return time.Since(f.session(t, workspace, aside.Session).UpdatedAt) > 500*time.Millisecond
+		_, err := os.Stat(hold + ".held")
+		return err == nil
 	}, wait)
 	f.prompt(t, workspace, aside.Session, "why?")
 	f.waitStatus(t, workspace, aside.Session, "running")
+	write(t, hold, "")
 
 	testutil.Never(t, func() bool { return f.session(t, workspace, parent.ID).Status == "closed" }, 2*time.Second)
 	write(t, gate, "")

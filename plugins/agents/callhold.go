@@ -108,6 +108,7 @@ type callHold struct {
 	Hook    string       `json:"hook,omitempty"`
 	Message *gateMessage `json:"message,omitempty"`
 	Seen    time.Time    `json:"seen,omitzero"`
+	Branch  string       `json:"branch,omitempty"`
 }
 
 type callSpare struct {
@@ -352,7 +353,7 @@ func (a *app) takeCall(ctx context.Context, s *session, c *heldCall) {
 	a.settleTold(s)
 	a.resetStale(s, time.Now())
 	rec := s.snapshot()
-	a.branchOf(ctx, rec)
+	branch := a.branchOf(ctx, rec)
 	tree, head, err := gitrepo.Snapshot(ctx, cmp.Or(c.tree, rec.Worktree))
 	if err != nil {
 		logError(callTakeLog, err)
@@ -441,7 +442,7 @@ func (a *app) takeCall(ctx context.Context, s *session, c *heldCall) {
 			h.Last, h.Findings, h.Deferred, h.Summary = "", nil, nil, ""
 		}
 		caption := toolHeldWhy(g, hit.Via)
-		hold := &callHold{Hold: &h, Call: c.id, Agent: c.agent, Tool: c.tool, Input: clipBytes(c.text, callInputMax), Caption: caption, Cut: len(c.text) > callInputMax, Told: wasTold, Seen: now}
+		hold := &callHold{Hold: &h, Call: c.id, Agent: c.agent, Tool: c.tool, Input: clipBytes(c.text, callInputMax), Caption: caption, Cut: len(c.text) > callInputMax, Told: wasTold, Seen: now, Branch: branch}
 		if old != nil && !next {
 			hold.Sent, hold.Hook, hold.Message = old.Sent, old.Hook, old.Message
 		}
@@ -1692,7 +1693,6 @@ func (a *app) callKeyNow(ctx context.Context, r holdRef, g gateConfig) (string, 
 }
 
 func (a *app) callPrompts(ctx context.Context, r holdRef, rec record, g gateConfig, h *heldTurn) (string, string) {
-	a.branchOf(ctx, rec)
 	c := rec.call(r.gate)
 	if c == nil {
 		return "", ""
@@ -2085,12 +2085,12 @@ func (a *app) callLanding(rec record) (landingView, bool) {
 	if slices.ContainsFunc(held, func(c *callHold) bool { return c.Hold.Wait != "" }) {
 		l.Words, l.Tone, l.Line = heldWaitsTrust, toneWarning, fmt.Sprintf(heldLineWaits, match)
 	}
-	l.PhoneHint, l.HeaderKey = callPhoneHint, callHeaderWord
+	l.PhoneHint, l.HeaderAccent = callPhoneHint, callHeaderWord
 	l.Header = blockHeldOne
 	if len(held) > 1 {
 		l.Header = fmt.Sprintf(blockHeldMany, len(held))
 	}
-	if branch := branchLabel(a.branches.cached(rec.Workspace, rec.Worktree)); branch != "" {
+	if branch := held[0].Branch; branch != "" {
 		l.Header += blockSep + branch
 	}
 	if !slices.ContainsFunc(held, func(c *callHold) bool { return c.Hold.Request != "" }) {

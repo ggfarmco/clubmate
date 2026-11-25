@@ -36,29 +36,29 @@ const (
 )
 
 type landingView struct {
-	Round     int    `json:"round"`
-	Of        int    `json:"of"`
-	Verdict   string `json:"verdict"`
-	Findings  int    `json:"findings,omitempty"`
-	Asking    bool   `json:"asking,omitempty"`
-	Words     string `json:"words"`
-	Tone      string `json:"tone,omitempty"`
-	Badge     string `json:"badge"`
-	BadgeTone string `json:"badgeTone,omitempty"`
-	Into      string `json:"into"`
-	Source    string `json:"source,omitempty"`
-	Reviewer  string `json:"reviewer,omitempty"`
-	Ask       string `json:"ask,omitempty"`
-	Run       string `json:"run,omitempty"`
-	Held      string `json:"held,omitempty"`
-	Line      string `json:"line,omitempty"`
-	Ungated   bool   `json:"ungated,omitempty"`
-	Hint      string `json:"hint,omitempty"`
-	PhoneHint string `json:"phoneHint,omitempty"`
-	Header    string `json:"header,omitempty"`
-	HeaderKey string `json:"headerAccent,omitempty"`
-	Glyph     string `json:"glyph,omitempty"`
-	GlyphTone string `json:"glyphTone,omitempty"`
+	Round        int    `json:"round"`
+	Of           int    `json:"of"`
+	Verdict      string `json:"verdict"`
+	Findings     int    `json:"findings,omitempty"`
+	Asking       bool   `json:"asking,omitempty"`
+	Words        string `json:"words"`
+	Tone         string `json:"tone,omitempty"`
+	Badge        string `json:"badge"`
+	BadgeTone    string `json:"badgeTone,omitempty"`
+	Into         string `json:"into"`
+	Source       string `json:"source,omitempty"`
+	Reviewer     string `json:"reviewer,omitempty"`
+	Ask          string `json:"ask,omitempty"`
+	Run          string `json:"run,omitempty"`
+	Held         string `json:"held,omitempty"`
+	Line         string `json:"line,omitempty"`
+	Ungated      bool   `json:"ungated,omitempty"`
+	Hint         string `json:"hint,omitempty"`
+	PhoneHint    string `json:"phoneHint,omitempty"`
+	Header       string `json:"header,omitempty"`
+	HeaderAccent string `json:"headerAccent,omitempty"`
+	Glyph        string `json:"glyph,omitempty"`
+	GlyphTone    string `json:"glyphTone,omitempty"`
 }
 
 func landingOf(st landReview, reviewing bool, ask *runNeed) (landingView, bool) {

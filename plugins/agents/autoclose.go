@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"slices"
 	"time"
 )
@@ -9,7 +10,8 @@ import (
 const (
 	closeAfter    = time.Hour
 	closeAfterEnv = "CLUBMATE_AGENTS_CLOSE_AFTER"
-	closeHoldEnv  = "CLUBMATE_AGENTS_CLOSE_HOLD"
+	closeGateEnv  = "CLUBMATE_AGENTS_CLOSE_GATE"
+	closeGatePoll = 20 * time.Millisecond
 )
 
 type ownedJob struct {
@@ -68,13 +70,30 @@ func (a *app) closeDone(after time.Duration) {
 		if owned := owners[workspace]; owned == nil || slices.ContainsFunc(tree, func(s *session) bool { return owned[s.snapshot().ID] }) {
 			continue
 		}
-		if a.closeHold > 0 {
-			time.Sleep(a.closeHold)
-		}
+		a.holdClose()
 		for _, s := range tree {
 			if !s.snapshot().closed() {
 				a.closeUnlessBusy(ctx, s, s != root || rec.ParentSession != "", s == root && rec.Run != nil, after)
 			}
+		}
+	}
+}
+
+func (a *app) holdClose() {
+	if a.closeGate == "" {
+		return
+	}
+	logError("close gate", os.WriteFile(a.closeGate+".held", nil, 0o600))
+	t := time.NewTicker(closeGatePoll)
+	defer t.Stop()
+	for {
+		if _, err := os.Stat(a.closeGate); err == nil {
+			return
+		}
+		select {
+		case <-a.quit:
+			return
+		case <-t.C:
 		}
 	}
 }

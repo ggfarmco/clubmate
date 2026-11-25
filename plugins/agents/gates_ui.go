@@ -356,8 +356,11 @@ func (a *app) gateSheetAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		a.uiMu.Unlock()
 		return nil
 	case actGateOpenTaken:
-		target, _ := automation.ActionTarget(ev.NodeID, ev.Action)
-		id := strings.TrimPrefix(target, gateSheetID+"/")
+		target, ok := automation.ActionTarget(ev.NodeID, ev.Action)
+		id, cut := strings.CutPrefix(target, gateSheetID+"/")
+		if !ok || !cut || id == "" {
+			return fmt.Errorf("%s %q: %w", ev.Action, ev.NodeID, errGateUnknown)
+		}
 		a.uiMu.Lock()
 		p.gateSheet, p.gate, p.gatePick = nil, id, ""
 		a.uiMu.Unlock()
