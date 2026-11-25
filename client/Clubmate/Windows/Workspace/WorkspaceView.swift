@@ -131,6 +131,9 @@ struct WorkspaceView: View {
         ZStack {
             if let store = session.store, let section = store.selectedSection {
                 WorkspaceLayout(store: store, section: section, rowWidth: $rowWidth)
+                    .agentsSessionKeys(active: section == AgentsSection.id) { [session, app] in
+                        session.run(AgentsSection.last(section: store.selectedSection, commands: app.commands))
+                    }
             } else if let placeholder {
                 EmptyNodeView(text: placeholder)
             }

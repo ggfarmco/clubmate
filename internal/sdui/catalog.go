@@ -131,6 +131,7 @@ var (
 	priorityNumber = number(func(n float64) bool { return n >= 0 && n <= maxTableColumns && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxTableColumns))
 	depthNumber    = number(func(n float64) bool { return n >= 0 && n <= maxDepth && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxDepth))
 	causeNumber    = number(func(n float64) bool { return n >= -1 && n == math.Trunc(n) }, "an integer ≥ -1")
+	rowNumber      = number(func(n float64) bool { return n >= 1 && n <= 9 && n == math.Trunc(n) }, "an integer within 1…9")
 
 	graphStates = []string{"taken", "last", "never", "plain"}
 	graphKinds  = []string{"agent", "check", "action"}
@@ -977,6 +978,7 @@ func treeItemCheck(c *validator, v any) error {
 		"muted": isBool, "faint": isBool, "action": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
 		"badges": listOf(headerBadgeCheck), "changes": changesCheck, "detailTone": oneOf(detailTones), "detailFaint": isBool,
 		"labelIcon": isString, "pinned": isBool, "open": oneOf(treeOpens), "mirrorOf": isString, "help": isString,
+		"number": rowNumber,
 	}
 	for k, f := range itemFields {
 		if k == "caption" || k == "section" {

@@ -90,6 +90,7 @@ struct MenuFeed: View {
 
     var body: some View {
         Color.clear
+            .onChange(of: navigation.selected(.agents), initial: true) { _, id in navigation.noteSession(id) }
             .onChange(of: state, initial: true) { _, state in
                 board.offer(state, move: MenuMove(tab: navigation.tab, depth: navigation.path.count))
             }

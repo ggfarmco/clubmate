@@ -101,7 +101,7 @@
               },
               {"id": "internal", "label": "internal", "icon": "folder", "hasChildren": true, "expanded": false},
               {
-                "id": "task", "label": "Campaign pause reason", "icon": "exclamationmark.circle", "tone": "warning", "detail": "2 need you", "detailTone": "warning", "hasChildren": true, "expanded": false,
+                "id": "task", "label": "Campaign pause reason", "number": 1, "icon": "exclamationmark.circle", "tone": "warning", "detail": "2 need you", "detailTone": "warning", "hasChildren": true, "expanded": false,
                 "children": [
                   {"id": "task-auth", "label": "internal-auth", "labelIcon": "folder", "icon": "xmark.circle", "tone": "danger", "detail": "failed", "pinned": true},
                   {"id": "repo:task:/r/bff", "label": "mobile-bff", "labelIcon": "folder", "icon": "exclamationmark.circle", "tone": "warning", "detail": "connect?", "action": true, "pinned": true}

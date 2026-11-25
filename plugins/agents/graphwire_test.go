@@ -312,6 +312,42 @@ func TestRevealSelectsRunInAgents(t *testing.T) {
 	})
 }
 
+func TestJumpOpensANumberedRunAndLastComesBack(t *testing.T) {
+	t.Parallel()
+	f, workspace, run := runPageFixture(t)
+	step := run.Nodes[0].Session
+	f.h.Event(t, workspace, "agents.sidebar", "sessions", "select", step)
+	selected := func(want string) {
+		f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+			trees := cardsOf(n, "tree")
+			return len(trees) > 0 && trees[0].Props["selected"] == want
+		})
+	}
+	var number int
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+		trees := cardsOf(n, "tree")
+		if len(trees) == 0 || trees[0].Props["selected"] != step {
+			return false
+		}
+		raw, err := json.Marshal(trees[0].Props["items"])
+		require.NoError(t, err)
+		var items []sdui.TreeItem
+		require.NoError(t, json.Unmarshal(raw, &items))
+		i := slices.IndexFunc(items, func(item sdui.TreeItem) bool { return item.ID == "run:"+run.ID })
+		if i < 0 {
+			return false
+		}
+		number = items[i].Number
+		return slices.ContainsFunc(items[i].Children, func(item sdui.TreeItem) bool { return item.ID == step && item.Number == 0 })
+	})
+	require.Positive(t, number)
+
+	require.NoError(t, f.run(t, workspace, "agents.jump", map[string]any{"n": number}, nil))
+	selected("run:" + run.ID)
+	require.NoError(t, f.run(t, workspace, "agents.last", map[string]any{}, nil))
+	selected(step)
+}
+
 func TestGraphsAndGatesNotOnRail(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile("plugin.json")

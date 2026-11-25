@@ -89,6 +89,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let open: String?
     public let mirrorOf: String?
     public let help: String?
+    public let number: Int?
 
     public var id: String { item.id }
 
@@ -131,6 +132,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
         open = fields["open"]?.stringValue
         mirrorOf = fields["mirrorOf"]?.stringValue
         help = fields["help"]?.stringValue
+        number = fields["number"]?.numberValue.map(Int.init)
     }
 }
 

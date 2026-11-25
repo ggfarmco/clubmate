@@ -64,6 +64,7 @@ type TreeItem struct {
 	Open        string        `json:"open,omitempty"`
 	MirrorOf    string        `json:"mirrorOf,omitempty"`
 	Help        string        `json:"help,omitempty"`
+	Number      int           `json:"number,omitempty"`
 }
 
 type TreeDock struct {

@@ -22,6 +22,9 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset). Graphs and Gates are not in the rail: they are docked at the bottom of the Agents sidebar (see § Trees), so ⌘8 and ⌘9 go to the sections after them | `ClubmateApp.swift` |
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
 | ⌃⌘↓, ⌃⌘↑ | In Agents: next, previous session, the row below or above the selected one among the rows the sidebar shows (filter, search and folded groups apply), wrapping around; focus goes to its prompt (`agents.step`) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`), `plugins/agents/sidebar.go` (`stepSession`) |
+| ⌃⌘1…⌃⌘9 | In Agents: open the Nth numbered row of the sidebar: the first nine top-level sessions and graph runs it shows (filter, search and folded groups apply), never asides, graph steps, reviewer rows or inbox copies; a session's prompt gets the focus, a run opens its page (`agents.jump`). Hold ⌃ for ½ s in Agents to see the digits on the rows (Window › Go to Session) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`), `plugins/agents/jump.go`, `Windows/Workspace/AgentsSessionKeys.swift` |
+| ⌃⌘J, ⌃⇧⌘J | In Agents: next, previous session that needs you, oldest first (asides, graph steps and runs included), wrapping around; focus goes to its prompt; "nothing needs you" when none waits (`agents.needs`) | `ClubmateApp.swift`, `plugins/agents/jump.go` |
+| ⌃⇥ | In Agents, with focus in any Agents pane (the prompt too): the last session, and back with a second ⌃⇥; "no previous session" when it is closed or gone (`agents.last`). Not a menu key: in terminals, nvim and text fields of other sections ⌃⇥ keeps its own meaning | `Windows/Workspace/AgentsSessionKeys.swift`, `plugins/agents/jump.go` |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |
 | ⇧⌘I | Notifications inbox (bell popover) | `ClubmateApp.swift` |
 | ⌥⌘A | Keep Awake: with no choice active keeps the Mac awake until turned off, with any choice active turns it off (`awake.toggle`). Printed next to Until Turned Off or Turn Off in the status bar's Keep Awake menu and Settings → Keep Awake; ⌥-click on the gourd does the same. Disabled while the awake plugin doesn't answer | `ClubmateApp.swift`, `Windows/KeepAwakeItem.swift`, `ClubmateKit/KeepAwake.swift` |
@@ -134,11 +137,15 @@ The title picker adds these to the keys above:
 | o | Same as ↩, but an item with children gets selected instead |
 | ⌘⌫ | Remove the row under the cursor, always asking first: in Agents a session (Delete Session), an ended run (Remove run…) or a gate (Delete gate…); the row's menu entry with `key: cmd+delete`. On the iPad the same key in a plugin tree (Graphs, Gates) asks the same way |
 | gc | Focus the sidebar's first text field, when it has one (Agents and Backlog: the search field, also while Backlog's New task field is open) |
+| g1…g9 | Agents: open the Nth numbered session or graph run, as ⌃⌘1…⌃⌘9; while g waits, the numbered rows show their digit |
+| gl | Agents: the last session, and back, as ⌃⇥ |
+| gn, gN | Agents: next, previous session that needs you, as ⌃⌘J, ⌃⇧⌘J |
+| gt, gi | Agents: stay in the tree, go to the prompt |
 | < / > | Previous / next chip of the sidebar's filter row, when it has one (Agents: All · Needs you · Open · Running) |
 | Esc | Fold the open docked row (also from a row inside it); elsewhere back to the main pane |
 | ⌃L (sidebar on the left), ⌃H (sidebar on the right) | Back to the main pane |
 
-`g` waits for the next key; a key that is not listed is swallowed. Defined in `ClubmateKit/TreeKeys.swift`.
+`g` waits for the next key; a key that is not listed is swallowed. The Agents chords (g1…g9, gl, gn, gN, gt, gi) work only in the Agents sidebar; the tree sends them to the plugin as `jump`, `last` and `needs` events. In other trees a key with ⇧, ⌘, ⌃ or ⌥ after g ends the wait and goes on to the app. Defined in `ClubmateKit/TreeKeys.swift` (`TreeChord`).
 
 ## Sidebar lists (Terminals, Processes; list focused)
 
@@ -342,9 +349,13 @@ Defined by the `keys` scope in `plugins/agents/open_view.go`, handled in `plugin
 | ⌘[ | Back (the chevron or the back chip); on the iPad only inside the detail column (Go menu) |
 | ⌘1 ⌘2 ⌘3 ⌘4 | Tabs Agents · Backlog · Wiki · More (⌘3 only when the workspace has a wiki); on the iPad the tabs are buttons at the bottom of the list column, and the keys also work while the list is hidden (Go menu) |
 | ⇧⌘I | Inbox, pushed on the current tab (Go menu) |
+| ⌃⌘↓, ⌃⌘↑ | Next, previous session among the rows the Agents list shows (asides and steps included, inbox copies skipped), wrapping around (Go menu) |
+| ⌃⌘1…⌃⌘9 | The Nth row of the Agents list that `agents.sessions` marks `numbered` (top-level sessions and graph runs), in the order shown, inbox copies skipped (Go menu) |
+| ⌃⌘J, ⌃⇧⌘J | Next, previous session that needs you, in the plugin's `needsRank` order, oldest first (Go menu) |
+| ⌃⇥ | The last session opened in this window, and back; a closed one drops out (Go menu) |
 | ⌘N | The current tab's create action: New Session on Agents, New Task on Backlog; nothing on Wiki and More (File menu) |
 
-Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`, the run card's in `RunRequestCard` (`client/Companion/Plugins/Agents/RunDetailView.swift`); the voice keys in `client/Companion/App/VoicePanel.swift`; reading mode's Esc in `client/Companion/App/ReadingModeModifier.swift`; ⇧⌘F (`TabSearchCommands`) and the per-tab field (`TabSearch`) in `client/Companion/App/TabSearch.swift`; the Backlog search field's ↩ in `client/Companion/Plugins/Backlog/BacklogPlugin.swift` (`TaskListView`); ⌃⌘S, ⌃⌘F, the iPad Esc, ⌘[, ⌘1–⌘4, ⇧⌘I and ⌘N in `client/Companion/App/AppKeys.swift` (View, Go and File menus).
+Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`, the run card's in `RunRequestCard` (`client/Companion/Plugins/Agents/RunDetailView.swift`); the voice keys in `client/Companion/App/VoicePanel.swift`; reading mode's Esc in `client/Companion/App/ReadingModeModifier.swift`; ⇧⌘F (`TabSearchCommands`) and the per-tab field (`TabSearch`) in `client/Companion/App/TabSearch.swift`; the Backlog search field's ↩ in `client/Companion/Plugins/Backlog/BacklogPlugin.swift` (`TaskListView`); ⌃⌘S, ⌃⌘F, the iPad Esc, ⌘[, ⌘1–⌘4, ⇧⌘I, ⌘N and the session keys (⌃⌘↓ ⌃⌘↑ ⌃⌘1…⌃⌘9 ⌃⌘J ⌃⇧⌘J ⌃⇥, with CompanionKit `SessionJumps`) in `client/Companion/App/AppKeys.swift` (View, Go and File menus).
 
 ## Review (Code section, a review tab current in Neovim)
 

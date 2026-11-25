@@ -98,6 +98,14 @@ func setListFilters(infos []sessionInfo, needs map[string]runNeed) {
 		rows = append(rows, row)
 	}
 	roots, kids := sidebarTree(rows)
+	for id := range numberedSet(roots) {
+		infos[index[id]].Numbered = true
+	}
+	for i, info := range infos {
+		if info.Kind == kindRun && info.RowUnder == "" {
+			infos[i].Numbered = true
+		}
+	}
 	runs, _ := markRoots(roots, kids)
 	tallyFilters(roots, runs, needEntries(needs, infos), func(id, filter string, n int) {
 		i, ok := index[id]

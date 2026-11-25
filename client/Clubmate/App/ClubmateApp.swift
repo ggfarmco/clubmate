@@ -239,6 +239,19 @@ private struct WorkspaceCommands: Commands {
             Button("Previous Session") { run { AgentsSection.step(-1, section: $0.selectedSection, commands: $1) } }
                 .keyboardShortcut(AppShortcuts.previousSession)
                 .disabled(!canStepSession)
+            Button("Next Session That Needs You") { run { AgentsSection.needs(1, section: $0.selectedSection, commands: $1) } }
+                .keyboardShortcut(AppShortcuts.nextNeeds)
+                .disabled(!canJumpSession)
+            Button("Previous Session That Needs You") { run { AgentsSection.needs(-1, section: $0.selectedSection, commands: $1) } }
+                .keyboardShortcut(AppShortcuts.previousNeeds)
+                .disabled(!canJumpSession)
+            Menu("Go to Session") {
+                ForEach(1..<10, id: \.self) { index in
+                    Button("Session \(index)") { run { AgentsSection.jump(index, section: $0.selectedSection, commands: $1) } }
+                        .keyboardShortcut(AppShortcuts.jumpSession, key: AppShortcuts.jumpSession(index))
+                        .disabled(!canJumpSession)
+                }
+            }
             Button("Workspace Switcher") { windowID.map(windows.toggleSwitcher) }
                 .keyboardShortcut(AppShortcuts.workspaceSwitcher)
                 .disabled(windowID == nil)
@@ -270,6 +283,10 @@ private struct WorkspaceCommands: Commands {
 
     private var canStepSession: Bool {
         store.flatMap { AgentsSection.step(1, section: $0.selectedSection, commands: app.commands) } != nil
+    }
+
+    private var canJumpSession: Bool {
+        store.flatMap { AgentsSection.jump(1, section: $0.selectedSection, commands: app.commands) } != nil
     }
 
     private var canSwitchWorkspace: Bool {

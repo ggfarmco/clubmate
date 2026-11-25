@@ -91,6 +91,7 @@ type RunRow struct {
 	Home     string   `json:"home"`
 	Group    string   `json:"group"`
 	Status   string   `json:"status"`
+	Numbered bool     `json:"numbered,omitempty"`
 }
 
 type DockRow struct {

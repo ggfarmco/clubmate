@@ -2,7 +2,6 @@ package main
 
 import (
 	"cmp"
-	"encoding/json"
 	"fmt"
 	"math"
 	"path"
@@ -273,13 +272,14 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	}
 	field := sdui.WithAction(sdui.WithLive(sdui.TextField(searchNode, search.query, "Search sessions")), actSearch)
 	if search.query != "" {
-		results := searchResults(search, selected, now)
+		results := searchResults(search, selected, now, numberedSet(roots))
 		if results.Type != "tree" {
 			return dockOnly(top, field, results)
 		}
 		return sdui.VStack(top, field, docked(results))
 	}
 	filter = cmp.Or(filter, filterAll)
+	numbered := numberedSet(roots)
 	runs, oldest := markRoots(roots, kids)
 	tabs := filterTabs(roots, filter, runs, plus.needRuns)
 	roots = slices.DeleteFunc(roots, func(row sessionRow) bool {
@@ -373,6 +373,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		groups = append(groups, group)
 	}
 	uniqueRunIDs(groups, map[string]int{})
+	numberRows(groups, numbered)
 	return sdui.VStack(top, field, tabs, docked(sdui.WithTreeHold(sdui.Tree(sessionsTree, groups, selected), filter)))
 }
 
@@ -504,7 +505,7 @@ func pageItems(shown []sessionRow, left int, mixed bool, scope, more string, kid
 	return items
 }
 
-func searchResults(search sidebarSearch, selected string, now time.Time) sdui.Node {
+func searchResults(search sidebarSearch, selected string, now time.Time, numbered map[string]bool) sdui.Node {
 	if len(search.results) == 0 {
 		return sdui.Empty(fmt.Sprintf(noMatches, search.query))
 	}
@@ -521,31 +522,19 @@ func searchResults(search sidebarSearch, selected string, now time.Time) sdui.No
 		item.Expanded = item.HasChildren
 		items = append(items, item)
 	}
+	numberRows(items, numbered)
 	return sdui.Tree(searchTree, items, selected)
 }
 
 func stepSession(sidebar []byte, by int) string {
-	var root sdui.Node
-	if by == 0 || json.Unmarshal(sidebar, &root) != nil {
-		return ""
-	}
-	tree, ok := findTree(root)
-	if !ok {
-		return ""
-	}
-	raw, err := json.Marshal(tree.Props["items"])
-	if err != nil {
-		return ""
-	}
-	var items []sdui.TreeItem
-	if json.Unmarshal(raw, &items) != nil {
+	items, selected, ok := sentTree(sidebar)
+	if by == 0 || !ok {
 		return ""
 	}
 	ids := shownSessions(items)
 	if len(ids) == 0 {
 		return ""
 	}
-	selected, _ := tree.Props["selected"].(string)
 	at := slices.Index(ids, selected)
 	if at < 0 && by < 0 {
 		at = 0

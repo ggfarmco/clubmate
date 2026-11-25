@@ -2,6 +2,7 @@ package main
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -88,7 +89,13 @@ func runRow(r graphs.RunSnapshot, infos map[string]sessionInfo) api.RunRow {
 		row.Home = homeClosed
 	}
 	row.Group, row.Status = runGroup(row)
+	row.Numbered = len(row.Sessions) == 0 || slices.ContainsFunc(row.Sessions, func(id string) bool { return stepAtTop(infos[id], infos) })
 	return row
+}
+
+func stepAtTop(info sessionInfo, infos map[string]sessionInfo) bool {
+	_, listed := infos[info.ParentSession]
+	return (info.ParentSession == "" || !listed) && info.NestUnder == "" && info.Aside == nil
 }
 
 func runGroup(row api.RunRow) (string, string) {

@@ -1821,6 +1821,39 @@ func TestStepWalksTheShownSessionsAround(t *testing.T) {
 	selects(-2, order[(at+2)%3])
 }
 
+func TestTreeChordOpensTheNumberedRow(t *testing.T) {
+	t.Parallel()
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, nil))
+	first := f.newSession(t, workspace)
+	second := f.newSession(t, workspace)
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return cardsOf(n, "tree")[0].Props["selected"] == second })
+
+	f.h.Event(t, workspace, "agents.sidebar", "sessions", "jump", 1)
+
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return cardsOf(n, "tree")[0].Props["selected"] == first })
+}
+
+func TestLastSessionSurvivesAPluginRestart(t *testing.T) {
+	t.Parallel()
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, nil))
+	first := f.newSession(t, workspace)
+	second := f.newSession(t, workspace)
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return cardsOf(n, "tree")[0].Props["selected"] == second })
+	require.Error(t, f.runAs(t, workspace, second, "agents.last", map[string]any{}, nil))
+
+	f.restartAgents(t, workspace)
+
+	require.NoError(t, f.run(t, workspace, "agents.last", map[string]any{}, nil))
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+		trees := cardsOf(n, "tree")
+		return len(trees) > 0 && trees[0].Props["selected"] == first
+	})
+}
+
 func TestNewFromThePhoneKeepsTheMacSelection(t *testing.T) {
 	t.Parallel()
 	f := start(t, nil)

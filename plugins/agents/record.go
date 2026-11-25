@@ -140,6 +140,8 @@ type sessionInfo struct {
 	PausedUntil     *int64             `json:"pausedUntil,omitempty"`
 	Active          bool               `json:"active,omitempty"`
 	NeedsYouSince   *time.Time         `json:"needsYouSince,omitempty"`
+	Numbered        bool               `json:"numbered,omitempty"`
+	NeedsRank       int                `json:"needsRank,omitempty"`
 	Activity        *toolActivity      `json:"activity,omitempty"`
 	ChildStatus     string             `json:"childStatus,omitempty"`
 	Failure         *sessionFailure    `json:"failure,omitempty"`

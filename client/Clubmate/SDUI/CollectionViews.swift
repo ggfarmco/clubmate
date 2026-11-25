@@ -361,6 +361,7 @@ struct TreeNodeView: View {
     @Environment(\.sidebarHasField) private var sidebarHasField
     @Environment(\.sidebarTabs) private var sidebarTabs
     @Environment(\.treeHold) private var treeHold
+    @Environment(\.rowNumbers) private var rowNumbers
 
     private static let stickyLimit = 4
 
@@ -479,6 +480,9 @@ struct TreeNodeView: View {
             if !focused { leader = false }
             if focused { treeHold?.land() }
         }
+        .onChange(of: rowNumbers.lands) {
+            treeHold?.land()
+        }
         .onChange(of: node.string("selected"), initial: true) { _, value in
             guard value != selected else { return }
             selected = value
@@ -506,7 +510,8 @@ struct TreeNodeView: View {
                 dispatch(node, row.item.expanded ? .collapse(row.id) : .expand(row.id))
             }
         } else {
-            ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, detailTone: row.item.detailTone, detailFaint: row.item.detailFaint, depth: row.depth, badges: row.item.badges, changes: row.item.changes, labelIcon: row.item.labelIcon, help: row.item.help, reserveIcon: columns.icon, action: action) {
+            let digit = leader || rowNumbers.shown ? row.item.number.map(String.init) : nil
+            ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, detailTone: row.item.detailTone, detailFaint: row.item.detailFaint, detailHidden: digit != nil, depth: row.depth, badges: row.item.badges, changes: row.item.changes, labelIcon: row.item.labelIcon, help: row.item.help, reserveIcon: columns.icon, keyCap: digit, action: action) {
                 Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded, reserve: columns.chevron) { expanded in
                     dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
                 }
@@ -534,8 +539,9 @@ struct TreeNodeView: View {
         let plain = flags.intersection([.command, .control, .option, .shift]).isEmpty
         if leader {
             leader = false
-            guard plain else { return false }
-            chord(TreeChord.resolve(event.keyCode))
+            let sessions = sidebarSlot == AgentsSection.sidebarSlot
+            guard !TreeChord.passes(command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift), sessions: sessions) else { return false }
+            chord(TreeChord.resolve(event.keyCode, shift: flags.contains(.shift), sessions: sessions))
             return true
         }
         if plain, event.keyCode == TreeChord.leader {
@@ -584,8 +590,16 @@ struct TreeNodeView: View {
     }
 
     private func chord(_ chord: TreeChord?) {
-        guard chord == .focusField, let sidebarSlot, sidebarHasField else { return }
-        router?.request(sidebarSlot + SidebarField.suffix)
+        switch chord {
+        case .focusField:
+            guard let sidebarSlot, sidebarHasField else { return }
+            router?.request(sidebarSlot + SidebarField.suffix)
+        case .jump(let n): dispatch(node, .named(TreeChord.jumpAction, .number(Double(n))))
+        case .needs(let by): dispatch(node, .named(TreeChord.needsAction, .number(Double(by))))
+        case .last: dispatch(node, .named(TreeChord.lastAction, .null))
+        case .composer: router?.requestMain(from: sidebarSlot ?? dispatch.slot)
+        case .tree, nil: break
+        }
     }
 }
 
@@ -706,6 +720,7 @@ struct ItemRow<Leading: View>: View {
     var tone: String?
     var detailTone: String?
     var detailFaint = false
+    var detailHidden = false
     var depth = 0
     var badges: [SDUIHeaderBadge] = []
     var changes: SDUIChanges?
@@ -752,7 +767,7 @@ struct ItemRow<Leading: View>: View {
                     .foregroundStyle(theme.muted)
                     .frame(width: 14)
             }
-            RowLayout(hasDetail: item.detail != nil, lead: labelIcon == nil ? theme.gutter + theme.spacing.m * 2 : theme.spacing.l, spacing: theme.spacing.m, keptLabel: keptLabel, keptDetail: keptDetail) {
+            RowLayout(hasDetail: item.detail != nil && !detailHidden, lead: labelIcon == nil ? theme.gutter + theme.spacing.m * 2 : theme.spacing.l, spacing: theme.spacing.m, keptLabel: keptLabel, keptDetail: keptDetail) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: theme.spacing.s) {
                         Text(item.label)
@@ -778,7 +793,7 @@ struct ItemRow<Leading: View>: View {
                     BadgeLabel(text: badge.text, tone: theme.tone(badge.tone), outline: badge.outline)
                         .fixedSize()
                 }
-                if let detail = item.detail {
+                if let detail = item.detail, !detailHidden {
                     Text(detail)
                         .font(theme.uiSmall)
                         .foregroundStyle(detailInk)

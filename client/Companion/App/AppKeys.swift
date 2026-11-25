@@ -49,11 +49,37 @@ struct AppCommands: Commands {
             }
                 .keyboardShortcut("i", modifiers: [.command, .shift])
                 .disabled(!state.hasComputer)
+            Divider()
+            Button("Next Session") { jump { SessionJumps.step(SessionJumps.shown($0.shownSections).map(\.id), from: navigation.selected(.agents), by: 1) } }
+                .keyboardShortcut(.downArrow, modifiers: [.control, .command])
+                .disabled(!state.hasComputer)
+            Button("Previous Session") { jump { SessionJumps.step(SessionJumps.shown($0.shownSections).map(\.id), from: navigation.selected(.agents), by: -1) } }
+                .keyboardShortcut(.upArrow, modifiers: [.control, .command])
+                .disabled(!state.hasComputer)
+            Button("Next Session That Needs You") { jump { SessionJumps.step(SessionJumps.needs($0.sessions), from: navigation.selected(.agents), by: 1) } }
+                .keyboardShortcut("j", modifiers: [.control, .command])
+                .disabled(!state.hasComputer)
+            Button("Previous Session That Needs You") { jump { SessionJumps.step(SessionJumps.needs($0.sessions), from: navigation.selected(.agents), by: -1) } }
+                .keyboardShortcut("j", modifiers: [.control, .shift, .command])
+                .disabled(!state.hasComputer)
+            Button("Last Session") { jump { store in navigation.lastSession.flatMap { store.session($0) }.flatMap { $0.isClosed ? nil : $0.id } } }
+                .keyboardShortcut(.tab, modifiers: .control)
+                .disabled(!state.hasComputer)
+            ForEach(1...SessionJumps.limit, id: \.self) { index in
+                Button("Session \(index)") { jump { SessionJumps.numbered($0.shownSections).dropFirst(index - 1).first } }
+                    .keyboardShortcut(KeyEquivalent(Character(String(index))), modifiers: [.control, .command])
+                    .disabled(!state.hasComputer)
+            }
         }
     }
 
     private var state: MenuState {
         navigation.menu.state
+    }
+
+    private func jump(_ pick: (AgentsStore) -> String?) {
+        guard let store = navigation.agentsStore(model), let id = pick(store) else { return }
+        navigation.openSession(id)
     }
 }
 
@@ -87,6 +113,11 @@ extension AppNavigation {
         } else {
             BacklogPlugin.startNew(context)
         }
+    }
+
+    func agentsStore(_ model: CompanionModel) -> AgentsStore? {
+        guard let computer, let connection = model.connection(computer), let workspace = workspace(for: connection) else { return nil }
+        return model.agents(computer: computer, workspace: workspace.id, settled: false)
     }
 
     func openInbox() {

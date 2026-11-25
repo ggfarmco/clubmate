@@ -177,11 +177,68 @@ public enum TabCycle {
 
 public enum TreeChord: Equatable, Sendable {
     case focusField
+    case jump(Int)
+    case last
+    case needs(Int)
+    case tree
+    case composer
 
     public static let leader: UInt16 = 5
 
-    public static func resolve(_ keyCode: UInt16) -> TreeChord? {
-        keyCode == 8 ? .focusField : nil
+    public static let jumpAction = "jump"
+    public static let lastAction = "last"
+    public static let needsAction = "needs"
+
+    static let digits: [UInt16: Int] = [18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9]
+
+    public static func passes(command: Bool, control: Bool, option: Bool, shift: Bool, sessions: Bool) -> Bool {
+        command || control || option || shift && !sessions
+    }
+
+    public static func resolve(_ keyCode: UInt16, shift: Bool = false, sessions: Bool = false) -> TreeChord? {
+        if shift { return sessions && keyCode == 45 ? .needs(-1) : nil }
+        if keyCode == 8 { return .focusField }
+        guard sessions else { return nil }
+        if let n = digits[keyCode] { return .jump(n) }
+        switch keyCode {
+        case 37: return .last
+        case 45: return .needs(1)
+        case 17: return .tree
+        case 34: return .composer
+        default: return nil
+        }
+    }
+}
+
+public enum SessionKeys {
+    public static func isLast(keyCode: UInt16, control: Bool, command: Bool, option: Bool, shift: Bool) -> Bool {
+        keyCode == 48 && control && !command && !option && !shift
+    }
+
+    public static func holdsControl(control: Bool, command: Bool, option: Bool, shift: Bool) -> Bool {
+        control && !command && !option && !shift
+    }
+}
+
+public struct ControlHoldKeys: Equatable, Sendable {
+    public enum Effect: Equatable, Sendable {
+        case land
+        case start
+        case cancel
+    }
+
+    public private(set) var down = false
+
+    public init() {}
+
+    public mutating func flags(control: Bool, command: Bool, option: Bool, shift: Bool) -> [Effect] {
+        guard control else {
+            down = false
+            return [.cancel]
+        }
+        let effects: [Effect] = down ? [] : [.land]
+        down = true
+        return effects + [SessionKeys.holdsControl(control: control, command: command, option: option, shift: shift) ? .start : .cancel]
     }
 }
 

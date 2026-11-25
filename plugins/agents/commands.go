@@ -72,6 +72,9 @@ var (
 		"agents.limit-cancel":   withSession((*app).limitCancelCommand),
 		"agents.reveal":         withArgs((*app).revealCommand),
 		"agents.step":           withArgs((*app).stepCommand),
+		"agents.jump":           withArgs((*app).jumpCommand),
+		"agents.last":           (*app).lastCommand,
+		"agents.needs":          withArgs((*app).needsCommand),
 		"agents.reviewed":       withSession((*app).reviewedCommand),
 		"agents.send-review":    withArgs((*app).sendReviewCommand),
 		"agents.reminders":      withArgs((*app).remindersCommand),
@@ -493,6 +496,7 @@ func (a *app) listInfos(ctx context.Context, workspaceID, home string, runs []gr
 	})
 	a.setOlderIn(infos, workspaceID, runs)
 	a.setOverlaps(workspaceID, infos)
+	setNeedsRanks(infos)
 	return infos
 }
 

@@ -144,7 +144,30 @@ final class TreeKeysTests: XCTestCase {
     }
 
     func testChordKeys() {
-        XCTAssertEqual([8, 0].map(TreeChord.resolve), [.focusField, nil])
+        XCTAssertEqual([8, 0, 18].map { TreeChord.resolve($0) }, [.focusField, nil, nil])
+        XCTAssertEqual([18, 25, 37, 45, 17, 34, 0].map { TreeChord.resolve($0, sessions: true) }, [.jump(1), .jump(9), .last, .needs(1), .tree, .composer, nil])
+        XCTAssertEqual([45, 8].map { TreeChord.resolve($0, shift: true, sessions: true) }, [.needs(-1), nil])
+    }
+
+    func testShiftedKeyAfterGPassesOutsideAgents() {
+        XCTAssertTrue(TreeChord.passes(command: false, control: false, option: false, shift: true, sessions: false))
+        XCTAssertFalse(TreeChord.passes(command: false, control: false, option: false, shift: true, sessions: true))
+        XCTAssertTrue(TreeChord.passes(command: true, control: false, option: false, shift: false, sessions: true))
+        XCTAssertFalse(TreeChord.passes(command: false, control: false, option: false, shift: false, sessions: false))
+    }
+
+    func testControlDownLandsTheHeldTreeOnceAndTimesTheDigits() {
+        var keys = ControlHoldKeys()
+        XCTAssertEqual(keys.flags(control: true, command: false, option: false, shift: false), [.land, .start])
+        XCTAssertEqual(keys.flags(control: true, command: true, option: false, shift: false), [.cancel])
+        XCTAssertEqual(keys.flags(control: false, command: false, option: false, shift: false), [.cancel])
+        XCTAssertEqual(keys.flags(control: true, command: true, option: false, shift: false), [.land, .cancel])
+    }
+
+    func testControlTabIsLastSessionOnlyAlone() {
+        XCTAssertTrue(SessionKeys.isLast(keyCode: 48, control: true, command: false, option: false, shift: false))
+        XCTAssertFalse(SessionKeys.isLast(keyCode: 48, control: true, command: false, option: false, shift: true))
+        XCTAssertFalse(SessionKeys.isLast(keyCode: 48, control: false, command: false, option: false, shift: false))
     }
 
     func testStickyHeaders() {

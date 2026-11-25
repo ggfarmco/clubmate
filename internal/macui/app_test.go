@@ -330,10 +330,12 @@ func (in *instance) eventually(what string, ok func() bool) {
 }
 
 type session struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Status string `json:"status"`
-	Finish string `json:"finish"`
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Status   string `json:"status"`
+	Finish   string `json:"finish"`
+	ListKey  string `json:"listKey"`
+	Numbered bool   `json:"numbered"`
 }
 
 func (in *instance) sessions() []session {

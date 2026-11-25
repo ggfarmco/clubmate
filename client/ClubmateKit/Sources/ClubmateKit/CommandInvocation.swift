@@ -82,6 +82,9 @@ public enum AgentsSection {
     public static let closeCommand = "agents.close"
     public static let busyCommand = "agents.busy"
     public static let stepCommand = "agents.step"
+    public static let jumpCommand = "agents.jump"
+    public static let lastCommand = "agents.last"
+    public static let needsCommand = "agents.needs"
     public static let sidebarSlot = "agents.sidebar"
     public static let asideSlot = "agents.aside"
     static let trees = ["sessions", "searchResults"]
@@ -110,6 +113,21 @@ public enum AgentsSection {
     public static func step(_ by: Int, section: String?, commands: [Command]) -> CommandInvocation? {
         guard section == id, commands.contains(where: { $0.id == stepCommand }) else { return nil }
         return CommandInvocation(id: stepCommand, args: .object(["by": .number(Double(by))]))
+    }
+
+    public static func jump(_ n: Int, section: String?, commands: [Command]) -> CommandInvocation? {
+        guard section == id, commands.contains(where: { $0.id == jumpCommand }) else { return nil }
+        return CommandInvocation(id: jumpCommand, args: .object(["n": .number(Double(n))]))
+    }
+
+    public static func needs(_ by: Int, section: String?, commands: [Command]) -> CommandInvocation? {
+        guard section == id, commands.contains(where: { $0.id == needsCommand }) else { return nil }
+        return CommandInvocation(id: needsCommand, args: .object(["by": .number(Double(by))]))
+    }
+
+    public static func last(section: String?, commands: [Command]) -> CommandInvocation? {
+        guard section == id, commands.contains(where: { $0.id == lastCommand }) else { return nil }
+        return CommandInvocation(id: lastCommand, args: .object([:]))
     }
 }
 

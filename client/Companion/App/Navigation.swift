@@ -58,6 +58,8 @@ final class AppNavigation {
         }
     }
     var newTaskWorkspaces: [String: String] = [:]
+    @ObservationIgnored private(set) var lastSession: String?
+    @ObservationIgnored private var shownSession: String?
     var showingAddComputer = false
     @ObservationIgnored var scanOnPair = false
     @ObservationIgnored private(set) var pairingSheetUp = false
@@ -337,6 +339,17 @@ final class AppNavigation {
 
     func popToRoot(_ tab: CompanionTab) {
         setPath([], tab: tab)
+    }
+
+    func noteSession(_ id: String?) {
+        guard let id, id != shownSession else { return }
+        if shownSession != nil { lastSession = shownSession }
+        shownSession = id
+    }
+
+    func openSession(_ id: String) {
+        if tab != .agents { switchTab(.agents) }
+        select(id, tab: .agents)
     }
 
     func switchTab(_ tab: CompanionTab) {

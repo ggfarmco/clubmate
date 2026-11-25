@@ -84,6 +84,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let older: Bool
     public var suggestion: String?
     public var callHeld = false
+    public var numbered = false
+    public var needsRank: Int?
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -192,7 +194,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, paused, pausedUntil, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns, rowDetail
         case limitShare, shareLabel, shareWords, shareDetail, listKey
         case hidden, rowUnder, gateRound, landing, ungated, turnHeld, heldRound
-        case aside, canAside, forkedFrom, composerDraft, suggestion, callHeld
+        case aside, canAside, forkedFrom, composerDraft, suggestion, callHeld, numbered, needsRank
         case listGroupKey, listGroupLabel, listFilters, listOpen, inboxKey, older
     }
 
@@ -288,6 +290,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         )
         suggestion = try optional(.suggestion)
         callHeld = try flag(.callHeld)
+        numbered = try flag(.numbered)
+        needsRank = try c.decodeIfPresent(Int.self, forKey: .needsRank)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -363,6 +367,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(forkedFrom, forKey: .forkedFrom)
         try c.encodeIfPresent(composerDraft, forKey: .composerDraft)
         try c.encodeIfPresent(suggestion, forKey: .suggestion)
+        if numbered { try c.encode(numbered, forKey: .numbered) }
+        try c.encodeIfPresent(needsRank, forKey: .needsRank)
         try c.encodeIfPresent(listGroupKey, forKey: .listGroupKey)
         try c.encodeIfPresent(listGroupLabel, forKey: .listGroupLabel)
         try c.encodeIfPresent(listFilters, forKey: .listFilters)

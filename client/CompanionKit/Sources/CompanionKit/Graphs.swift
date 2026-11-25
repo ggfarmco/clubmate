@@ -234,6 +234,7 @@ public struct AgentRunRow: Codable, Sendable, Equatable, Identifiable {
     public let home: String
     public let group: String?
     public let status: String?
+    public let numbered: Bool?
 }
 
 public struct AgentDockRow: Codable, Sendable, Equatable, Identifiable {
@@ -309,6 +310,7 @@ public enum RunRows {
         ]
         if let worktree = run.worktree { fields["worktree"] = .string(worktree) }
         if let request = run.request { fields["pending"] = .array([.string(request)]) }
+        if run.numbered == true { fields["numbered"] = .bool(true) }
         return try JSONValue.object(fields).decode(AgentSession.self)
     }
 }

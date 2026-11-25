@@ -98,6 +98,8 @@ type workspaceUI struct {
 	gateSheet  *gateDraft
 	dock       string
 	back       string
+	previous   string
+	prevSet    bool
 	reviewFrom reviewTrail
 	beside     map[string]string
 	focusNode  asideFocus
@@ -702,6 +704,9 @@ func (a *app) resolveSelected(ctx context.Context, workspaceID string, recs []re
 }
 
 func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error {
+	if err := a.remember(ctx, workspaceID, sid); err != nil {
+		return err
+	}
 	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	p.restored, p.selected = true, sid

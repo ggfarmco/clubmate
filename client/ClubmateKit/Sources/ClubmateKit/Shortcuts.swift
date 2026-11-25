@@ -65,6 +65,10 @@ public enum AppShortcuts {
     public static let previousWorkspace = Shortcut("app.previous-workspace", ["ctrl+cmd+left"], "Previous workspace")
     public static let nextSession = Shortcut("app.next-session", ["ctrl+cmd+down"], "Next agent session", when: "Agents")
     public static let previousSession = Shortcut("app.previous-session", ["ctrl+cmd+up"], "Previous agent session", when: "Agents")
+    public static let jumpSession = Shortcut("app.jump-session", ["⌃⌘1…⌃⌘9"], "Nth top-level agent session or graph run", when: "Agents")
+    public static let lastSession = Shortcut("app.last-session", ["ctrl+tab"], "Last agent session, and back", when: "Agents pane focused")
+    public static let nextNeeds = Shortcut("app.next-needs", ["ctrl+cmd+j"], "Next agent session that needs you, oldest first", when: "Agents")
+    public static let previousNeeds = Shortcut("app.previous-needs", ["ctrl+cmd+shift+j"], "Previous agent session that needs you", when: "Agents")
     public static let workspaceSwitcher = Shortcut("app.workspace-switcher", ["ctrl+cmd+w"], "Workspace switcher")
     public static let notifications = Shortcut("app.notifications", ["cmd+shift+i"], "Notifications")
     public static let keepAwake = Shortcut("app.keep-awake", ["cmd+opt+a"], "Keep Awake: Until Turned Off, or Turn Off while a choice is active")
@@ -76,10 +80,14 @@ public enum AppShortcuts {
         "cmd+\(index)"
     }
 
+    public static func jumpSession(_ index: Int) -> String {
+        "ctrl+cmd+\(index)"
+    }
+
     public static let groups: [ShortcutGroup] = [
         ShortcutGroup(id: "app", title: "App and windows", shortcuts: [
             new, newHomeTerminal, openFolder, openHome, openDoc, close, closeSession, palette, toggleChat, toggleSidebar,
-            fontIncrease, fontDecrease, fontReset, section, nextWorkspace, previousWorkspace, nextSession, previousSession, workspaceSwitcher, notifications, keepAwake, retry, showLog,
+            fontIncrease, fontDecrease, fontReset, section, nextWorkspace, previousWorkspace, nextSession, previousSession, jumpSession, lastSession, nextNeeds, previousNeeds, workspaceSwitcher, notifications, keepAwake, retry, showLog,
             Shortcut("voice.talk", ["opt+space"], "Voice: hold to talk, release to send", when: "While voice is on"),
             Shortcut("voice.confirm", ["return", "esc"], "Voice confirmation: yes, no", when: "Voice panel"),
             Shortcut("voice.cancel", ["esc"], "Cancel the utterance before it is sent", when: "Voice panel, Sending"),
@@ -106,6 +114,10 @@ public enum AppShortcuts {
             Shortcut("trees.select", ["return"], "Select a leaf, or expand or collapse an item", when: "Sidebar focused"),
             Shortcut("trees.open", ["o"], "Select, also an item with children", when: "Sidebar focused"),
             Shortcut("trees.field", ["gc"], "Focus the sidebar's text field", when: "Sidebar focused"),
+            Shortcut("trees.jump", ["g1…g9"], "Nth top-level agent session or graph run", when: "Agents sidebar focused"),
+            Shortcut("trees.last", ["gl"], "Last agent session, and back", when: "Agents sidebar focused"),
+            Shortcut("trees.needs", ["gn", "gN"], "Next, previous agent session that needs you", when: "Agents sidebar focused"),
+            Shortcut("trees.panes", ["gt", "gi"], "Stay in the tree, go to the prompt", when: "Agents sidebar focused"),
             Shortcut("trees.chips", ["<", ">"], "Previous, next filter chip", when: "Sidebar focused"),
             Shortcut("trees.back", ["esc", "ctrl+l", "ctrl+h"], "Back to the main pane", when: "Sidebar focused"),
         ]),
