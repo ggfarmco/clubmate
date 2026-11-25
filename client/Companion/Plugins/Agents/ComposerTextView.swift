@@ -2,6 +2,8 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
+import CompanionKit
+
 struct ComposerTextView: UIViewRepresentable {
     @Binding var text: String
     let caret: ComposerCaret
@@ -10,6 +12,7 @@ struct ComposerTextView: UIViewRepresentable {
     let enabled: Bool
     let pasteImage: (Data) -> Void
     var escape: (() -> Void)?
+    var go: ((PaneArrow) -> Void)?
 
     static let maxLines = 6
 
@@ -32,6 +35,7 @@ struct ComposerTextView: UIViewRepresentable {
     func updateUIView(_ view: UITextView, context: Context) {
         context.coordinator.parent = self
         (view as? ImagePastingTextView)?.escape = escape
+        (view as? ImagePastingTextView)?.go = go
         context.coordinator.updating = true
         defer { context.coordinator.updating = false }
         let replaced = view.text != text
@@ -142,16 +146,23 @@ final class ComposerCaret {
 
 final class ImagePastingTextView: UITextView {
     var escape: (() -> Void)?
+    var go: ((PaneArrow) -> Void)?
 
     override var keyCommands: [UIKeyCommand]? {
         guard escape != nil, markedTextRange == nil, window?.rootViewController?.presentedViewController == nil else { return super.keyCommands }
-        let keys = [UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(stepOut)), UIKeyCommand(input: "[", modifierFlags: .control, action: #selector(stepOut))]
+        var keys = [UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(stepOut)), UIKeyCommand(input: "[", modifierFlags: .control, action: #selector(stepOut))]
+        if go != nil { keys += PaneLadder.controlKeys.keys.map { UIKeyCommand(input: $0, modifierFlags: .control, action: #selector(goPane(_:))) } }
         for key in keys { key.wantsPriorityOverSystemBehavior = true }
         return keys + (super.keyCommands ?? [])
     }
 
     @objc private func stepOut() {
         escape?()
+    }
+
+    @objc private func goPane(_ command: UIKeyCommand) {
+        guard let arrow = command.input.flatMap({ PaneLadder.controlKeys[$0] }) else { return }
+        go?(arrow)
     }
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {

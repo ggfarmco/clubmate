@@ -554,6 +554,7 @@ struct TreeNodeView: View {
             return true
         }
         if plain, let key = event.charactersIgnoringModifiers, menuKey(key) { return true }
+        if sidebarSlot == AgentsSection.sidebarSlot, AgentsChord.control(keyCode: event.keyCode, command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift)) { return false }
         let rows = TreeCursor.rows(node.treeItems(), dock: dock)
         guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side, shift: flags.contains(.shift), option: flags.contains(.option)) else { return false }
         let command = TreeCursor.resolve(action, cursor: cursor, in: rows)

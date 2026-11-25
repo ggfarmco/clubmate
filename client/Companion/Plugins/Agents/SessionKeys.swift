@@ -189,6 +189,9 @@ struct SessionCommands: Commands {
             paneButton("Go to Session", .right, .rightArrow)
             paneButton("Go to Transcript", .up, .upArrow)
             paneButton("Go to Composer", .down, .downArrow)
+            ForEach(PaneLadder.controlKeys.sorted { $0.key > $1.key }, id: \.key) { key, arrow in
+                paneButton(arrow == .up ? "Go to Transcript (Alternate)" : "Go to Composer (Alternate)", arrow, KeyEquivalent(Character(key)), modifiers: .control)
+            }
             Divider()
             Button("Transcript Keys") {
                 menu.live.keys?.help?.run()
@@ -198,11 +201,11 @@ struct SessionCommands: Commands {
         }
     }
 
-    private func paneButton(_ title: String, _ arrow: PaneArrow, _ key: KeyEquivalent) -> some View {
+    private func paneButton(_ title: String, _ arrow: PaneArrow, _ key: KeyEquivalent, modifiers: EventModifiers = [.option, .command]) -> some View {
         Button(title) {
             menu.live.keys?.panes?.go(arrow)
         }
-        .keyboardShortcut(key, modifiers: [.option, .command])
+        .keyboardShortcut(key, modifiers: modifiers)
         .disabled(keys?.pane(arrow) == nil)
     }
 

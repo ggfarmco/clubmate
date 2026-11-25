@@ -315,6 +315,7 @@ struct ComposerNodeView: View {
             model.choose(command)
             focused = true
         }
+        .testRow(command.name, label: "/" + command.name, selected: highlighted)
     }
 
     private var controls: some View {

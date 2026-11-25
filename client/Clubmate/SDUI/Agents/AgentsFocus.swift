@@ -46,6 +46,8 @@ struct AgentsFocus {
         guard let chord = AgentsChord.resolve(keyCode: event.keyCode, command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift)), let window = event.window else { return false }
         let responder = window.firstResponder
         if (responder as? NSTextInputClient)?.hasMarkedText() == true { return false }
+        if AgentsChord.control(keyCode: event.keyCode, command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift)),
+           (responder as? NSTextView)?.isFieldEditor == true, panes.pane != .field || panes.slot != AgentsSection.sidebarSlot + SidebarField.suffix { return false }
         if chord == .keys {
             panes.keysShown.toggle()
             return true

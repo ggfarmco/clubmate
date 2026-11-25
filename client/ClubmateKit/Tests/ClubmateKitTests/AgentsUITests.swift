@@ -87,6 +87,19 @@ final class AgentsUITests: XCTestCase {
         XCTAssertEqual(model.handle(enter), .send("/context"))
     }
 
+    func testControlJAndKMoveTheCommandListAndPassWithoutIt() throws {
+        let model = ComposerModel()
+        model.commands = ["compact", "context"].map { ComposerCommand(name: $0, description: "", hint: "") }
+        let down = try XCTUnwrap(ComposerKey(keyCode: 38, characters: "\n", command: false, control: true, option: false, shift: false))
+        let up = try XCTUnwrap(ComposerKey(keyCode: 40, characters: "\u{0b}", command: false, control: true, option: false, shift: false))
+        XCTAssertNil(model.handle(up), "with no list ⌃K goes on to the Agents pane keys")
+        model.text = "/co"
+        XCTAssertEqual(model.handle(down), .handled)
+        XCTAssertEqual(model.handle(down), .handled)
+        XCTAssertEqual(model.handle(up), .handled)
+        XCTAssertEqual(model.highlighted, 1)
+    }
+
     func testComposerDraftsSurviveRecreation() {
         let drafts = ComposerDrafts()
         drafts.model(for: "a/composer/0").text = "draft a"

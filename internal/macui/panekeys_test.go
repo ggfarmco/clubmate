@@ -35,7 +35,7 @@ func (in *instance) stepOut(keys ...string) {
 func TestAgentsPaneKeys(t *testing.T) {
 	release := filepath.Join(root, "build", "mac-ui", "macui-pane-keys-release")
 	require.NoError(t, os.RemoveAll(release))
-	in := start(t, "macui-pane-keys", fmt.Sprintf(`{"prompt": [{"match": "Hold", "wait": %q}]}`, release))
+	in := start(t, "macui-pane-keys", fmt.Sprintf(`{"commands": [{"name": "compact", "description": "c"}, {"name": "context", "description": "c"}], "prompt": [{"match": "Hold", "wait": %q}]}`, release))
 	in.focusSection("agents", "agents.sidebar")
 	idle := in.idleSession("Hello")
 	in.pointer("click", idle+"/composer/0")
@@ -61,6 +61,35 @@ func TestAgentsPaneKeys(t *testing.T) {
 		in.mode("READ")
 		in.stepOut("opt+cmd+down")
 		in.mode("TYPE")
+	})
+	t.Run("ctrl+k leaves the prompt, ctrl+j goes back from the transcript and the tree", func(t *testing.T) {
+		in := in.at(t)
+		in.stepOut("ctrl+k")
+		in.mode("READ")
+		in.stepOut("ctrl+j")
+		in.mode("TYPE")
+		in.stepOut("opt+cmd+left")
+		in.mode("TREE")
+		in.stepOut("ctrl+j")
+		in.focusIn(idle)
+	})
+	t.Run("ctrl+j and ctrl+k move the open command list", func(t *testing.T) {
+		in := in.at(t)
+		highlighted := func(name string) func() bool {
+			return func() bool {
+				e := in.snapshot().main().node(idle + "/composer/0#" + name)
+				return e != nil && strings.Contains(e.Role, "selected")
+			}
+		}
+		in.key("/", "c", "o")
+		in.eventually("the list highlights the first command", highlighted("compact"))
+		in.key("ctrl+j")
+		in.eventually("ctrl+j moves down", highlighted("context"))
+		in.key("ctrl+k")
+		in.eventually("ctrl+k moves up", highlighted("compact"))
+		in.mode("TYPE")
+		in.key("esc", "cmd+a", "delete")
+		in.eventually("the list closes", func() bool { return !in.snapshot().main().has(idle + "/composer/0#compact") })
 	})
 	t.Run("i in the transcript goes to the composer", func(t *testing.T) {
 		in := in.at(t)

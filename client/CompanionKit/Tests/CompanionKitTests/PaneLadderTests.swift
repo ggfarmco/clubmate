@@ -31,6 +31,10 @@ final class PaneLadderTests: XCTestCase {
         XCTAssertEqual([PaneArrow.left, .right, .up, .down].map { PaneLadder.arrow($0, bare) }, [nil, nil, nil, nil])
     }
 
+    func testControlJAndKGoToTheComposerAndTheTranscript() {
+        XCTAssertEqual(PaneLadder.controlKeys.mapValues { PaneLadder.arrow($0, full) }, ["j": .composer, "k": .transcript])
+    }
+
     func testTheStopHintShowsTwentyTimesPerDevice() throws {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString))
         defaults.set(StopHint.limit - 1, forKey: StopHint.defaultsKey)

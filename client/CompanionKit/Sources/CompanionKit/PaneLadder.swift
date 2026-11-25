@@ -35,6 +35,8 @@ public struct PaneStep: Equatable, Sendable {
 }
 
 public enum PaneLadder {
+    public static let controlKeys: [String: PaneArrow] = ["j": .down, "k": .up]
+
     public static func escape(from pane: AgentsPane?, _ facts: PaneFacts) -> PaneStep {
         let next: AgentsPane = switch pane {
         case .composer: facts.hasMessages ? .transcript : outOfSession(facts)

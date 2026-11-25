@@ -138,6 +138,7 @@ public enum AppShortcuts {
             Shortcut("composer.stop", ["esc"], "Stop the running turn", when: "Code or Wiki chat panel, prompt focused"),
             Shortcut("composer.attach", ["@"], "Attach a file", when: "At the start of a word"),
             Shortcut("composer.commands", ["/"], "List the agent's commands", when: "At the start of the prompt"),
+            Shortcut("composer.list", ["up", "down", "ctrl+k", "ctrl+j"], "Move in the command list", when: "Command list"),
             Shortcut("composer.insert", ["return", "tab"], "Insert the highlighted command", when: "Command list"),
         ]),
         ShortcutGroup(id: "agents-panes", title: "Agents panes", shortcuts: [
@@ -145,8 +146,8 @@ public enum AppShortcuts {
             Shortcut("agents-panes.stop", ["cmd+."], "Stop the running turn; on a running graph run's page, stop the run", when: "Agents"),
             Shortcut("agents-panes.tree", ["opt+cmd+left"], "Go to the sessions tree", when: "Agents"),
             Shortcut("agents-panes.main", ["opt+cmd+right"], "Go to the main pane's prompt; from the main pane, to the aside", when: "Agents"),
-            Shortcut("agents-panes.transcript", ["opt+cmd+up"], "Go to the transcript of the column you are in", when: "Agents"),
-            Shortcut("agents-panes.composer", ["opt+cmd+down"], "Go to the prompt of the column you are in", when: "Agents"),
+            Shortcut("agents-panes.transcript", ["opt+cmd+up", "ctrl+k"], "Go to the transcript of the column you are in", when: "Agents"),
+            Shortcut("agents-panes.composer", ["opt+cmd+down", "ctrl+j"], "Go to the prompt of the column you are in", when: "Agents"),
             Shortcut("agents-panes.keys", ["cmd+/"], "Show or hide the keys of the focused pane", when: "Agents"),
         ]),
         ShortcutGroup(id: "transcript", title: "Agent transcript", shortcuts: [

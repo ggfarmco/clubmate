@@ -39,6 +39,14 @@ public enum ComposerKey: Sendable, Equatable {
             self = .attach
             return
         }
+        if control, !command, !option, !shift {
+            switch keyCode {
+            case 38, 45: self = .down
+            case 40, 35: self = .up
+            default: return nil
+            }
+            return
+        }
         guard !command, !control, !option, !shift else { return nil }
         switch keyCode {
         case 36, 76: self = .enter

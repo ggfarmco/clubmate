@@ -501,7 +501,7 @@ struct SessionDetailView: View {
                     }
                 }
                 if let session {
-                    composer(session, screen: screen, blocked: blocked, answerDocked: answerDocked, hidden: cardTyping, escape: keyPanes?.escape)
+                    composer(session, screen: screen, blocked: blocked, answerDocked: answerDocked, hidden: cardTyping, escape: keyPanes?.escape, go: keyPanes?.go)
                 }
             }
             .animation(.snappy, value: screen.dock)
@@ -926,7 +926,7 @@ struct SessionDetailView: View {
         return !store.openDraft(sessionID).answered(card.items).isEmpty
     }
 
-    private func composer(_ session: AgentSession, screen: SessionScreen, blocked: String?, answerDocked: Bool, hidden: Bool, escape: (() -> Void)?) -> some View {
+    private func composer(_ session: AgentSession, screen: SessionScreen, blocked: String?, answerDocked: Bool, hidden: Bool, escape: (() -> Void)?, go: ((PaneArrow) -> Void)?) -> some View {
         ComposerView(
             draft: $draft,
             dictation: sessionID,
@@ -947,6 +947,7 @@ struct SessionDetailView: View {
                 }
             },
             escape: escape,
+            go: go,
             send: send
         )
         .frame(height: hidden ? 0 : nil, alignment: .top)
@@ -1545,6 +1546,7 @@ struct ComposerView: View {
     var trailing: String?
     var reopen: (FailureAction) -> Void = { _ in }
     var escape: (() -> Void)?
+    var go: ((PaneArrow) -> Void)?
     let send: () -> Void
     @State private var picked: [PhotosPickerItem] = []
     @State private var importing = 0
@@ -1634,7 +1636,7 @@ struct ComposerView: View {
                         .fileImporter(isPresented: $choosingFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
                             if case .success(let urls) = result { addFiles(urls) }
                         }
-                        ComposerTextView(text: $draft, caret: caret, focused: $focused, placeholder: placeholder, enabled: enabled, pasteImage: paste, escape: escape)
+                        ComposerTextView(text: $draft, caret: caret, focused: $focused, placeholder: placeholder, enabled: enabled, pasteImage: paste, escape: escape, go: go)
                             .overlay(alignment: .topLeading) {
                                 if draft.isEmpty {
                                     Text(placeholder)

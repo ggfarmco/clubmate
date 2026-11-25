@@ -43,6 +43,15 @@ final class AgentsKeysTests: XCTestCase {
         XCTAssertEqual(AgentsKeys.move(.composer, from: .transcript(.main), in: both), .focus(.composer(.main)))
     }
 
+    func testControlJAndKAreTheOptionCommandDownAndUp() {
+        XCTAssertEqual(AgentsChord.resolve(keyCode: 38, command: false, control: true, option: false, shift: false), .composer)
+        XCTAssertEqual(AgentsChord.resolve(keyCode: 40, command: false, control: true, option: false, shift: false), .transcript)
+        XCTAssertTrue(AgentsChord.control(keyCode: 38, command: false, control: true, option: false, shift: false))
+        XCTAssertFalse(AgentsChord.control(keyCode: 125, command: true, control: false, option: true, shift: false))
+        XCTAssertFalse(AgentsChord.control(keyCode: 33, command: false, control: true, option: false, shift: false))
+        XCTAssertNil(AgentsChord.resolve(keyCode: 38, command: true, control: true, option: false, shift: false))
+    }
+
     func testColumnKeysFollowTheSidebarSide() {
         XCTAssertEqual(AgentsKeys.column(-1, from: .transcript(.main), in: both), .focus(.tree))
         XCTAssertEqual(AgentsKeys.column(1, from: .transcript(.main), in: both), .focus(.transcript(.aside)))

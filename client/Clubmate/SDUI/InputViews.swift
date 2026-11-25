@@ -432,7 +432,7 @@ struct TextFieldNodeView: View {
     var body: some View {
         field
             .focused($focused)
-            .reportsFocus(.field, focused, slot: sidebarSlot.map { $0 + SidebarField.suffix })
+            .reportsFocus(.field, focused, slot: sidebarSlot.map { node.id == sidebarField ? $0 + SidebarField.suffix : $0 })
             .onChange(of: router?.pending, initial: true) {
                 if let sidebarSlot, node.id == sidebarField, router?.take(sidebarSlot + SidebarField.suffix) == true { focused = true }
                 if let id = node.id, router?.pending?.node != nil, router?.take(sidebarSlot ?? dispatch.slot, node: id) == true { focused = true }

@@ -39,6 +39,10 @@ public enum AgentsChord: Equatable, Sendable {
     case composer
     case keys
 
+    public static func control(keyCode: UInt16, command: Bool, control: Bool, option: Bool, shift: Bool) -> Bool {
+        control && !command && !option && !shift && [.transcript, .composer].contains(resolve(keyCode: keyCode, command: command, control: control, option: option, shift: shift))
+    }
+
     public static func resolve(keyCode: UInt16, command: Bool, control: Bool, option: Bool, shift: Bool) -> AgentsChord? {
         if shift { return nil }
         switch (keyCode, command, control, option) {
@@ -47,8 +51,8 @@ public enum AgentsChord: Equatable, Sendable {
         case (44, true, false, false): return .keys
         case (123, true, false, true): return .tree
         case (124, true, false, true): return .right
-        case (126, true, false, true): return .transcript
-        case (125, true, false, true): return .composer
+        case (126, true, false, true), (40, false, true, false): return .transcript
+        case (125, true, false, true), (38, false, true, false): return .composer
         default: return nil
         }
     }
