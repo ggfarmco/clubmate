@@ -50,8 +50,9 @@ Secondary text on a band uses `muted` in dark and `comment` in light; the other 
 2. **Band.** Each open-comment virt line = indent (spaces, no hl) + `▌` in `NrevRule<T>` + one space + text chunks + trailing spaces in `NrevBand<T>` up to the text width (`winwidth − textoff`). Indent = display width of the start line's leading whitespace, max 16 cells. Replaces `RULE = "▎ "`.
 3. **Wrap.** Wrap width = text width − indent − 3. Re-render on `WinResized` / `VimResized`. With the buffer in several windows, pad to the widest (virt_lines are per buffer; extra cells are clipped).
 4. **Header.** Icon + type in `NrevTitle<T>`. Drift adds two spaces + `⚠ code changed` in `NrevDrift<T>` (was ` ⚠`). No author or time.
-5. **Keys hint.** `,rx resolve · ,rd delete` right-aligned with one trailing space, only on the comment whose range holds the cursor. Re-render that comment and the previous one on `CursorMoved`, debounced.
+5. **Keys hint.** `,rr reply · ,rx resolve · ,rd delete` right-aligned with one trailing space, only on the comment whose range holds the cursor. Re-render that comment and the previous one on `CursorMoved`, debounced.
 6. **Resolution.** `↳ ` + text in `NrevResolution<T>`; wrapped lines indent 2 more.
+6a. **Replies** (added by the builder, 26 Nov 2026, the user asked for threads; no designer round). After the body and before the resolution, each reply is `↳ agent · ` / `↳ you · ` in `NrevReplyAuthor` (fg `fg`, bold, on the band) + text in `NrevBody`; wrapped lines indent 2. No new colours.
 7. **Resolved.** One line, no band: indent + `▏` + ` ✓ <type> · resolved · ` + the first words of the body, cut with `…`, all `NrevResolved`. Sign `✓` in `NrevSignResolved`, no number hl.
 8. **Drifted.** Band stays; rule `▌` → `╏`; header gets `⚠ code changed`; sign `⚠` in `NrevSignDrift`.
 9. **Sign.** Keep `✎` in `NrevSign<T>` (was `sign_hl_group` = `tones`/`hls`). Priority above gitsigns. Clubmate sets `signcolumn = "yes"` (1 cell, `nvim-distro/lua/clubmate/options.lua`); the designer asks for `auto:2` so a git sign and the nrev sign can share a line.

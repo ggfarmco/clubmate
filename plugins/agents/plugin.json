@@ -654,12 +654,13 @@
                   "lineEnd": {"type": "integer", "description": "Last line."},
                   "type": {"type": "string", "description": "issue, suggestion or question."},
                   "text": {"type": "string", "description": "Comment text."},
-                  "lineText": {"type": "string", "description": "The commented line."}
+                  "lineText": {"type": "string", "description": "The commented line."},
+                  "replies": {"type": "array", "items": {"type": "string"}, "description": "The comment's thread from nrev, oldest first, each \"<agent|user>: <text>\"."}
                 }
               }
             },
             "note": {"type": "string", "description": "Optional note added at the end."},
-            "nrev": {"type": "string", "description": "Absolute path of the nrev binary the agent resolves comments with."}
+            "nrev": {"type": "string", "description": "Absolute path of the nrev binary the agent resolves and replies to comments with."}
           },
           "required": ["worktree", "comments"]
         }

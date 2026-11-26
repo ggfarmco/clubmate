@@ -14,7 +14,7 @@ import (
 func sentComments() []reviewComment {
 	return []reviewComment{
 		{ID: 4, File: "pkg/sdui/node.go", Side: "right", LineStart: 23, LineEnd: 23, Type: "issue", Text: "Workspace is set only by the Always allow path.\nSay so in a comment.", Status: "open", LineText: "\tWorkspace string"},
-		{ID: 7, File: "internal/sdui/catalog.go", Side: "left", LineStart: 41, LineEnd: 44, Type: "question", Text: "Why sort by title now?", Status: "open"},
+		{ID: 7, File: "internal/sdui/catalog.go", Side: "left", LineStart: 41, LineEnd: 44, Type: "question", Text: "Why sort by title now?", Status: "open", Replies: []string{"agent: Titles are stable across restarts.", "user: Ids are too."}},
 	}
 }
 
@@ -23,7 +23,7 @@ func TestSendReviewPromptFormat(t *testing.T) {
 	args := sendReviewArgs{Base: "main", Head: "review/missed-cron", Comments: sentComments(), Note: "Keep the old label for Allow once.", Nrev: "/Applications/Clubmate.app/Contents/Resources/tools/nrev"}
 	want := "Review of review/missed-cron against main: 2 comments from the Clubmate review panel.\n" +
 		"\n" +
-		"For each one: fix it if you agree and resolve it with `/Applications/Clubmate.app/Contents/Resources/tools/nrev resolve <id> --note \"<what you did>\"`; if it is for someone else, don't fix it and say who should handle it. End with one line per comment: <id> fixed | forwarded | disagree — why.\n" +
+		"For each one: fix it if you agree and resolve it with `/Applications/Clubmate.app/Contents/Resources/tools/nrev resolve <id> --note \"<what you did>\"`; if you disagree or need an answer from the user, don't resolve it: reply under it with `/Applications/Clubmate.app/Contents/Resources/tools/nrev reply <id> --text \"<why, or your question>\"`; if it is for someone else, don't fix it and say who should handle it. Lines under a comment that start with ↳ are its thread so far. End with one line per comment: <id> fixed | replied | forwarded — why.\n" +
 		"\n" +
 		"4. [issue] pkg/sdui/node.go:23 (right)\n" +
 		"   > \tWorkspace string\n" +
@@ -32,6 +32,8 @@ func TestSendReviewPromptFormat(t *testing.T) {
 		"\n" +
 		"7. [question] internal/sdui/catalog.go:41-44 (left)\n" +
 		"   Why sort by title now?\n" +
+		"   ↳ agent: Titles are stable across restarts.\n" +
+		"   ↳ user: Ids are too.\n" +
 		"\n" +
 		"Note: Keep the old label for Allow once."
 	assert.Equal(t, want, reviewPrompt(args))

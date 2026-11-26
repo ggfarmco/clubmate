@@ -28,15 +28,16 @@ var reviewGlyphs = map[string]struct{ glyph, tone string }{
 }
 
 type reviewComment struct {
-	ID        int64  `json:"id"`
-	File      string `json:"file"`
-	Side      string `json:"side"`
-	LineStart int    `json:"lineStart"`
-	LineEnd   int    `json:"lineEnd"`
-	Type      string `json:"type"`
-	Text      string `json:"text"`
-	Status    string `json:"status,omitempty"`
-	LineText  string `json:"lineText,omitempty"`
+	ID        int64    `json:"id"`
+	File      string   `json:"file"`
+	Side      string   `json:"side"`
+	LineStart int      `json:"lineStart"`
+	LineEnd   int      `json:"lineEnd"`
+	Type      string   `json:"type"`
+	Text      string   `json:"text"`
+	Status    string   `json:"status,omitempty"`
+	LineText  string   `json:"lineText,omitempty"`
+	Replies   []string `json:"replies,omitempty"`
 }
 
 type sendReviewArgs struct {
@@ -114,7 +115,7 @@ func reviewPrompt(args sendReviewArgs) string {
 	n := len(args.Comments)
 	var b strings.Builder
 	fmt.Fprintf(&b, "Review of %s against %s: %d %s from the Clubmate review panel.\n\n", args.Head, args.Base, n, plural(n, "comment", "comments"))
-	fmt.Fprintf(&b, "For each one: fix it if you agree and resolve it with `%s resolve <id> --note \"<what you did>\"`; if it is for someone else, don't fix it and say who should handle it. End with one line per comment: <id> fixed | forwarded | disagree — why.", args.Nrev)
+	fmt.Fprintf(&b, "For each one: fix it if you agree and resolve it with `%[1]s resolve <id> --note \"<what you did>\"`; if you disagree or need an answer from the user, don't resolve it: reply under it with `%[1]s reply <id> --text \"<why, or your question>\"`; if it is for someone else, don't fix it and say who should handle it. Lines under a comment that start with ↳ are its thread so far. End with one line per comment: <id> fixed | replied | forwarded — why.", args.Nrev)
 	for _, c := range args.Comments {
 		fmt.Fprintf(&b, "\n\n%d. [%s] %s (%s)", c.ID, c.Type, commentPlace(c, true), c.Side)
 		if c.LineText != "" {
@@ -122,6 +123,13 @@ func reviewPrompt(args sendReviewArgs) string {
 		}
 		for line := range strings.SplitSeq(strings.TrimSpace(c.Text), "\n") {
 			b.WriteString("\n   " + line)
+		}
+		for _, r := range c.Replies {
+			prefix := "\n   ↳ "
+			for line := range strings.SplitSeq(strings.TrimSpace(r), "\n") {
+				b.WriteString(prefix + line)
+				prefix = "\n     "
+			}
 		}
 	}
 	if note := strings.TrimSpace(args.Note); note != "" {

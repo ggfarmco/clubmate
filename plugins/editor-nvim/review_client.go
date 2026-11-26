@@ -90,15 +90,16 @@ type reviewEntry struct {
 }
 
 type reviewComment struct {
-	ID        int64  `msgpack:"id" json:"id"`
-	File      string `msgpack:"file" json:"file"`
-	Side      string `msgpack:"side" json:"side"`
-	LineStart int    `msgpack:"line_start" json:"lineStart"`
-	LineEnd   int    `msgpack:"line_end" json:"lineEnd"`
-	Type      string `msgpack:"type" json:"type"`
-	Text      string `msgpack:"text" json:"text"`
-	Status    string `msgpack:"status" json:"status"`
-	LineText  string `msgpack:"line_text" json:"lineText"`
+	ID        int64    `msgpack:"id" json:"id"`
+	File      string   `msgpack:"file" json:"file"`
+	Side      string   `msgpack:"side" json:"side"`
+	LineStart int      `msgpack:"line_start" json:"lineStart"`
+	LineEnd   int      `msgpack:"line_end" json:"lineEnd"`
+	Type      string   `msgpack:"type" json:"type"`
+	Text      string   `msgpack:"text" json:"text"`
+	Status    string   `msgpack:"status" json:"status"`
+	LineText  string   `msgpack:"line_text" json:"lineText"`
+	Replies   []string `msgpack:"-" json:"replies,omitempty"`
 }
 
 type luaResult[T any] struct {

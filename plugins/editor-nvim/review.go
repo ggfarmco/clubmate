@@ -41,15 +41,21 @@ type reviewKey struct{ Worktree, Base, Head string }
 type commentReader func(worktree string) ([]reviewComment, error)
 
 type nrevComment struct {
-	ID        int64  `json:"id"`
-	File      string `json:"file"`
-	Side      string `json:"side"`
-	LineStart int    `json:"line_start"`
-	LineEnd   int    `json:"line_end"`
-	Type      string `json:"type"`
-	Text      string `json:"text"`
-	Status    string `json:"status"`
-	LineText  string `json:"line_text"`
+	ID        int64          `json:"id"`
+	File      string         `json:"file"`
+	Side      string         `json:"side"`
+	LineStart int            `json:"line_start"`
+	LineEnd   int            `json:"line_end"`
+	Type      string         `json:"type"`
+	Text      string         `json:"text"`
+	Status    string         `json:"status"`
+	LineText  string         `json:"line_text"`
+	Replies   []commentReply `json:"replies"`
+}
+
+type commentReply struct {
+	Author string `json:"author"`
+	Text   string `json:"text"`
 }
 
 type review struct {
@@ -149,7 +155,10 @@ func nrevComments(nrev string) commentReader {
 		}
 		list := make([]reviewComment, len(rows))
 		for i, c := range rows {
-			list[i] = reviewComment(c)
+			list[i] = reviewComment{ID: c.ID, File: c.File, Side: c.Side, LineStart: c.LineStart, LineEnd: c.LineEnd, Type: c.Type, Text: c.Text, Status: c.Status, LineText: c.LineText}
+			for _, r := range c.Replies {
+				list[i].Replies = append(list[i].Replies, r.Author+": "+r.Text)
+			}
 		}
 		return list, nil
 	}

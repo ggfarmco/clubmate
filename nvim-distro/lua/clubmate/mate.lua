@@ -351,6 +351,7 @@ function M.groups(c)
     NrevRule = { fg = c.warn, bg = c.vt_warn },
     NrevTitle = { fg = c.warn, bg = c.vt_warn, bold = true },
     NrevBody = { fg = c.fg, bg = c.vt_warn },
+    NrevReplyAuthor = { fg = c.fg, bg = c.vt_warn, bold = true },
     NrevResolution = { fg = c.dark and c.muted or c.comment, bg = c.vt_warn, italic = true },
     NrevKeys = { fg = c.dark and c.muted or c.comment, bg = c.vt_warn },
     NrevDrift = { fg = c.warn, bg = c.vt_warn, bold = true },

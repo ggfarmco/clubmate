@@ -484,6 +484,7 @@ Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode 
 | Diff | ⌃w j / ⌃w k (review panel file tree) | From the file tree ⌃w j enters the footer and ⌃w k the header; focus stays there (cursorline on) so ↩ works on comment rows and checkboxes; ⌃w k / ⌃w j go back to the tree and do nothing at the panel's edges; ⌃w w still cycles past them | diffview.nvim `scene/views/diff/file_panel.lua` |
 | Review | ,rc (normal, visual) / ,rl | Add a review comment (straight to its text, no type to pick: it is saved as a note), list comments | diffview.nvim `nrev` |
 | Review | ]a / [a | Next, previous review comment | diffview.nvim `nrev` |
+| Review | ,rr | Reply to the comment under the cursor (a reply to a resolved comment reopens it and moves its resolution note into the thread); the agent answers with `nrev reply` | diffview.nvim `nrev` |
 | Review | ,rx / ,rd / ,re | Resolve or reopen, delete, export comments to the clipboard | diffview.nvim `nrev` |
 | Debug | ,db / ,dB | Toggle breakpoint, conditional breakpoint | `lua/clubmate/plugins/debug.lua` |
 | Debug | ,dc / ,do / ,di / ,dO | Continue, step over, into, out | `lua/clubmate/plugins/debug.lua` |

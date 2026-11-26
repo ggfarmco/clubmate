@@ -28,10 +28,10 @@ What the bundled diffview can do, where each part lives, and how a fork change r
 | Folder grouping | one folder per parent dir (`group_dirs`), `t` nested tree | `ui/models/file_tree/file_tree.lua` |
 | Inline layout (narrow) | `set_layout("inline")`, removed lines drawn inline | `scene/layouts/diff_1_inline.lua` |
 | New/deleted file filler | `╱` hatching + centred message | `review/fill.lua` |
-| nrev comments (SQLite `review.db`) | `,rc` add, `,rl` list, `]a/[a`, `,rx` resolve, `,rd` delete, `,re` copy all | `lua/nrev/init.lua`, Go CLI `nrev/` |
+| nrev comments (SQLite `review.db`), threads of replies | `,rc` add, `,rr` reply, `,rl` list, `]a/[a`, `,rx` resolve, `,rd` delete, `,re` copy all | `lua/nrev/init.lua`, Go CLI `nrev/` |
 | Live refresh | watches `review.db` and the worktree | `scene/views/diff/diff_view.lua`, `lua/nrev/diffview.lua` |
 
-`nrev` CLI: `add|list|resolve|reopen|delete|reviewed|prune`, flags `--db --file --rev --side --type --text --note --status --json --md`. Agents add comments with `nrev add`.
+`nrev` CLI: `add|list|reply|resolve|reopen|delete|reviewed|prune`, flags `--db --file --rev --side --type --text --note --author --status --json --md`. Agents add comments with `nrev add` and answer one with `nrev reply <id> --text` (author `agent` by default; nvim passes `--author user`, which reopens a resolved comment and turns its resolution into an agent reply). `list --json` carries `replies` (omitted when none).
 
 ## Host API (`require("diffview.clubmate")`, `version = 4`)
 

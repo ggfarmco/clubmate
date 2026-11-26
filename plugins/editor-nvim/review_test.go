@@ -311,12 +311,12 @@ func TestNrevCommentsReadsTheWorktree(t *testing.T) {
 	nrev := filepath.Join(dir, "nrev")
 	script := `#!/bin/sh
 [ "$PWD" = "` + dir + `" ] || { echo "wrong dir $PWD" >&2; exit 1; }
-echo '[{"id":4,"file":"a.go","side":"right","line_start":3,"line_end":5,"type":"note","text":"Why?","status":"open","line_text":"x := 1","rev":"abc"}]'
+echo '[{"id":4,"file":"a.go","side":"right","line_start":3,"line_end":5,"type":"note","text":"Why?","status":"open","line_text":"x := 1","rev":"abc","replies":[{"id":1,"author":"agent","text":"Because.","created_at":"t"}]}]'
 `
 	require.NoError(t, os.WriteFile(nrev, []byte(script), 0o755))
 	list, err := nrevComments(nrev)(dir)
 	require.NoError(t, err)
-	assert.Equal(t, []reviewComment{{ID: 4, File: "a.go", Side: "right", LineStart: 3, LineEnd: 5, Type: "note", Text: "Why?", Status: "open", LineText: "x := 1"}}, list)
+	assert.Equal(t, []reviewComment{{ID: 4, File: "a.go", Side: "right", LineStart: 3, LineEnd: 5, Type: "note", Text: "Why?", Status: "open", LineText: "x := 1", Replies: []string{"agent: Because."}}}, list)
 	_, err = nrevComments(nrev)(t.TempDir())
 	assert.ErrorContains(t, err, "wrong dir")
 }
