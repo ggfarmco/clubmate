@@ -1,5 +1,10 @@
 import AppKit
+import os
 import SwiftUI
+
+import ClubmateKit
+
+private let titleBarLog = Logger(subsystem: Diagnostics.logSubsystem, category: "titlebar")
 
 struct TitleBarChrome: Equatable {
     static let fallback = TitleBarChrome(height: 32, lights: 69)
@@ -21,10 +26,15 @@ struct TitleBarArea: NSViewRepresentable {
 }
 
 final class TitleBarAreaView: NSView {
-    private static let events = [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification, NSWindow.willExitFullScreenNotification]
+    private static let events = [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification, NSWindow.willExitFullScreenNotification, NSWindow.didBecomeKeyNotification, NSWindow.didEndLiveResizeNotification, NSWindow.didChangeScreenNotification]
 
     var changed: ((TitleBarChrome) -> Void)? {
-        didSet { measure() }
+        didSet { if oldValue == nil { measure() } }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        measure()
     }
 
     override var mouseDownCanMoveWindow: Bool { true }
@@ -61,6 +71,7 @@ final class TitleBarAreaView: NSView {
 
     private func measure() {
         guard let window, let changed else { return }
+        clearTitlebar(window)
         var chrome = TitleBarChrome.fallback
         if window.styleMask.contains(.fullScreen) {
             chrome.lights = 0
@@ -70,5 +81,22 @@ final class TitleBarAreaView: NSView {
             chrome.lights = zoom.convert(zoom.bounds, to: nil).maxX
         }
         DispatchQueue.main.async { changed(chrome) }
+    }
+
+    private func clearTitlebar(_ window: NSWindow) {
+        if !window.titlebarAppearsTransparent { window.titlebarAppearsTransparent = true }
+        for view in TitleBarBackground.views(in: window) where !view.isHidden {
+            view.isHidden = true
+            titleBarLog.info("hid title bar view \(String(describing: type(of: view)), privacy: .public)")
+        }
+    }
+}
+
+enum TitleBarBackground {
+    static func views(in window: NSWindow) -> [NSView] {
+        guard let close = window.standardWindowButton(.closeButton), let frame = window.contentView?.superview else { return [] }
+        var container: NSView? = close
+        while let view = container, view.superview !== frame { container = view.superview }
+        return container?.subviews.filter { !close.isDescendant(of: $0) } ?? []
     }
 }

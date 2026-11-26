@@ -50,6 +50,14 @@ final class SnapshotTests: XCTestCase {
         XCTAssertEqual(flagged["fitting-prose"], [])
     }
 
+    func testElementUnderAVisibleTitleBarBackgroundIsFlagged() {
+        let flagged = LayoutAnalyzer.flag([
+            element("pill", frame: Rect(x: 80, y: 6, width: 200, height: 20)),
+            element("header", frame: Rect(x: 0, y: 32, width: 600, height: 28)),
+        ], bounds: Rect(x: 0, y: 0, width: 600, height: 600), covered: [Rect(x: 0, y: 0, width: 600, height: 32)])
+        XCTAssertEqual(flagged.map(\.flags), [["under-titlebar"], []])
+    }
+
     func testParentIsTheSameIDElementHoldingTheChild() {
         let flagged = LayoutAnalyzer.flag([
             element("stack", frame: Rect(x: 0, y: 0, width: 220, height: 500)),

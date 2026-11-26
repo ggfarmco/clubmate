@@ -439,7 +439,7 @@ final class TestHarness {
                 png = file.path(percentEncoded: false)
             }
             let bounds = Rect(x: 0, y: 0, width: root.bounds.width, height: root.bounds.height)
-            let elements = LayoutAnalyzer.flag(self.elements(window), bounds: bounds)
+            let elements = LayoutAnalyzer.flag(self.elements(window), bounds: bounds, covered: titlebarBackgrounds(window))
             let layout = out.appending(path: "w\(id).json")
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -494,6 +494,15 @@ final class TestHarness {
         if window.identifier?.rawValue.hasPrefix("com_apple_SwiftUI_Settings") == true { return "settings" }
         if window is NSPanel { return "panel" }
         return "window"
+    }
+
+    private func titlebarBackgrounds(_ window: NSWindow) -> [Rect] {
+        guard let root = window.contentView else { return [] }
+        return TitleBarBackground.views(in: window).filter { !$0.isHiddenOrHasHiddenAncestor }.map { view in
+            var r = root.convert(view.convert(view.bounds, to: nil), from: nil)
+            if !root.isFlipped { r.origin.y = root.bounds.height - r.maxY }
+            return Rect(r)
+        }
     }
 
     private func elements(_ window: NSWindow) -> [LayoutElement] {
