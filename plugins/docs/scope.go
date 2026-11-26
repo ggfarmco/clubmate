@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"syscall"
 
 	"clubmate/pkg/contract"
@@ -19,7 +20,10 @@ import (
 	"clubmate/plugins/internal/wikiroot"
 )
 
-const maxDoc = 4 << 20
+const (
+	maxDoc       = 4 << 20
+	worktreesDir = ".worktrees"
+)
 
 var (
 	errNotInWorkspace = errors.New("not in workspace")
@@ -92,6 +96,64 @@ func load(path string, allow func(string) bool) (string, []byte, error) {
 		return abs, nil, errTooLarge
 	}
 	return abs, src, nil
+}
+
+func (d *docs) landed(ctx context.Context, h *pluginsdk.Host, ws contract.Workspace, path string) string {
+	sep := string(filepath.Separator)
+	if !strings.Contains(path, sep+worktreesDir+sep) {
+		return path
+	}
+	if _, err := os.Lstat(path); err == nil {
+		return path
+	}
+	sessions, err := agentcall.Sessions(ctx, h, ws.ID)
+	if err != nil {
+		logError("landed copy of "+path, err)
+		return path
+	}
+	path = gitrepo.Canonical(path)
+	tree := ""
+	for _, s := range sessions {
+		if t := gitrepo.Canonical(s.Worktree); s.Worktree != "" && gitrepo.Within(path, t) && len(t) > len(tree) {
+			tree = t
+		}
+	}
+	rel, err := filepath.Rel(tree, path)
+	if tree == "" || err != nil {
+		return path
+	}
+	for _, f := range ws.Folders {
+		folder := gitrepo.Canonical(f.Path)
+		repo, ok := gitrepo.RepoRoot(folder)
+		if !ok {
+			continue
+		}
+		sub, err := filepath.Rel(repo, folder)
+		if err != nil {
+			continue
+		}
+		top := tree
+		if sub != "." {
+			if top, ok = strings.CutSuffix(tree, sep+sub); !ok {
+				continue
+			}
+		}
+		if !strings.HasPrefix(top, filepath.Join(repo, worktreesDir)+sep) {
+			continue
+		}
+		if _, err := os.Lstat(filepath.Join(top, ".git")); err == nil {
+			return path
+		}
+		if file := filepath.Join(folder, rel); isFile(file) {
+			return file
+		}
+	}
+	return path
+}
+
+func isFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
 }
 
 func viewable(path string) bool {

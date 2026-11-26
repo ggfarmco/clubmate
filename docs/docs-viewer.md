@@ -12,6 +12,7 @@ The `docs` plugin (`plugins/docs`) shows a Markdown or mermaid file rendered, or
 | `docs.close` | none | no | no | renders the popup `empty` |
 
 - A relative `path` in `docs.open` is resolved against the worktree of `session` (default the calling agent session, from `agents.sessions` field `worktree`), else the selected worktree of the workspace's first folder. In `docs.read` it is resolved against that folder.
+- A `path` that does not exist inside the worktree of an agent session (`agents.sessions` field `worktree`, closed sessions too; the longest one that holds it) at `<repo>/.worktrees/<branch>/<subdir>` (`<subdir>` is the workspace folder's path in its repo, empty for the repo root), when that worktree is gone (no `.git` in `.worktrees/<branch>`), opens the same relative path in the workspace folder of the main checkout when that file is there; the path is compared with symlinks resolved: a doc card of a child whose branch landed and whose worktree was removed opens the landed copy. This holds for `docs.open`, `docs.present`, `docs.read`, a link followed in the popup and the popup's Back. While the worktree is there, or with no session for it, a missing file stays `not found`.
 - `path` in a result is absolute with symlinks resolved; `title` is the first `# heading` (an artifact's `<title>`), else the file name without extension; `kind` is `markdown` or `artifact`.
 - Errors are exactly `not in workspace`, `not a document`, `too large` and `not found`.
 

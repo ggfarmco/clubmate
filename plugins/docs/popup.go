@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/gitrepo"
@@ -94,7 +95,7 @@ func (d *docs) openDoc(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEv
 		return err
 	}
 	allow := d.scope(ctx, h, ws)
-	abs, src, err := load(path, allow)
+	abs, src, err := load(d.landed(ctx, h, ws, path), allow)
 	if err != nil && !errors.Is(err, errNotFound) {
 		return err
 	}
@@ -141,7 +142,7 @@ func (d *docs) back(ctx context.Context, h *pluginsdk.Host, workspaceID string) 
 	}
 	s.stack = s.stack[:len(s.stack)-1]
 	s.prune()
-	return s.present(ctx, h, workspaceID, allow)
+	return s.present(ctx, h, workspaceID, allow, d.resolver(ctx, h, ws))
 }
 
 func (d *docs) close(ctx context.Context, h *pluginsdk.Host, workspaceID string) error {
@@ -186,7 +187,7 @@ func (d *docs) flush(workspaceID string) {
 		}
 		st.rev++
 		if len(s.stack) > 0 && s.top() == path {
-			logError("render "+path, s.present(ctx, d.h, workspaceID, allow))
+			logError("render "+path, s.present(ctx, d.h, workspaceID, allow, d.resolver(ctx, d.h, ws)))
 		}
 		_, err := d.h.Publish(ctx, changedTopic, changedEvent{Workspace: workspaceID, Path: path, Rev: st.rev})
 		logError("publish "+changedTopic, err)
@@ -244,7 +245,16 @@ func (s *space) prune() {
 	}
 }
 
-func (s *space) present(ctx context.Context, h *pluginsdk.Host, workspaceID string, allow func(string) bool) error {
+func (d *docs) resolver(ctx context.Context, h *pluginsdk.Host, ws contract.Workspace) func(string) string {
+	return func(path string) string { return d.landed(ctx, h, ws, path) }
+}
+
+func (s *space) present(ctx context.Context, h *pluginsdk.Host, workspaceID string, allow func(string) bool, resolve func(string) string) error {
+	top := &s.stack[len(s.stack)-1]
+	if path := resolve(top.path); path != top.path {
+		top.path = path
+		s.prune()
+	}
 	_, src, err := load(s.top(), allow)
 	if err != nil && !errors.Is(err, errNotFound) {
 		return err

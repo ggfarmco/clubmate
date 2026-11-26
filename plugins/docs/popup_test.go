@@ -232,6 +232,57 @@ func TestArtifactTitle(t *testing.T) {
 	assert.Equal(t, "artifact", got.Kind)
 }
 
+func TestRemovedWorktreeOpensLandedCopy(t *testing.T) {
+	e := newEnv(t)
+	e.doc(".git", "")
+	gone := filepath.Join(e.dir, ".worktrees", "chore", "design")
+	e.core.sessions = []map[string]string{{"id": "agt_d", "worktree": gone}}
+	landed := e.doc("README.md", "# Root")
+	e.doc(filepath.Join("design", "README.md"), "# Design")
+
+	e.open(filepath.Join(gone, "README.md"))
+	e.assertDoc(landed, 1, false)
+	res, err := e.run(pluginsdk.CommandRun{ID: "docs.read", Args: e.args(map[string]any{"path": filepath.Join(gone, "README.md")})})
+	require.NoError(t, err)
+	assert.Equal(t, landed, res.(readResult).Path)
+}
+
+func TestSubfolderWorktreeOpensLandedCopy(t *testing.T) {
+	e := newEnv(t)
+	e.doc(".git", "")
+	e.core.ws.Folders = []contract.Folder{{Path: filepath.Join(e.dir, "app")}}
+	gone := filepath.Join(e.dir, ".worktrees", "feat", "z", "app")
+	live := filepath.Join(e.dir, ".worktrees", "feat", "w", "app")
+	e.doc(filepath.Join(".worktrees", "feat", "w", ".git"), "")
+	e.core.sessions = []map[string]string{{"id": "agt_z", "worktree": gone}, {"id": "agt_w", "worktree": live}}
+	landed := e.doc(filepath.Join("app", "spec.md"), "# Spec")
+	link := filepath.Join(t.TempDir(), "repo")
+	require.NoError(t, os.Symlink(e.dir, link))
+
+	e.open(filepath.Join(link, ".worktrees", "feat", "z", "app", "spec.md"))
+	e.assertDoc(landed, 1, false)
+
+	kept := filepath.Join(live, "spec.md")
+	assert.Equal(t, kept, e.d.landed(t.Context(), e.h, e.core.ws, kept))
+}
+
+func TestPopupFollowsRemovedWorktree(t *testing.T) {
+	e := newEnv(t)
+	e.doc(".git", "")
+	tree := filepath.Join(e.dir, ".worktrees", "feat", "y")
+	e.doc(filepath.Join(".worktrees", "feat", "y", ".git"), "")
+	e.core.sessions = []map[string]string{{"id": "agt_y", "worktree": tree}}
+	a := e.doc(filepath.Join(".worktrees", "feat", "y", "a.md"), "# A")
+	landedA, landedB := e.doc("a.md", "# A"), e.doc("b.md", "# B")
+	e.open(a)
+	require.NoError(t, os.RemoveAll(tree))
+
+	e.event("openDoc", filepath.Join(tree, "b.md"))
+	e.assertDoc(landedB, 1, true)
+	e.event("back", nil)
+	e.assertDoc(landedA, 1, false)
+}
+
 func TestArtifactLinkFromDoc(t *testing.T) {
 	e := newEnv(t)
 	a := e.doc("a.md", "[r](out/report.html)")

@@ -274,6 +274,10 @@ func (d *docs) read(ctx context.Context, h *pluginsdk.Host, workspaceID, path st
 }
 
 func (d *docs) absolute(ctx context.Context, h *pluginsdk.Host, ws contract.Workspace, session, path string) string {
+	return d.landed(ctx, h, ws, d.joined(ctx, h, ws, session, path))
+}
+
+func (d *docs) joined(ctx context.Context, h *pluginsdk.Host, ws contract.Workspace, session, path string) string {
 	if filepath.IsAbs(path) {
 		return path
 	}
