@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Rules · guided reading components</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/cd5295310c5e9c7200233f268a9b7bfe">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+.doc figure{margin:0;display:flex;flex-direction:column;gap:12px}
+.doc figcaption{font-size:15px;line-height:22px;color:#5B5F5C}
+.doc figcaption b{color:#1B1D1C;font-weight:600}
+.doc .dh{display:flex;align-items:center;gap:10px;min-height:28px}
+.doc .dh .lt{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;width:26px;height:26px;border-radius:13px;background:#1B1D1C;color:#F4F3EE;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.doc .pitch{font-size:16px;line-height:24px;color:#1B1D1C}
+.doc .pick{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:18px;padding:0 8px;border-radius:4px;background:#1D5A2B;color:#F4F3EE;white-space:nowrap}
+.doc .note{font-size:14px;line-height:20px;color:#5B5F5C}
+.doc td code,.doc p code,.doc li code,.doc figcaption code{font-size:12px}
+.doc .cm code{background:var(--hov);color:inherit;font-family:inherit;font-size:12px;padding:0 4px;border-radius:3px}
+.doc .cm ul{padding-left:18px}
+
+.cm .ubm{align-self:flex-end;max-width:78%;padding:8px 12px;background:var(--s1);border-radius:8px}
+.cm .rep p{margin:0 0 8px}.cm .rep p:last-child{margin:0}
+.cm .crumb{display:flex;align-items:center;gap:6px;height:28px;padding:0 16px;border-bottom:1px solid var(--bd);flex:none;min-width:0}
+.cm .qcard{border:1px solid var(--bd2);border-radius:8px;background:var(--s1);display:flex;flex-direction:column;min-width:0}
+.cm .qcard.block{border-color:var(--wa-bd);background:color-mix(in srgb,var(--wa) 7%,var(--bg))}
+.cm .qhd{display:flex;align-items:center;gap:8px;padding:9px 12px 8px;min-width:0}
+.cm .qitem{padding:8px 12px 9px;border-top:1px solid var(--bd);display:flex;flex-direction:column;gap:4px;min-width:0}
+.cm .qnum{width:18px;height:18px;border-radius:9px;border:1px solid var(--bd2);font-size:10.5px;display:inline-flex;align-items:center;justify-content:center;color:var(--t2);flex:none}
+.cm .qnum.done{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok-i)}
+.cm .qchip{font-size:10.5px;height:16px;line-height:16px;padding:0 6px;border-radius:4px;background:var(--hov);color:var(--t2);flex:none;white-space:nowrap}
+.cm .qctx{color:var(--t3);font-size:11px;line-height:16px;border-left:2px solid var(--bd2);padding-left:8px;margin:0 0 0 2px}
+.cm .qopts{display:flex;flex-direction:column;gap:1px;margin-left:18px}
+.cm .qopt{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:8px;align-items:start;padding:2px 8px;border-radius:5px;min-width:0}
+.cm .qopt.on{background:var(--sel)}
+.cm .qopt .ds{color:var(--t3);font-size:11px;margin-left:12px}
+.cm .qopt .k{color:var(--t4);font-size:10.5px}
+.cm .rd{width:13px;height:13px;border-radius:7px;border:1.5px solid var(--bd2);margin-top:3px;box-sizing:border-box}
+.cm .rd.on{border-color:var(--ac);background:var(--ac);box-shadow:inset 0 0 0 2.5px var(--s1)}
+.cm .qbar{display:flex;align-items:center;gap:10px;height:38px;padding:0 8px 0 12px;border:1px solid var(--wa-bd);border-radius:8px;background:color-mix(in srgb,var(--wa) 7%,var(--bg));white-space:nowrap;min-width:0}
+.cm .sep{width:1px;height:16px;background:var(--bd2);flex:none}
+.cm .tgt{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:4px;border:1px solid var(--wa-bd);color:var(--wa-i);font-size:11px;line-height:16px;white-space:nowrap;flex:none}
+.cm .tgt svg.i{width:11px;height:11px}
+
+/* 1 · code excerpt with line pick */
+.cm .gx{border:1px solid var(--wa-bd);border-radius:8px;background:color-mix(in srgb,var(--wa) 7%,var(--bg));display:flex;flex-direction:column;min-width:0}
+.cm .gx.rec{border-color:var(--bd);background:var(--s1)}
+.cm .gq{display:flex;align-items:center;gap:8px;padding:0 12px 8px;min-width:0}
+.cm .xf{margin:0 12px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);overflow:hidden;display:flex;flex-direction:column}
+.cm .xbar{display:flex;align-items:center;gap:6px;height:28px;padding:0 4px 0 10px;border-bottom:1px solid var(--bd);background:var(--s1);min-width:0}
+.cm .xls{display:flex;flex-direction:column;padding:3px 0}
+.cm .xl{display:grid;grid-template-columns:18px 34px minmax(0,1fr) auto;align-items:center;height:19px;font-size:12px;line-height:19px;white-space:pre;position:relative;width:100%;text-align:left;cursor:default}
+.cm .xl>.g{display:flex;align-items:center;justify-content:center}
+.cm .xl>.n{color:var(--t4);text-align:right;padding-right:10px}
+.cm .xl>.c{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.cm .xl>.m{padding:0 8px;font-size:10.5px;line-height:16px;white-space:nowrap}
+.cm .xl.cur{box-shadow:inset 0 0 0 1.5px var(--ac)}
+.cm .xl.pk{background:var(--sel)}
+.cm .xl.pk>.n{color:var(--fg)}
+.cm .xl.pk::before{content:'';position:absolute;left:0;top:2px;bottom:2px;width:2px;border-radius:2px;background:var(--ac)}
+.cm .xl.dim>.c{color:var(--t3)}
+.cm .xl.yr{background:color-mix(in srgb,var(--er) 15%,transparent)}
+.cm .xl.yr>.m{color:var(--er-i)}
+.cm .xl.an{background:color-mix(in srgb,var(--ok) 17%,transparent)}
+.cm .xl.an>.m{color:var(--ok-i)}
+.cm .xl.fd>.c,.cm .xl.fd>.n{color:var(--t4)}
+.cm .xl svg.i{width:11px;height:11px;stroke-width:1.8}
+.cm .ltr{display:inline-flex;width:14px;height:14px;border-radius:3px;border:1px solid var(--bd2);align-items:center;justify-content:center;font-size:9.5px;line-height:12px;color:var(--t2);font-weight:600}
+.cm .ltr.on{background:var(--ac);border-color:var(--ac);color:var(--on-ac)}
+.cm .gft{display:flex;align-items:center;gap:8px;padding:8px 12px;flex-wrap:wrap;min-width:0}
+.cm .gtop{display:flex;align-items:center;gap:8px;padding:8px 12px 6px;min-width:0}
+
+/* 3 · confidence */
+.cm .cf{display:inline-flex;gap:4px;flex:none}
+.cm .chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 6px 0 10px;border-radius:12px;border:1px solid var(--bd2);background:var(--s2);color:var(--fg);white-space:nowrap;flex:none}
+.cm .chip .kbd{border-color:color-mix(in srgb,currentColor 35%,transparent);color:inherit;opacity:.8}
+.cm .chip.on{background:var(--sel);border-color:var(--ac)}
+.cm .chip.go{background:var(--ac);border-color:var(--ac);color:var(--on-ac)}
+.cm .chip.dis{opacity:.42}
+.cm .cfv{display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 6px;border-radius:8px;font-size:10.5px;line-height:16px;border:1px solid var(--bd2);color:var(--t2);white-space:nowrap}
+
+/* 2 · reveal */
+.cm .rv{display:flex;flex-direction:column;gap:6px;padding:8px 12px 10px;min-width:0}
+.cm .rvl{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.cm .why{border-left:2px solid var(--bd2);padding-left:8px;color:var(--t2)}
+.cm .ref{color:var(--ac-i);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--ac) 45%,transparent);text-underline-offset:2px}
+.cm .vd2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding:0 12px}
+.cm .vbox{border:1px solid var(--bd);border-radius:6px;background:var(--bg);display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.cm .vbox .vh{display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-bottom:1px solid var(--bd);font-size:11px;color:var(--t3)}
+
+/* 4 · step controls */
+.cm .stc{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:2px}
+.cm .stc .btn:not(.pri){background:transparent}
+.cm .sbar{display:flex;align-items:center;gap:6px;min-height:36px;padding:5px 6px 5px 12px;border:1px solid var(--bd2);border-radius:8px;background:var(--s1);white-space:nowrap;min-width:0;flex-wrap:wrap}
+.cm .stepm{display:flex;flex-direction:column;gap:6px;min-width:0}
+.cm .sthd{display:flex;align-items:center;gap:8px}
+.cm .done{display:flex;align-items:center;gap:6px;height:22px;color:var(--t3);white-space:nowrap;min-width:0}
+.cm .aside{margin-left:12px;border-left:2px solid var(--ac-bd);padding:6px 0 6px 12px;display:flex;flex-direction:column;gap:6px}
+
+/* 5 · concept map */
+.cm .mp{border-left:1px solid var(--bd);background:var(--s1);display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.cm .mtree{display:flex;flex-direction:column;padding:6px 6px}
+.cm .cr{display:flex;align-items:center;gap:6px;height:26px;padding-right:8px;border-radius:5px;white-space:nowrap;position:relative;min-width:0;width:100%;text-align:left}
+.cm .cr .tg{flex:none;display:block}
+.cm .cr .lb{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .cr .st{flex:none;font-size:10.5px;color:var(--t3)}
+.cm .cr.now{background:var(--sel)}
+.cm .cr.now::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:2px;border-radius:2px;background:var(--ac)}
+.cm .cr.hov{background:var(--hov)}
+.cm .cr.todo .lb{color:var(--t3)}
+.cm svg.sg{width:14px;height:14px;flex:none;fill:none;stroke-width:1.4}
+.cm .strip{display:flex;align-items:center;gap:2px;height:24px;padding:0 6px;border-radius:12px;border:1px solid var(--bd);background:var(--s1);flex:none}
+.cm .strip .sgw{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px}
+.cm .strip .sgw.now{background:var(--sel)}
+.cm .legend{display:flex;flex-wrap:wrap;gap:2px 10px;padding:6px 12px 10px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--t3)}
+.cm .legend span{display:inline-flex;align-items:center;gap:4px}
+.cm .mpop{position:absolute;background:var(--s3);border-radius:8px;box-shadow:var(--sh);padding:8px;display:flex;flex-direction:column;gap:6px;z-index:3}
+
+/* companion */
+.comp .po{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:12px;align-items:center;padding:0 14px;min-height:44px;border-radius:16px;background:var(--s2)}
+.comp .chipq{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;background:var(--s2);color:var(--t2);font-size:12px;font-weight:600;white-space:nowrap;flex:none}
+.comp .chipq.wa{background:transparent;border:1.5px solid var(--wa-bd);color:var(--wa-i)}
+.comp .grab{width:36px;height:5px;border-radius:3px;background:var(--bd2);align-self:center;flex:none}
+.comp .fb{width:36px;height:36px;border-radius:18px;background:var(--s2);display:flex;align-items:center;justify-content:center;color:var(--t2);flex:none}
+.comp .fb svg.i{width:18px;height:18px;stroke-width:1.8}
+.comp .qc{display:flex;flex-direction:column;border:1.5px solid var(--wa-bd);background:color-mix(in srgb,var(--wa) 9%,var(--s1))}
+.comp .pbar{display:flex;align-items:center;gap:12px;min-height:64px;padding:8px 8px 8px 12px;border-radius:32px;border:1.5px solid var(--wa-bd);background:color-mix(in srgb,var(--wa) 9%,var(--s1))}
+.comp .kh{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;line-height:16px;padding:0 5px;border-radius:4px;border:1px solid var(--bd2);color:var(--t3);white-space:nowrap}
+.comp .px{border-radius:14px;background:var(--bg);border:1px solid var(--bd);overflow:hidden;display:flex;flex-direction:column}
+.comp .pxh{display:flex;align-items:center;gap:8px;height:36px;padding:0 6px 0 12px;border-bottom:1px solid var(--bd);min-width:0}
+.comp .pl{display:grid;grid-template-columns:14px 30px minmax(0,1fr) auto;align-items:center;min-height:34px;font-family:'JetBrains Mono','SF Mono',ui-monospace,monospace;font-size:12.5px;line-height:18px;letter-spacing:0;white-space:pre;position:relative;width:100%;text-align:left;padding-right:6px}
+.comp .pl>.n{color:var(--t4);text-align:right;padding-right:8px;font-size:11.5px}
+.comp .pl>.cd{min-width:0}
+.comp .pl>.g{display:flex;align-items:center;justify-content:center}
+.comp .pl>.m{font-family:-apple-system,'SF Pro Text','Inter',system-ui,sans-serif;font-size:12px;font-weight:600;padding-left:6px}
+.comp .pl.pk{background:color-mix(in srgb,var(--ac) 22%,transparent)}
+.comp .pl.pk::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:3px;border-radius:2px;background:var(--ac)}
+.comp .pl.yr{background:color-mix(in srgb,var(--er) 16%,transparent)}
+.comp .pl.yr>.m{color:var(--er-i)}
+.comp .pl.an{background:color-mix(in srgb,var(--ok) 18%,transparent)}
+.comp .pl.an>.m{color:var(--ok-i)}
+.comp .pl svg.i{width:12px;height:12px;stroke-width:2}
+.comp .cfc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.comp .cfb{display:flex;flex-direction:column;align-items:center;justify-content:center;height:50px;border-radius:25px;background:var(--s2);color:var(--fg);font-size:16px;font-weight:600;line-height:20px}
+.comp .cfb.go{background:var(--ac);color:var(--on-ac)}
+.comp .cfb .kh{margin-top:1px}
+.comp .nud{width:44px;height:36px;border-radius:18px;background:var(--s2);display:flex;align-items:center;justify-content:center;color:var(--fg);flex:none}
+.comp .nud svg.i{width:16px;height:16px;stroke-width:2}
+.comp .seg{display:inline-flex;height:32px;border-radius:16px;background:var(--s2);padding:2px;flex:none}
+.comp .seg span{display:inline-flex;align-items:center;padding:0 12px;border-radius:14px;font-size:13px;font-weight:600;color:var(--t2)}
+.comp .seg span.on{background:var(--s3);color:var(--fg)}
+.comp .why{border-left:2px solid var(--bd2);padding-left:10px;color:var(--t2)}
+.comp .ref{color:var(--ac-i);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--ac) 45%,transparent);text-underline-offset:3px}
+.comp .vbad{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:12px;font-size:13px;font-weight:600;background:var(--er-bg);color:var(--er-i);flex:none}
+
+.cm .hold{height:2px;background:var(--bd);margin:0 12px;border-radius:1px;overflow:hidden}
+.cm .hold i{display:block;height:2px;width:58%;background:var(--ac)}
+.cm .tabs{display:flex;align-items:center;gap:2px;height:32px;padding:0 6px;border-bottom:1px solid var(--bd);flex:none}
+.cm .tab{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:5px;color:var(--t3)}
+.cm .tab.on{background:var(--hov);color:var(--fg);font-weight:600}
+.cm .note2{display:flex;align-items:center;gap:6px;color:var(--er-i)}
+.cm .cfv.er{border-color:var(--er-bd);color:var(--er-i)}
+.doc .np{display:flex;flex-direction:column;gap:10px}
+.doc .np h4{margin:0;font-size:14px;line-height:20px;font-weight:600;color:#5B5F5C}
+.doc .np figcaption{font-size:14px;line-height:20px}
+
+.doc .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:start}
+.doc .panel{padding:22px 26px 14px;display:flex;flex-direction:column;gap:12px}
+.doc .panel h3 .tag{margin-left:8px;vertical-align:2px}
+.doc td:first-child{white-space:nowrap;font-weight:600}
+.doc td ol{margin:0;padding-left:18px}
+.doc td ol li{margin:0 0 6px}
+.doc .rk{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:18px;padding:0 7px;border-radius:4px;background:#D9EAD9;color:#1D5A2B;white-space:nowrap}
+.doc .uc{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:18px;padding:0 7px;border-radius:4px;background:#F3E0C3;color:#71440B;white-space:nowrap}
+.doc .k{font-family:'JetBrains Mono',monospace;font-size:12px;white-space:nowrap}
+</style>
+</helmet>
+<div class="doc" style="width: 2400px; min-height: 2300px; box-sizing: border-box; padding: 56px; display: flex; flex-direction: column; gap: 40px"><div style="display: flex; flex-direction: column; gap: 14px"><div class="eyebrow">Final · rules</div><h2>Rules: states, fields, keys, folds, platforms</h2><p class="lead" style="max-width: 1500px">The plugin decides every state and sends it as a field; the UI only draws it. The Mac, iPhone and iPad show the same card. Components are listed in build order.</p></div><section class="panel"><h3>Open points · rulings</h3><table><thead><tr><th>Point</th><th></th><th>Ruling, or the options</th></tr></thead><tbody><tr><td>a · Keys: confidence vs options</td><td><span class="uc">your call</span><p style="margin-top: 6px">Boards draw option 1 until you decide.</p></td><td><ol><li><b>Options take a–d in guide sessions; digits 1–3 always rate.</b> One rule on every guide card. Cost: the choice card has different keys in guide sessions than elsewhere. <i>Recommended.</i></li><li><b>Confidence on ⌥1–⌥3; options keep 1–4.</b> Also works while typing. Cost: ⌥1–⌥3 are Allow / Always / Reject on the permission card, which can be docked at the same time; on a Mac ⌥ plus a digit types ¡ ™ £ in text fields.</li><li><b>g / t / s.</b> No clash with digits. Cost: dead while typing, and English-only mnemonics.</li><li><b>Digits follow focus</b>: options until one is picked, then confidence. No new keys. Cost: modal; the same key does two things a second apart.</li></ol></td></tr><tr><td>b · Fixing a wrong pick or a mis-hit chip</td><td><span class="rk">ruled</span></td><td>A pick never sends, so a wrong line is fixed by moving or picking again. A chip holds the answer for <b>2 s</b> while a bar runs out under the card: ⌘Z or Undo goes back to the pick; another digit changes the rating and restarts the bar. Then the plugin grades it. There is no undo after the reveal, because the answer has been seen; the guide can ask again. <span class="uc">your call</span> only on the length: 2 s proposed, 0 means no hold.</td></tr><tr><td>c · Map: pane or strip</td><td><span class="rk">ruled</span></td><td>The map is the <b>Tour tab of the right panel</b>, next to Context; a guide session opens the panel on Tour. It shows as a pane when the main column (window minus rail and sessions list) is <b>960 px or wider</b> and the panel is open, which keeps the transcript at about 690 px. Otherwise it is the header strip, and a click opens the same tree as a popover.</td></tr><tr><td>d · A Next step button?</td><td><span class="rk">ruled</span></td><td>No permanent Next. The guide moves on by itself after every graded answer; the reveal is the pause. When a step has no check, the plugin adds a <code>continue</code> action, drawn as the only primary: <b>Continue ⌘↩</b> (⌘↩ continues only while the composer is empty).</td></tr><tr><td>e · Range and text answers on the chip</td><td><span class="rk">ruled</span></td><td><b>Range: yes.</b> Chips stay off while ⇧ is held or a drag is under way and turn on once the range has both ends; then a chip sends. <b>Text “why”: no.</b> Chips only rate, ⌘↩ sends, and ⌘↩ without a rating moves focus to the chips. On the phone, a text answer shows the three ratings as a segmented control above Send.</td></tr></tbody></table></section><p class="lead" style="max-width: none"><b>4 and 5 on iPhone and iPad, no boards:</b> controls are a row of capsules under the latest step (Continue first when the plugin sends it); the map opens from the step count under the title as a sheet on iPhone and as the header strip’s popover on iPad.</p><div class="grid2"><section class="panel"><h3>1 · Code excerpt with line pick</h3><table><tbody><tr><td>States</td><td>asking (docked, warning tone) · line picked · range picked · waiting for nvim · sending (2 s hold) · answered (quiet record in the transcript)</td></tr><tr><td>Fields</td><td><code>file</code> <code>commit</code> <code>range</code> · <code>pick</code>: line | range | candidates | nvim · <code>candidates</code> · <code>cursor</code> · <code>picked</code> · <code>folds</code> · <code>marks</code> (after grading only) · <code>state</code> · <code>fold</code></td></tr><tr><td>Plugin decides</td><td>The state, the range and folds shown, the pick mode, every mark and its label. The text is the file at the commit, never the work tree.</td></tr><tr><td>Keys (Mac)</td><td><span class="k">↑↓</span> line · <span class="k">⇧↑↓</span> or drag: range · <span class="k">↩</span> or click: pick · <span class="k">⌘O</span> Open in nvim · <span class="k">⌥Q</span> fold · typing goes to Other</td></tr></tbody></table></section><section class="panel"><h3>2 · Answer and reveal</h3><table><tbody><tr><td>States</td><td>correct · close · wrong · sure-and-wrong · checking (a typed answer waiting for the guide)</td></tr><tr><td>Fields</td><td><code>verdict</code>: correct | close | wrong · <code>verdict_label</code> · <code>flag</code>: sure_wrong · <code>note</code> · <code>yours</code> {lines, confidence} · <code>answer</code> {lines} · <code>why</code> · <code>ref</code> path:line · <code>grading</code>: instant | pending</td></tr><tr><td>Plugin decides</td><td>Correct, close or wrong (what counts as close, e.g. an overlapping range), and sure-and-wrong. The UI draws a ✓ badge, a half-disc badge or a ✕ badge; sure-and-wrong adds a red confidence tag and the plugin’s one-line note.</td></tr><tr><td>Placement</td><td>In place: the asking card becomes the record, marks on its lines, then verdict, one line of why (clamped to 2), the path. <span class="k">⌘O</span> opens the path in nvim.</td></tr></tbody></table></section><section class="panel"><h3>3 · Confidence</h3><table><tbody><tr><td>States</td><td>off (nothing picked) · ready · sending (hold, ⌘Z) · set (text answers: rated, not sent) · stored (small tag in the record)</td></tr><tr><td>Fields</td><td><code>levels</code> ["guess", "think so", "sure"] · <code>value</code> · <code>sends</code> (true for line, range and choice; false for text) · <code>hold_ms</code> 2000 · <code>required</code> true</td></tr><tr><td>Plugin decides</td><td>Whether a rating is required and whether a chip sends; it stores the value with the answer. Sure-and-wrong is its call, not the UI’s.</td></tr><tr><td>Keys</td><td><span class="k">1–3</span> rate and send (pending ruling a) · <span class="k">⌘Z</span> undo during the hold · <span class="k">⌘↩</span> sends a text answer</td></tr></tbody></table></section><section class="panel"><h3>4 · Step controls</h3><table><tbody><tr><td>States</td><td>under the latest step only · hidden while a question is open · Go deeper pressed (aside open) · an action disabled (42%) · Continue present or not</td></tr><tr><td>Fields</td><td><code>step</code> · <code>actions</code>: test_me, show_me, go_deeper, smaller_steps, continue, each {label, enabled} · <code>pressed</code> · <code>aside</code> {step, title, open}</td></tr><tr><td>Plugin decides</td><td>Which actions show, which is enabled, whether Continue exists, whether an aside is open. Each button is a fixed request to the guide node.</td></tr><tr><td>Keys</td><td><span class="k">⌥T</span> test me · <span class="k">⌥S</span> show me · <span class="k">⌥D</span> go deeper · <span class="k">⌥M</span> smaller steps · <span class="k">⌘↩</span> continue (empty composer) · <span class="k">⎋</span> leaves an aside</td></tr></tbody></table></section><section class="panel"><h3>5 · Concept map with progress</h3><table><tbody><tr><td>States</td><td>per concept: known · shaky · missed · current · not yet. Shown as: pane (Tour tab) · header strip · popover</td></tr><tr><td>Fields</td><td><code>concepts</code> [{id, label, state, step}] · <code>edges</code> (from the run’s tour.json) · <code>current</code> · <code>offers</code> per concept: ask_again, go_back · <code>counts</code></td></tr><tr><td>Plugin decides</td><td>Every state and the current concept. For reference only, its rule today: correct + sure → known; correct + guess or think so → shaky; close → shaky; wrong → missed; sure-and-wrong → missed and asked again later.</td></tr><tr><td>Drawn as</td><td>A tree in tour order; an edge to another branch is a ↗ chip. Filled ✓ · half disc · ring ✕ · ring with a dot and the row selected · dashed ring. A click opens only the offers the plugin sent.</td></tr><tr><td>Keys</td><td><span class="k">⌘⇧M</span> shows or hides the panel (proposal; use the panel’s own key if it has one) · <span class="k">↑↓ ↩</span> inside the tree</td></tr></tbody></table></section><section class="panel"><h3>Fold behaviour (question card rules, decided 19 Nov)</h3><table><tbody><tr><td>Full</td><td>Mac: the whole range, in a tall window. iPad: capped at 60% of the column. iPhone: drag the peek up.</td></tr><tr><td>Peek</td><td>Mac: opens by itself when the full card would take more than ~45% of the pane; six lines around the cursor and “All N lines ⌥Q”. iPhone: the default, three lines around the pick plus the capsules. Scrolling the transcript drops full to peek, never further.</td></tr><tr><td>Bar</td><td>Mac: ⌥Q. iPhone: drag the peek down. The bar keeps the pick (“line 32 · 1–3 rate, send”); on the phone a tap opens the peek to rate.</td></tr><tr><td>⌥Q</td><td>Toggles full or peek ⇄ bar on Mac and on iPad with a keyboard.</td></tr><tr><td>Composer</td><td>Always the question’s Other in every fold state: typed words are an answer the guide grades.</td></tr><tr><td>After</td><td>An answered card leaves the dock and stays in the transcript as a record; the dock is free again.</td></tr></tbody></table></section></div><section class="panel"><h3>Mac · iPhone · iPad</h3><table><thead><tr><th></th><th>Mac</th><th>iPhone</th><th>iPad</th></tr></thead><tbody><tr><td>Pick</td><td>Keys or click; ⇧ or drag for a range</td><td>Tap a line, ▲ ▼ to nudge; Line / Range segment, then tap the last line</td><td>Touch as iPhone; with a keyboard as Mac</td></tr><tr><td>Excerpt</td><td>12 px mono, 19 px rows, long lines end in “…” (full on hover)</td><td>34 pt rows, long lines wrap, common indent removed</td><td>34 pt rows, eight lines in full</td></tr><tr><td>Confidence</td><td>Chips with 1–3</td><td>Three capsules; a tap sends</td><td>Capsules with 1–3 shown</td></tr><tr><td>Open the file</td><td>Open in nvim ⌘O</td><td>Open on Mac (opens nvim there)</td><td>Open on Mac</td></tr><tr><td>Reveal</td><td>Full path:line</td><td>Short path</td><td>Full path</td></tr><tr><td>4 Controls</td><td>Buttons with ⌥ keys under the step</td><td>A row of capsules under the latest step, Continue first; Go deeper opens the aside inline</td><td>As Mac; keys with a keyboard</td></tr><tr><td>5 Map</td><td>Tour tab ≥ 960 px, else header strip</td><td>Tap “step 5 of 8” under the title: a sheet with the tree; a concept tap shows its offers</td><td>Header strip and popover; the pane when the transcript column is 960 pt or wider</td></tr></tbody></table></section><p class="note">All keys are proposals; <code>docs/shortcuts.md</code> decides. They avoid ⌘1–⌘8 (sections), ⌥1–⌥3 (permission card) and ⌘K.</p></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2400,"height":2300}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

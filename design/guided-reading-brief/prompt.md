@@ -1,6 +1,6 @@
 # Brief for Claude Design · guided reading round 1
 
-Not sent yet (26 Nov 2026): the Chrome extension was not connected. Send it as one paragraph (a newline sends the chat message), in the chat of the canvas https://claude.ai/artifact/DwTbyRojLTBm1dTuj2j74w. Then one follow-up to settle the pick.
+Sent on 26 Nov 2026 as one paragraph in the chat of the canvas https://claude.ai/artifact/DwTbyRojLTBm1dTuj2j74w (chat 864f0eb9-c8cd-468a-9ce9-4baff23c36cb). The follow-up as sent is below the template; the ruling is in `design/features/guided-reading/rules.md`.
 
 ## Round 1
 
@@ -9,3 +9,9 @@ Hi! New feature canvas "Clubmate · guided reading". Page Today: real test-app s
 ## Follow-up (settle the pick)
 
 Thanks. Picks: <per component: direction and changes>. Please put the picked boards on page r1 as the final set (delete the rest), and write the rules in one board: states, keys, what the plugin sends, Mac/iPhone/iPad differences.
+
+## Follow-up as sent (26 Nov 2026)
+
+The user had not picked, so the designer's own picks became the final set.
+
+Thanks, a strong round. The user has not picked yet, so please take your own picks as the final set and keep the rejected directions as small side panes only where they help the user compare (I export the full round to the repo before you change it). Please: (1) open every board and fix text that overflows or gets clipped (you said you did not check); (2) make the final set on page r1, at most 6 boards: the picked direction of 1–5 at 1280 Mate dark, 640 Mate light, iPhone dark/light, iPad, and one new board "Rules" (delete what is not needed); (3) on the Rules board write: each component's states, the fields the plugin sends (and which states it decides: correct / close / wrong, sure-and-wrong, known / shaky / missed / current), the keys, the fold behaviour (full, peek, bar, ⌥Q), and the Mac / iPhone / iPad differences, plus one line for how 4 and 5 look on the phone and iPad (no boards needed); (4) settle these open points with a ruling and, where it is truly the user's call, list the options instead of picking: (a) key clash, digits 1–3 for confidence vs the choice card's 1–4 options (your letters a–d, or confidence on other keys such as ⌥1–⌥3 or g / t / s, or digits per card focus); (b) with "the chip sends", how does the user fix a wrong pick or a mis-hit chip (undo time, or none); (c) the map switch from side pane to header strip (which width, and what the side pane shares space with: the Context panel?); (d) is there a "Next step" primary in the step controls, or does the guide move on by itself; (e) a range answer and a text "why" answer: do they also send on the chip. Then reply with the ruling per component in one line each and the list of choices left to the user.
