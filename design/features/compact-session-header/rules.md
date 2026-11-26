@@ -35,7 +35,7 @@ Boards (PNG next to each `.dc.html`; all on one page in `boards.html`, config `d
 - **Rail and section keys** on the boards' rail labels (Code ⌘1, Agents ⌘3, …) are drawing labels, not a rebind.
 - **Review at 640.** The chat said "Context and Review always stay"; `r1-A-640` heaviest puts Review into •••. The board wins: at 640 only Context is sure to stay.
 
-- **Top bar 32 pt, not 28.** Built as the app's own bar under a hidden title bar; its height is twice the distance from the window top to the traffic lights' centre, which is 32 pt on macOS 27 (a plain title bar there). A 28 pt bar would put the pills 2 pt above the lights' centre line.
+- **Top bar 32 pt, not 28.** Built as the app's own bar under a hidden title bar; its height is twice the distance from the window top to the traffic lights' centre, which is 32 pt on macOS 27 (a plain title bar there). A 28 pt bar would put the pills 2 pt above the lights' centre line. The user kept 32 pt (26 Nov 2026).
 - **The aside keeps its two-row header.** The ruling covers a session's own header only; the aside's header (Send back, Full page, Keep, ×) stays as it was, so its actions do not fold into ••• in the narrow beside pane. The plugin marks the compact header with `compact: true`.
 
 ## Where it lands (agent's note, not the designer's)
