@@ -479,7 +479,7 @@ Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode 
 
 | Group | Keys | Action | Where defined |
 |---|---|---|---|
-| Find | ,ff / ,fg / ,fb / ,fh | Files, live grep, buffers, help tags (snacks picker) | `lua/clubmate/keymaps.lua` |
+| Find | ,ff / ,fg / ,fb / ,fh | Files, live grep (plain text; ⌥R in the picker toggles regex), buffers, help tags (snacks picker) | `lua/clubmate/keymaps.lua` |
 | Find | ,fr / ,fs / ,fi / ,fd | LSP references, document symbols, implementations, buffer diagnostics | `lua/clubmate/keymaps.lua` |
 | Find | ,fy | Registers | `lua/clubmate/keymaps.lua` |
 | Find | ,, | Resume the last picker | `lua/clubmate/keymaps.lua` |

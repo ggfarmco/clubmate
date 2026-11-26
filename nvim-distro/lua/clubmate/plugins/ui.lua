@@ -13,7 +13,7 @@ return {
         layout = { preset = "vertical", layout = { width = 0.8, height = 0.85, min_width = 80, backdrop = 60 } },
         sources = {
           files = { hidden = true, exclude = { "vendor", "node_modules" } },
-          grep = { hidden = true, exclude = { "vendor", "node_modules" } },
+          grep = { hidden = true, regex = false, exclude = { "vendor", "node_modules" } },
         },
       },
       styles = {
