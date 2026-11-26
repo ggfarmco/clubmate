@@ -1298,7 +1298,7 @@ func TestViewShortcutsDeclared(t *testing.T) {
 	en := &entry{Options: []acp.PermissionOption{{OptionID: "once", Kind: "allow_once"}, {OptionID: "always", Kind: "allow_always"}, {OptionID: "reject", Kind: "reject_once"}, {OptionID: "never", Kind: "reject_always"}}}
 	card := sdui.PermissionCard("p", "permission-1", sdui.PermissionCardProps{Text: "Run?", Options: permissionOptions("ws", en, toolFields{})})
 	fields := []elicitField{{Key: "q", Type: fieldChoice, Options: options}}
-	shortcuttest.RequireDeclared(t, append(fieldNodes("q", fields, nil, optionAsides{}, ""), toggle, card)...)
+	shortcuttest.RequireDeclared(t, append(fieldNodes("q", fields, labelsEnglish, nil, optionAsides{}, ""), toggle, card)...)
 }
 
 func TestNeedsAnswer(t *testing.T) {
@@ -1413,5 +1413,38 @@ func TestEntryShapeMatchesTheBuiltNode(t *testing.T) {
 		show, tool := entryShape(sc, entries, i)
 		assert.Equal(t, ok, show, en.ID)
 		assert.Equal(t, ok && n.Type == "toolCard" && n.Props["standalone"] != true, tool, en.ID)
+	}
+}
+
+func TestElicitationLabelsFollowQuestionLanguage(t *testing.T) {
+	t.Parallel()
+	note := "Type your own answer, or add a note to the option you chose above (optional)."
+	cases := []struct {
+		name, message, title, option string
+		want                         elicitLabels
+	}{
+		{"russian", "Ответь на вопросы.", "Сколько держать резерв?", "10 минут", labelsRussian},
+		{"english", "Please answer the questions.", "How long to hold stock?", "10 minutes", labelsEnglish},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			params := rawJSON(t, map[string]any{"mode": "form", "message": tc.message, "requestedSchema": map[string]any{"type": "object", "properties": map[string]any{
+				"question_0":        map[string]any{"type": "string", "title": "Hold", "description": tc.title, "oneOf": []map[string]any{{"const": tc.option, "title": tc.option}}},
+				"question_0_custom": map[string]any{"type": "string", "title": "Other", "description": note},
+			}}})
+			el, err := parseElicitation(params)
+			require.NoError(t, err)
+			require.NotNil(t, el.Labels)
+			assert.Equal(t, tc.want, *el.Labels)
+
+			en := &entry{Kind: entryElicitation, ID: "elicitation-1", Elicitation: el}
+			v := transcriptView{Session: record{ID: "agt_1", Agent: agentClaude}, Entries: []*entry{en}}
+			card := elicitationCard(screen{View: v, Pending: map[string]bool{en.ID: true}}, en)
+			other := nodesOf(card, "choice")[0].Props["other"].(sdui.ChoiceOther)
+			assert.Equal(t, []string{tc.want.Other, tc.want.Answer}, []string{other.Label, other.Placeholder})
+			buttons := nodesOf(card, "button")
+			assert.Equal(t, []any{tc.want.Send, tc.want.Skip}, []any{buttons[0].Props["label"], buttons[1].Props["label"]})
+		})
 	}
 }

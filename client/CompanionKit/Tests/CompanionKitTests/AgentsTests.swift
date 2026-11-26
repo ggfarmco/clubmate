@@ -1401,6 +1401,24 @@ final class TranscriptCacheTests: XCTestCase {
         _ = await store.toolCall("t1", in: "s")
         XCTAssertEqual(runner.toolCalls.count, 2)
     }
+
+    func testElicitationLabelsDecodeWithEnglishFallback() throws {
+        var russian = Elicitation.Labels()
+        (russian.other, russian.answer, russian.send, russian.skip, russian.next) = ("Другое…", "Ваш ответ", "Отправить", "Пропустить", "Далее")
+        (russian.back, russian.skipped, russian.cancelled, russian.answered) = ("Назад", "Пропущено", "Отменено", "Отвечено")
+        var partial = Elicitation.Labels()
+        (partial.other, partial.send) = ("Другое…", "Отправить")
+        let cases: [(String, Elicitation.Labels)] = [
+            (#"{"mode":"form","labels":{"other":"Другое…","answer":"Ваш ответ","send":"Отправить","skip":"Пропустить","next":"Далее","back":"Назад","skipped":"Пропущено","cancelled":"Отменено","answered":"Отвечено"}}"#, russian),
+            (#"{"mode":"form","labels":{"other":"Другое…","send":"Отправить"}}"#, partial),
+            (#"{"mode":"form"}"#, Elicitation.Labels()),
+        ]
+        for (json, want) in cases {
+            let request = try JSONDecoder.clubmate.decode(Elicitation.Request.self, from: Data(json.utf8))
+            XCTAssertEqual(request.labels, want, json)
+        }
+        XCTAssertEqual(Elicitation.Labels().other, "Other…")
+    }
 }
 
 func waitUntilAsync(timeout: Duration = .seconds(5), _ condition: @Sendable () async -> Bool) async throws {

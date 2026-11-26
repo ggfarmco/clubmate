@@ -219,7 +219,7 @@ struct AsideStrip: View {
                             .accessibilityIdentifier("aside.strip." + option.value)
                     }
                     if pinned.other {
-                        chip("Other…", on: pinned.otherOn, marked: false, action: other)
+                        chip(pinned.otherLabel, on: pinned.otherOn, marked: false, action: other)
                             .accessibilityIdentifier("aside.strip.other")
                     }
             }

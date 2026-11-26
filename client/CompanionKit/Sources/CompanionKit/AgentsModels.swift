@@ -923,15 +923,48 @@ public struct Notice: Sendable, Equatable {
 }
 
 public struct Elicitation: Sendable, Equatable {
+    public struct Labels: Decodable, Sendable, Equatable {
+        public var other = "Other…"
+        public var answer = "Your answer"
+        public var send = "Send"
+        public var skip = "Skip"
+        public var next = "Next"
+        public var back = "Back"
+        public var skipped = "Skipped"
+        public var cancelled = "Cancelled"
+        public var answered = "Answered"
+
+        enum CodingKeys: String, CodingKey {
+            case other, answer, send, skip, next, back, skipped, cancelled, answered
+        }
+
+        public init() {}
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            let english = Labels()
+            other = try c.decodeIfPresent(String.self, forKey: .other) ?? english.other
+            answer = try c.decodeIfPresent(String.self, forKey: .answer) ?? english.answer
+            send = try c.decodeIfPresent(String.self, forKey: .send) ?? english.send
+            skip = try c.decodeIfPresent(String.self, forKey: .skip) ?? english.skip
+            next = try c.decodeIfPresent(String.self, forKey: .next) ?? english.next
+            back = try c.decodeIfPresent(String.self, forKey: .back) ?? english.back
+            skipped = try c.decodeIfPresent(String.self, forKey: .skipped) ?? english.skipped
+            cancelled = try c.decodeIfPresent(String.self, forKey: .cancelled) ?? english.cancelled
+            answered = try c.decodeIfPresent(String.self, forKey: .answered) ?? english.answered
+        }
+    }
+
     public struct Request: Decodable, Sendable, Equatable {
         public var mode = ""
         public var message = ""
         public var url: String?
         public var fields: [Field] = []
         public var needsAnswer = false
+        public var labels = Labels()
 
         enum CodingKeys: String, CodingKey {
-            case mode, message, url, fields, needsAnswer
+            case mode, message, url, fields, needsAnswer, labels
         }
 
         init() {}
@@ -943,6 +976,7 @@ public struct Elicitation: Sendable, Equatable {
             url = try c.decodeIfPresent(String.self, forKey: .url)
             fields = (try? c.decodeIfPresent([Field].self, forKey: .fields)) ?? []
             needsAnswer = try c.decodeIfPresent(Bool.self, forKey: .needsAnswer) ?? false
+            labels = (try? c.decodeIfPresent(Labels.self, forKey: .labels)) ?? Labels()
         }
     }
 
@@ -1032,15 +1066,15 @@ public struct Elicitation: Sendable, Equatable {
     public var answer: String? {
         guard let response else { return nil }
         switch response.action {
-        case "decline": return isURL ? "Declined" : "Skipped"
+        case "decline": return isURL ? "Declined" : request.labels.skipped
         case "accept" where isURL: return completed ? "Done" : "Opened in the browser"
         case "accept":
             let parts = request.fields.compactMap { field -> String? in
                 guard let value = response.content?[field.key] else { return nil }
                 return Self.text(field, value)
             }
-            return parts.isEmpty ? "Answered" : parts.joined(separator: " · ")
-        default: return "Cancelled"
+            return parts.isEmpty ? request.labels.answered : parts.joined(separator: " · ")
+        default: return request.labels.cancelled
         }
     }
 

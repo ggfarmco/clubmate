@@ -233,7 +233,7 @@ func decisionChoice(sid string, it openItem, number int, d openDraft, cursor str
 	for i, o := range it.Options {
 		options = append(options, sdui.ChoiceOption{Value: o.Label, Label: o.Label, Description: o.Description, Hint: strconv.Itoa(i + 1), On: ans.Option == o.Label || slices.Contains(ans.Options, o.Label)})
 	}
-	other := &sdui.ChoiceOther{ID: openOtherID(sid, it.ID), Label: otherLabel, Placeholder: otherPlaceholder, Hint: "o", On: d.others[it.ID], Value: ans.Other}
+	other := &sdui.ChoiceOther{ID: openOtherID(sid, it.ID), Label: labelsEnglish.Other, Placeholder: labelsEnglish.Answer, Hint: "o", On: d.others[it.ID], Value: ans.Other}
 	if it.ID == cursor {
 		other.Focus = d.focus
 	}

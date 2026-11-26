@@ -19,14 +19,10 @@ const (
 	actElicitOpen     = "elicitationOpen"
 	maxOptionShortcut = 9
 	customSuffix      = "_custom"
-	otherLabel        = "Other…"
-	otherPlaceholder  = "Your answer"
 	cardTone          = "warning"
 	textLines         = 4
 	questionGap       = 10
 	elicitSendKey     = "cmd+return"
-	skipHint          = "Skip answers “none of these” and ends the turn"
-	skipHintShort     = "Skip ends the turn"
 )
 
 func elicitationCard(sc screen, en *entry) sdui.Node {
@@ -43,13 +39,14 @@ func elicitationCard(sc screen, en *entry) sdui.Node {
 		decline := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/decline", "Decline", ""), actElicitDecline), "ghost")
 		return sdui.Form(id, sdui.Card(cardTone, "person.badge.key.fill", sdui.Text(el.Message), sdui.MutedText(el.URL), sdui.HStack(open, decline)))
 	}
-	children := []sdui.Node{sdui.Text(el.Message), sdui.FitScroll(sdui.WithGap(sdui.VStack(fieldNodes(id, el.Fields, sc.Prefills[en.ID], sc.Asides, en.ID)...), questionGap))}
-	submit := sdui.WithVariant(sdui.Button(id+"/submit", "Send", ""), "primary")
+	l := el.labels()
+	children := []sdui.Node{sdui.Text(el.Message), sdui.FitScroll(sdui.WithGap(sdui.VStack(fieldNodes(id, el.Fields, l, sc.Prefills[en.ID], sc.Asides, en.ID)...), questionGap))}
+	submit := sdui.WithVariant(sdui.Button(id+"/submit", l.Send, ""), "primary")
 	if !answersOnPick(el.Fields) {
 		submit = sdui.WithShortcut(submit, elicitSendKey)
 	}
-	skip := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/decline", "Skip", ""), actElicitDecline), "ghost")
-	children = append(children, sdui.HStack(submit, skip, sdui.WithShort(sdui.MutedText(skipHint), skipHintShort)))
+	skip := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/decline", l.Skip, ""), actElicitDecline), "ghost")
+	children = append(children, sdui.HStack(submit, skip, sdui.WithShort(sdui.MutedText(l.SkipHint), l.SkipHintShort)))
 	form := sdui.WithAction(sdui.Form(id, sdui.Card(cardTone, "questionmark.bubble.fill", children...)), actElicitation)
 	if el.NeedsAnswer {
 		form = sdui.WithNeedsAny(form, fieldIDs(id, el.Fields))
@@ -90,14 +87,15 @@ func docked(sc screen) bool {
 
 func elicitationOutcome(en *entry) string {
 	el, resp := en.Elicitation, en.Response
+	l := el.labels()
 	switch {
 	case resp == nil || resp.Action == acp.ElicitationCancel:
-		return "Cancelled"
+		return l.Cancelled
 	case resp.Action == acp.ElicitationDecline:
 		if el.Mode == acp.ElicitationURL {
 			return "Declined"
 		}
-		return "Skipped"
+		return l.Skipped
 	case el.Mode == acp.ElicitationURL && en.Completed:
 		return "Done"
 	case el.Mode == acp.ElicitationURL:
@@ -110,7 +108,7 @@ func elicitationOutcome(en *entry) string {
 		}
 	}
 	if len(parts) == 0 {
-		return "Answered"
+		return l.Answered
 	}
 	return strings.Join(parts, " · ")
 }
@@ -157,7 +155,7 @@ func needsAnswer(fields []elicitField) bool {
 	})
 }
 
-func fieldNodes(id string, fields []elicitField, prefill map[int]elicitPrefill, asides optionAsides, entry string) []sdui.Node {
+func fieldNodes(id string, fields []elicitField, l elicitLabels, prefill map[int]elicitPrefill, asides optionAsides, entry string) []sdui.Node {
 	questions := 0
 	for _, f := range fields {
 		if isChoice(f) {
@@ -171,7 +169,7 @@ func fieldNodes(id string, fields []elicitField, prefill map[int]elicitPrefill, 
 		switch {
 		case isChoice(f):
 			number++
-			p := choiceProps(f, otherField(id, fields, f), i == single)
+			p := choiceProps(f, otherField(id, fields, f, l), i == single)
 			if pf, ok := prefill[i]; ok {
 				markPrefill(&p, pf)
 			}
@@ -200,12 +198,12 @@ func isCustom(fields []elicitField, f elicitField) bool {
 	return ok && f.Type == fieldText && slices.ContainsFunc(fields, func(q elicitField) bool { return q.Key == base && isChoice(q) })
 }
 
-func otherField(id string, fields []elicitField, f elicitField) *sdui.ChoiceOther {
+func otherField(id string, fields []elicitField, f elicitField, l elicitLabels) *sdui.ChoiceOther {
 	i := slices.IndexFunc(fields, func(c elicitField) bool { return c.Key == f.Key+customSuffix && c.Type == fieldText })
 	if i < 0 {
 		return nil
 	}
-	return &sdui.ChoiceOther{ID: fieldNode(id, i), Label: otherLabel, Placeholder: otherPlaceholder}
+	return &sdui.ChoiceOther{ID: fieldNode(id, i), Label: l.Other, Placeholder: l.Answer}
 }
 
 func choiceProps(f elicitField, other *sdui.ChoiceOther, keys bool) sdui.ChoiceProps {

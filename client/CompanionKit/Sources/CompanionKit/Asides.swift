@@ -99,6 +99,7 @@ public struct PinnedQuestion: Sendable, Equatable {
     public let options: [Option]
     public let other: Bool
     public let otherOn: Bool
+    public let otherLabel: String
 
     init?(node: JSONValue) {
         guard node["type"]?.stringValue == "choice", let props = node["props"], let options = props["options"]?.arrayValue else { return nil }
@@ -117,6 +118,7 @@ public struct PinnedQuestion: Sendable, Equatable {
         }
         other = props["other"] != nil && props["other"] != .null
         otherOn = props["other"]?["on"]?.boolValue ?? false
+        otherLabel = props["other"]?["label"]?.stringValue ?? Elicitation.Labels().other
     }
 }
 

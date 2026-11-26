@@ -1923,12 +1923,14 @@ struct ElicitationCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var labels: Elicitation.Labels { question.request.labels }
+
     private func heading(_ field: Elicitation.Field) -> String {
         field.description.isEmpty || field.type == "text" ? field.label : field.description
     }
 
     @ViewBuilder
-    private func input(_ field: Elicitation.Field, single: Bool) -> some View {
+    private func input(_ field: Elicitation.Field, single: Bool, placeholder: String? = nil) -> some View {
         switch field.type {
         case "choice", "multi":
             ForEach(field.options) { option in
@@ -1951,7 +1953,7 @@ struct ElicitationCard: View {
         case "boolean":
             Toggle(field.label, isOn: Binding(get: { draft.toggles[field.key] ?? false }, set: { draft.toggles[field.key] = $0 }))
         default:
-            TextField(field.type == "text" ? (field.description.isEmpty ? field.label : field.description) : field.label, text: Binding(get: { draft.texts[field.key] ?? "" }, set: { draft.texts[field.key] = $0 }), axis: .vertical)
+            TextField(placeholder ?? (field.type == "text" ? (field.description.isEmpty ? field.label : field.description) : field.label), text: Binding(get: { draft.texts[field.key] ?? "" }, set: { draft.texts[field.key] = $0 }), axis: .vertical)
                 .lineLimit(1...4)
                 .keyboardType(field.type == "text" ? .default : .decimalPad)
                 .focused(focused, equals: field.key)
@@ -1969,13 +1971,13 @@ struct ElicitationCard: View {
             draft.toggleOther(other)
             focused.wrappedValue = open ? nil : other.key
         } label: {
-            ChoiceRow(title: "Other…", symbol: symbol(field, selected: open, single: single), selected: open, muted: true)
+            ChoiceRow(title: labels.other, symbol: symbol(field, selected: open, single: single), selected: open, muted: true)
         }
         .buttonStyle(.plain)
         .disabled(!answerable)
         .accessibilityAddTraits(open ? .isSelected : [])
         if open {
-            input(other, single: false)
+            input(other, single: false, placeholder: labels.answer)
         }
     }
 
@@ -2001,13 +2003,13 @@ struct ElicitationCard: View {
                     if page == 0 {
                         skip
                     } else {
-                        PlainCapsule(title: "Back", tint: .primary) { turn(to: page - 1) }
+                        PlainCapsule(title: labels.back, tint: .primary) { turn(to: page - 1) }
                             .disabled(!armed)
                     }
                 }
                 .frame(maxWidth: 110)
                 if page < questions.count - 1 {
-                    PrimaryCapsule(title: "Next") { turn(to: page + 1) }
+                    PrimaryCapsule(title: labels.next) { turn(to: page + 1) }
                         .disabled(!armed)
                 } else {
                     sendButton
@@ -2024,13 +2026,13 @@ struct ElicitationCard: View {
     }
 
     private var skip: some View {
-        PlainCapsule(title: "Skip", tint: .primary) { submit("decline", []) }
+        PlainCapsule(title: labels.skip, tint: .primary) { submit("decline", []) }
             .answering(answerable, enabled: enabled)
     }
 
     private var sendButton: some View {
         let canSend = question.canSend(draft)
-        return PrimaryCapsule(title: "Send") { submit("accept", draft.answers(question.request.fields)) }
+        return PrimaryCapsule(title: labels.send) { submit("accept", draft.answers(question.request.fields)) }
             .answering(answerable && canSend, enabled: enabled && canSend)
     }
 
