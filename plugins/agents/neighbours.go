@@ -48,6 +48,9 @@ type touched struct {
 	branch    string
 	def       string
 	base      string
+	head      string
+	baseTip   string
+	landedKey string
 	landed    bool
 	mergeBase string
 	files     []string
@@ -78,11 +81,19 @@ type overlapsAt struct {
 }
 
 type overlapCache struct {
-	mu       sync.Mutex
-	touched  map[string]touched
-	overlaps map[string]overlapsAt
-	busy     map[string]bool
-	landing  map[string]landTold
+	mu          sync.Mutex
+	touched     map[string]touched
+	flight      map[string]*touchedFlight
+	overlaps    map[string]overlapsAt
+	busy        map[string]bool
+	landing     map[string]landTold
+	landedCheck func(ctx context.Context, repo, tip, base string) bool
+}
+
+type touchedFlight struct {
+	done chan struct{}
+	t    touched
+	ok   bool
 }
 
 type landTold struct {
@@ -93,24 +104,80 @@ type landTold struct {
 }
 
 func (a *app) touchedFiles(ctx context.Context, rec record) touched {
-	c := &a.overlapCache
-	c.mu.Lock()
-	t, ok := c.touched[rec.ID]
-	c.mu.Unlock()
-	if ok && time.Since(t.at) < touchedMaxAge {
-		return t
+	return a.overlapCache.shared(ctx, rec.ID, func() touched { return a.computeTouched(ctx, rec) })
+}
+
+func (c *overlapCache) shared(ctx context.Context, id string, compute func() touched) touched {
+	for {
+		c.mu.Lock()
+		if t, ok := c.touched[id]; ok && time.Since(t.at) < touchedMaxAge {
+			c.mu.Unlock()
+			return t
+		}
+		f, busy := c.flight[id]
+		if !busy {
+			f = &touchedFlight{done: make(chan struct{})}
+			if c.flight == nil {
+				c.flight = map[string]*touchedFlight{}
+			}
+			c.flight[id] = f
+			c.mu.Unlock()
+			return c.lead(ctx, id, f, compute)
+		}
+		c.mu.Unlock()
+		select {
+		case <-f.done:
+			if f.ok {
+				return f.t
+			}
+		case <-ctx.Done():
+			return touched{at: time.Now()}
+		}
 	}
-	t = a.computeTouched(ctx, rec)
-	if ctx.Err() != nil {
-		return t
-	}
+}
+
+func (c *overlapCache) lead(ctx context.Context, id string, f *touchedFlight, compute func() touched) touched {
+	defer close(f.done)
+	f.t = compute()
 	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.flight, id)
+	if f.ok = ctx.Err() == nil; !f.ok {
+		return f.t
+	}
 	if c.touched == nil {
 		c.touched = map[string]touched{}
 	}
-	c.touched[rec.ID] = t
+	old := c.touched[id]
+	f.t.landedKey, f.t.landed = old.landedKey, old.landed
+	c.touched[id] = f.t
+	return f.t
+}
+
+func (a *app) landedOf(ctx context.Context, id string, t touched) bool {
+	if t.head == "" || t.baseTip == "" {
+		return false
+	}
+	key := t.head + "\x00" + t.baseTip
+	if t.landedKey == key {
+		return t.landed
+	}
+	c := &a.overlapCache
+	check := c.landedCheck
+	if check == nil {
+		check = gitrepo.LandedIn
+	}
+	landed := check(ctx, t.primary, t.head, t.baseTip)
+	if ctx.Err() != nil {
+		return landed
+	}
+	c.mu.Lock()
+	if e, ok := c.touched[id]; ok && e.head == t.head && e.baseTip == t.baseTip {
+		e.landedKey, e.landed = key, landed
+		c.touched[id] = e
+	}
 	c.mu.Unlock()
-	return t
+	return landed
 }
 
 func (a *app) computeTouched(ctx context.Context, rec record) touched {
@@ -136,7 +203,10 @@ func (a *app) computeTouched(ctx context.Context, rec record) touched {
 		return t
 	}
 	t.mergeBase, t.files, t.untracked = got.MergeBase, got.Files, got.Untracked
-	t.landed = t.branch != "" && f.Checkout.Head != got.MergeBase && gitrepo.LandedIn(ctx, t.primary, f.Checkout.Head, t.base)
+	if t.branch != "" && f.Checkout.Head != got.MergeBase {
+		t.head = f.Checkout.Head
+		t.baseTip, _ = gitrepo.ResolveCommit(ctx, t.primary, t.base)
+	}
 	t.ok = true
 	return t
 }
@@ -170,9 +240,10 @@ func (a *app) neighboursOf(ctx context.Context, id string, self touched, files [
 	}
 	got := a.touchedAll(ctx, cands)
 	var out []neighbour
+	var outTouched []touched
 	for i, n := range cands {
 		nt := got[i]
-		if !nt.ok || nt.landed || nt.primary != self.primary || nt.real == self.real || nt.branch == "" || nt.branch == nt.def || nt.branch == self.base || self.branch != "" && self.branch == nt.base {
+		if !nt.ok || nt.primary != self.primary || nt.real == self.real || nt.branch == "" || nt.branch == nt.def || nt.branch == self.base || self.branch != "" && self.branch == nt.base {
 			continue
 		}
 		shared := common(files, nt.files)
@@ -180,24 +251,38 @@ func (a *app) neighboursOf(ctx context.Context, id string, self touched, files [
 			continue
 		}
 		out = append(out, neighbour{id: n.ID, title: childName(n), branch: nt.branch, worktree: n.Worktree, mergeBase: nt.mergeBase, created: n.CreatedAt, files: shared, untracked: common(shared, nt.untracked)})
+		outTouched = append(outTouched, nt)
 	}
+	landed := make([]bool, len(out))
+	limited(len(out), func(i int) { landed[i] = a.landedOf(ctx, out[i].id, outTouched[i]) })
+	kept := out[:0]
+	for i, n := range out {
+		if !landed[i] {
+			kept = append(kept, n)
+		}
+	}
+	out = kept
 	slices.SortFunc(out, func(x, y neighbour) int { return cmp.Or(x.created.Compare(y.created), strings.Compare(x.id, y.id)) })
 	return out
 }
 
 func (a *app) touchedAll(ctx context.Context, recs []record) []touched {
 	out := make([]touched, len(recs))
+	limited(len(recs), func(i int) { out[i] = a.touchedFiles(ctx, recs[i]) })
+	return out
+}
+
+func limited(n int, run func(int)) {
 	slots := make(chan struct{}, touchedWorkers)
 	var wg sync.WaitGroup
-	for i, rec := range recs {
+	for i := range n {
 		slots <- struct{}{}
 		wg.Go(func() {
 			defer func() { <-slots }()
-			out[i] = a.touchedFiles(ctx, rec)
+			run(i)
 		})
 	}
 	wg.Wait()
-	return out
 }
 
 func common(sorted, other []string) []string {
@@ -543,7 +628,21 @@ func (a *app) refreshOverlaps(workspaceID string) {
 			return x.Session == y.Session && x.Branch == y.Branch && x.More == y.More && slices.Equal(x.Files, y.Files)
 		})
 	}
+	a.pruneOverlaps()
 	if changed {
 		a.kick(workspaceID)
 	}
+}
+
+func (a *app) pruneOverlaps() {
+	live := map[string]bool{}
+	for _, s := range a.allSessions() {
+		live[s.snapshot().ID] = true
+	}
+	c := &a.overlapCache
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	maps.DeleteFunc(c.overlaps, func(id string, _ overlapsAt) bool { return !live[id] })
+	maps.DeleteFunc(c.touched, func(id string, _ touched) bool { return !live[id] })
+	maps.DeleteFunc(c.landing, func(_ string, lt landTold) bool { return !live[lt.lander] })
 }

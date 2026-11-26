@@ -47,7 +47,9 @@ func (f *fixture) topLevel(t *testing.T, workspace, branch, prompt string) child
 }
 
 func gitOut(dir string, args ...string) string {
-	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).Output()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
+	out, err := cmd.Output()
 	if err != nil {
 		return ""
 	}
@@ -245,4 +247,27 @@ func TestNeighboursSkipChainLandedGoneAndClosed(t *testing.T) {
 	for _, id := range []string{kid, landed.Session, gone.Session, closed.Session} {
 		assert.NotContains(t, last, id)
 	}
+}
+
+func TestNeighboursToldOnlyAfterPromptReachedAgent(t *testing.T) {
+	t.Parallel()
+	steps := []map[string]any{
+		{"match": "touch-a", "run": "echo x >> a.go"},
+		{"match": "boom", "fail": "Internal error: API Error: 500 Internal server error", "errorKind": "server_error"},
+	}
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_TOUCHED_AGE=0s"}, map[string]any{"resume": true, "prompt": steps}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	workspace := f.workspace(t, newRepo(t))
+	self := f.topLevel(t, workspace, "self", "touch-a")
+	other := f.topLevel(t, workspace, "other", "touch-a")
+	selfID := f.agentID(t, workspace, self.Session)
+
+	f.prompt(t, workspace, self.Session, "boom")
+	f.waitStatus(t, workspace, self.Session, "error")
+	f.prompt(t, workspace, self.Session, "next")
+	f.waitStatus(t, workspace, self.Session, "done")
+
+	got := f.neighbourBlocks(t, selfID)
+	require.Len(t, got, 3)
+	assert.Contains(t, got[1], other.Session)
+	assert.Equal(t, got[1], got[2])
 }

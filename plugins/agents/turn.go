@@ -338,9 +338,6 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	s.recordSentLocked(promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, FromTitle: fromTitle, Voice: args.Voice, Review: args.Review, Gate: cmp.Or(args.Message, doneMessage(args, args.Gate || s.sending != nil && s.sending.Gate))})
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
-	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
-	a.markTold(ctx, s, told)
-	cancel()
 	req.Prompt = sendable(req.Prompt)
 	var res acp.PromptResponse
 	answered := acp.WithAnswered(context.Background(), func() {
@@ -357,6 +354,11 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	if retry, ok := a.retryTurn(s, rec, epoch, err); ok {
 		res = acp.PromptResponse{}
 		err = p.conn.Call(answered, acp.MethodSessionPrompt, retry, &res)
+	}
+	if err == nil {
+		ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
+		a.markTold(ctx, s, told)
+		cancel()
 	}
 	s.mu.Lock()
 	s.answered = true
