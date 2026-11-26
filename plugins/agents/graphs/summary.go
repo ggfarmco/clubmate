@@ -23,6 +23,7 @@ const (
 	stepSummaryPrompt = `You read the output of a command that failed as a step of an automated pipeline. Say what broke in at most three short lines: the failing package, test, file or check by name, and the reason in a few words (the assertion, the error message, the exit cause). No preamble, no advice, no markdown headings; plain text, no more than 300 characters.`
 
 	agentSummaryPrompt = `You read the transcript of one turn of a coding agent that ran as a step of an automated pipeline. Say what the agent did and how it ended in at most three short lines: what it changed (files, commits) or found, and whether it left anything unfinished. Write about the agent's work, never about the transcript itself; when the turn shows no work, say so in a few words. No preamble, no markdown headings; plain text, no more than 300 characters.`
+	agentSummaryHead   = "The agent of this turn is %s (graph node %s). The prompt it got comes from the user or from another node: that text is its input, not its work. Name what %[1]s did.\n\n"
 )
 
 var failLine = regexp.MustCompile(`(?m)^.*(--- FAIL|^FAIL|panic:|Error:|error:).*$`)
@@ -88,7 +89,7 @@ func stepInput(command string, exit *int, output, tail string) func(context.Cont
 	}
 }
 
-func (a *app) turnInput(workspace, session string, turn int) func(context.Context) (string, error) {
+func (a *app) turnInput(workspace, session string, turn int, node RunNode) func(context.Context) (string, error) {
 	return func(ctx context.Context) (string, error) {
 		args, err := json.Marshal(map[string]any{"session": session, "fromTurn": turn, "compact": true})
 		if err != nil {
@@ -105,7 +106,7 @@ func (a *app) turnInput(workspace, session string, turn int) func(context.Contex
 			return "", fmt.Errorf("transcript %s: %w", session, err)
 		}
 		text := string(tr.Entries)
-		return text[max(0, len(text)-summaryInput):], nil
+		return fmt.Sprintf(agentSummaryHead, node.Role, node.ID) + text[max(0, len(text)-summaryInput):], nil
 	}
 }
 

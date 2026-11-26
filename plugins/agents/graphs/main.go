@@ -125,7 +125,7 @@ func newApp() *app {
 		expanded:  map[string]map[string]bool{},
 		subs:      map[string]string{},
 		ready:     make(chan struct{}),
-		now:       time.Now,
+		now:       func() time.Time { return time.Now().UTC() },
 	}
 	a.runCommand = a.callCommand
 	a.sessions = a.agentSessions
@@ -581,6 +581,7 @@ func (a *app) countTurn(ctx context.Context, p api.Turn, source string) {
 	type closed struct {
 		run  string
 		move int
+		node RunNode
 	}
 	var ended []closed
 	for _, r := range a.runs {
@@ -594,19 +595,19 @@ func (a *app) countTurn(ctx context.Context, p api.Turn, source string) {
 			}
 			if i := r.closeMove(n.ID, p.Turn, a.now()); i >= 0 {
 				r.Moves[i].Reply = clip(p.Reply, replyKeep)
-				ended = append(ended, closed{r.ID, i})
+				ended = append(ended, closed{r.ID, i, *n})
 				a.touch(r.Workspace)
 				logError(a.store.Save(ctx, r))
 			}
 			continue
 		}
 		before := len(r.Moves)
-		if turnOver(p) {
-			r.Turns++
-		}
 		if i := r.endTurn(p, a.now()); i >= 0 {
+			if !r.Moves[i].User {
+				r.Turns++
+			}
 			r.Moves[i].Reply = clip(p.Reply, replyKeep)
-			ended = append(ended, closed{r.ID, i})
+			ended = append(ended, closed{r.ID, i, *n})
 		}
 		owed = append(owed, r.owedSince(before, ownedCause{Reply: p.Reply})...)
 		a.touch(r.Workspace)
@@ -627,7 +628,7 @@ func (a *app) countTurn(ctx context.Context, p api.Turn, source string) {
 		a.later(a.outcomeWait, func() { a.recheckDeadEnd(context.Background(), id) })
 	}
 	for _, c := range ended {
-		a.queueSummary(c.run, c.move, agentSummaryPrompt, a.turnInput(p.Workspace, p.Session, p.Turn))
+		a.queueSummary(c.run, c.move, agentSummaryPrompt, a.turnInput(p.Workspace, p.Session, p.Turn, c.node))
 	}
 	for _, r := range spent {
 		a.finish(ctx, r)
@@ -654,7 +655,7 @@ func (a *app) reportOutcome(ctx context.Context, runID, nodeID string, p outcome
 		return
 	}
 	before := len(r.Moves)
-	r.outcome(nodeID, p.Outcome, a.now())
+	r.outcome(nodeID, p.Outcome, a.now(), a.outcomeWait)
 	owed := r.owedSince(before, ownedCause{Outcome: p.Outcome})
 	var ended *Run
 	if !r.Gate && slices.Contains(spec.End, p.Outcome) {
@@ -680,8 +681,12 @@ func (a *app) sessionChanged(ctx context.Context, p api.Changed) {
 		if r.Workspace != p.Workspace {
 			continue
 		}
-		if r.nodeBySession(p.Session) != nil {
+		if n := r.nodeBySession(p.Session); n != nil {
 			involved = true
+			if r.Status == statusRunning && p.Kind == api.ChangeStatus && p.Status == statusRunning && !n.Began.After(r.lastEnded(n.ID)) {
+				n.Began = a.now()
+				logError(a.store.Save(ctx, r))
+			}
 		}
 		if r.Status == statusRunning && r.Caller == p.Session {
 			callers = true
@@ -724,12 +729,16 @@ func (a *app) followHandoffs(ctx context.Context, workspace string) {
 		changed := false
 		for i := range r.Nodes {
 			n := &r.Nodes[i]
+			was := n.Session
 			for range len(next) {
 				to, ok := next[n.Session]
 				if !ok {
 					break
 				}
 				n.Session, n.HandedOff, changed = to, true, true
+			}
+			if n.Session != was && r.oldestOpen(n.ID) < 0 {
+				r.startMove(n.ID, a.now())
 			}
 		}
 		if changed {

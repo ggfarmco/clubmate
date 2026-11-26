@@ -152,6 +152,7 @@ func TestFinishedMovesGetSummaries(t *testing.T) {
 	_, tests := run.outputStep("tests")
 	require.Len(t, inputs, 2)
 	assert.Contains(t, inputs[0], "edited x.go")
+	assert.True(t, strings.HasPrefix(inputs[0], "The agent of this turn is Coder (graph node coder)."))
 	assert.Equal(t, "$ make test\nexit 1\n\nFAIL x", inputs[1])
 	assert.Equal(t, "summary 1", run.Moves[coder].Summary)
 	assert.Equal(t, "did it", run.Moves[coder].Reply)

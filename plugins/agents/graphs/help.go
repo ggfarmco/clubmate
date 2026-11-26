@@ -57,7 +57,7 @@ var graphParts = []graphPart{
 var helpFacts = [][2]string{
 	{"Files", "~/.clubmate/graphs/<name>.json for every workspace · .clubmate/graphs/ in the repo to share it with the repo · copy a built-in one there to change it"},
 	{"Trust", "a graph with steps runs once you trust its steps in this repo; changing a step or the wiring untrusts it"},
-	{"Budget", "a run stops after maxTurns agent turns (default 20) or maxSteps steps (default 50)"},
+	{"Budget", "a run stops after maxTurns agent turns (default 20; turns you start by writing to a node don't count) or maxSteps steps (default 50)"},
 	{"Needs you", "a step's command outside the allow list, or an edge past its round cap, waits for you"},
 	{"Runs", "edges between agents are triggers and show in Triggers; stopping a run deletes them"},
 }

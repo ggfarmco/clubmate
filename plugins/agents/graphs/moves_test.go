@@ -138,12 +138,26 @@ func TestOutcomeWithoutOpenMoveIsUserMove(t *testing.T) {
 	r.endTurn(api.Turn{Session: "agt_coder", Turn: 1, Status: "done"}, now)
 	r.endTurn(api.Turn{Session: "agt_reviewer", Turn: 1, Status: "done"}, now)
 
-	r.outcome("reviewer", "changes", now)
-	r.endTurn(api.Turn{Session: "agt_reviewer", Turn: 2, Status: "done"}, now)
+	later := now.Add(time.Minute)
+	r.outcome("reviewer", "changes", later, 30*time.Second)
+	r.endTurn(api.Turn{Session: "agt_reviewer", Turn: 2, Status: "done"}, later)
 
 	require.Len(t, r.Moves, 4)
 	assert.Nil(t, r.Moves[1].Fired)
-	assert.Equal(t, Move{Node: "reviewer", Cause: -1, Edge: -1, User: true, Fired: []int{1}, At: now, Turn: 2, Ended: now}, r.Moves[2])
+	assert.Equal(t, Move{Node: "reviewer", Cause: -1, Edge: -1, User: true, Fired: []int{1}, At: later, Turn: 2, Ended: later}, r.Moves[2])
+}
+
+func TestLateOutcomeJoinsEndedMove(t *testing.T) {
+	r := movesRun(t, reviewLoop())
+	now := time.Now()
+	r.endTurn(api.Turn{Session: "agt_coder", Turn: 1, Status: "done"}, now)
+	r.endTurn(api.Turn{Session: "agt_reviewer", Turn: 1, Status: "done"}, now)
+
+	r.outcome("reviewer", "changes", now.Add(time.Second), 30*time.Second)
+
+	require.Len(t, r.Moves, 3)
+	assert.Equal(t, []int{1}, r.Moves[1].Fired)
+	assert.Equal(t, Move{Node: "coder", Cause: 1, Edge: 1, At: now.Add(time.Second), Open: true}, r.Moves[2])
 }
 
 func TestWaitingTurnKeepsMoveOpen(t *testing.T) {

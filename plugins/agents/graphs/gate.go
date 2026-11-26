@@ -378,7 +378,7 @@ func (e *Engine) GateOutcome(ctx context.Context, run, session, outcome string) 
 		return
 	}
 	before := len(r.Moves)
-	r.outcome(n.ID, outcome, a.now())
+	r.outcome(n.ID, outcome, a.now(), a.outcomeWait)
 	owed := r.owedSince(before, ownedCause{Outcome: outcome})
 	a.touch(r.Workspace)
 	logError(a.store.Save(ctx, r))

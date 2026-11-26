@@ -374,13 +374,83 @@ func TestRunStopsAtTurnBudget(t *testing.T) {
 	r := runGraph(t, a)
 	core.calls = nil
 
-	for range r.MaxTurns {
+	changes := pluginsdk.Event{Source: triggersSource, Topic: eventPrefix + r.outcomeEvent("reviewer"), Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_2","outcome":"changes"}`)}
+	for range r.MaxTurns / 2 {
+		a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Status: "done"}, agentsSource)
+		a.busEvent(t.Context(), nil, "", changes)
 		a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2", Status: "done"}, agentsSource)
 	}
 
 	assert.Equal(t, statusStopped, a.runs[r.ID].Status)
 	assert.Equal(t, "turn budget of 12 reached", a.runs[r.ID].Reason)
 	assert.Equal(t, []string{"triggers.delete", "triggers.delete", "triggers.delete"}, slices.DeleteFunc(core.ids(), func(id string) bool { return id == "agents.transcript" }))
+}
+
+func TestUserTurnSkipsTurnBudget(t *testing.T) {
+	a := testApp(t, &fakeCore{})
+	r := runGraph(t, a)
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Turn: 1, Status: "done"}, agentsSource)
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2", Turn: 1, Status: "done"}, agentsSource)
+
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2", Turn: 2, Status: "done"}, agentsSource)
+
+	run := a.runs[r.ID]
+	assert.Equal(t, 2, run.Turns)
+	assert.True(t, run.Moves[len(run.Moves)-1].User)
+}
+
+func TestHandoffTurnSpendsTurnBudget(t *testing.T) {
+	a := testApp(t, &fakeCore{})
+	r := runGraph(t, a)
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Turn: 1, Status: "closed"}, agentsSource)
+	a.sessions = func(context.Context, string) ([]api.Session, error) {
+		return []api.Session{{ID: "agt_boss"}, {ID: "agt_1", Status: api.StatusClosed}, {ID: "agt_9", HandoffFrom: "agt_1"}}, nil
+	}
+	a.sessionChanged(t.Context(), api.Changed{Workspace: "ws1", Session: "agt_9", Kind: "created"})
+
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_9", Turn: 1, Status: "done"}, agentsSource)
+
+	assert.Equal(t, 2, a.runs[r.ID].Turns)
+}
+
+func TestOutcomeInNewUserTurnIsNotLate(t *testing.T) {
+	a := testApp(t, &fakeCore{})
+	at := time.Date(2026, 11, 26, 10, 0, 0, 0, time.UTC)
+	a.now = func() time.Time { return at }
+	r := runGraph(t, a)
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Turn: 1, Status: "done"}, agentsSource)
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2", Turn: 1, Status: "done"}, agentsSource)
+	at = at.Add(5 * time.Second)
+	a.sessionChanged(t.Context(), api.Changed{Workspace: "ws1", Session: "agt_2", Kind: api.ChangeStatus, Status: "running"})
+	at = at.Add(5 * time.Second)
+
+	a.busEvent(t.Context(), nil, "", pluginsdk.Event{Source: triggersSource, Topic: eventPrefix + r.outcomeEvent("reviewer"), Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_2","outcome":"changes"}`)})
+
+	moves := a.runs[r.ID].Moves
+	assert.Nil(t, moves[1].Fired)
+	assert.True(t, moves[2].User)
+	assert.Equal(t, []int{1}, moves[2].Fired)
+}
+
+func TestRunningAgainInOneTurnKeepsBegan(t *testing.T) {
+	a := testApp(t, &fakeCore{})
+	at := time.Date(2026, 11, 26, 10, 0, 0, 0, time.UTC)
+	a.now = func() time.Time { return at }
+	r := runGraph(t, a)
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Turn: 1, Status: "done"}, agentsSource)
+	running := api.Changed{Workspace: "ws1", Session: "agt_1", Kind: api.ChangeStatus, Status: "running"}
+	at = at.Add(time.Second)
+	a.sessionChanged(t.Context(), running)
+	began := at
+
+	at = at.Add(time.Second)
+	a.sessionChanged(t.Context(), running)
+
+	assert.Equal(t, began, a.runs[r.ID].node("coder").Began)
+}
+
+func TestRunClockIsUTC(t *testing.T) {
+	assert.Equal(t, time.UTC, newApp().now().Location())
 }
 
 func TestWaitingTurnSkipsTurnBudget(t *testing.T) {

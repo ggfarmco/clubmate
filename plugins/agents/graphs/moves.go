@@ -73,11 +73,14 @@ func (r *Run) endTurn(p api.Turn, now time.Time) int {
 	return i
 }
 
-func (r *Run) outcome(node, outcome string, now time.Time) {
+func (r *Run) outcome(node, outcome string, now time.Time, late time.Duration) {
 	if r.Spec == nil {
 		return
 	}
 	i := r.oldestOpen(node)
+	if i < 0 {
+		i = r.lateMove(node, now, late)
+	}
 	if i < 0 {
 		r.startMove(node, now)
 		i = len(r.Moves) - 1
@@ -124,6 +127,34 @@ func (r *Run) edgeCounts() []int {
 		}
 	}
 	return counts
+}
+
+func (r *Run) lateMove(node string, now time.Time, late time.Duration) int {
+	var began time.Time
+	if n := r.node(node); n != nil {
+		began = n.Began
+	}
+	for i := len(r.Moves) - 1; i >= 0; i-- {
+		m := r.Moves[i]
+		if m.Node != node {
+			continue
+		}
+		if m.Open || m.User || m.Ended.IsZero() || now.Sub(m.Ended) > late || began.After(m.Ended) || r.moveOutcome(m) != "" {
+			return -1
+		}
+		return i
+	}
+	return -1
+}
+
+func (r *Run) lastEnded(node string) time.Time {
+	var last time.Time
+	for _, m := range r.Moves {
+		if m.Node == node && m.Ended.After(last) {
+			last = m.Ended
+		}
+	}
+	return last
 }
 
 func (r *Run) oldestOpen(node string) int {

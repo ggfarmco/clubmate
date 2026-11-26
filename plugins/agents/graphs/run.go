@@ -76,12 +76,13 @@ type Start struct {
 }
 
 type RunNode struct {
-	ID        string `json:"id"`
-	Role      string `json:"role"`
-	Start     bool   `json:"start,omitempty"`
-	Step      bool   `json:"step,omitempty"`
-	Session   string `json:"session"`
-	HandedOff bool   `json:"handedOff,omitempty"`
+	ID        string    `json:"id"`
+	Role      string    `json:"role"`
+	Start     bool      `json:"start,omitempty"`
+	Step      bool      `json:"step,omitempty"`
+	Session   string    `json:"session"`
+	HandedOff bool      `json:"handedOff,omitempty"`
+	Began     time.Time `json:"began,omitzero"`
 }
 
 type RunEdge struct {
