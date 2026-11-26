@@ -127,8 +127,10 @@ func TestAskAsideAboutAPassage(t *testing.T) {
 	parent := f.promptedParent(t, workspace)
 	agent := ofKind(f.transcript(t, workspace, parent.ID).Entries, "agent")
 	require.NotEmpty(t, agent)
-	main := f.h.WaitSlot(t, workspace, "agents.main", shows(parent.ID+"/transcript"))
-	assert.Equal(t, "asideQuote", nodesWithID(main, parent.ID+"/transcript")[0].Props["asideAction"])
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		transcript := nodesWithID(n, parent.ID+"/transcript")
+		return len(transcript) > 0 && transcript[0].Props["asideAction"] == "asideQuote"
+	})
 
 	f.h.Event(t, workspace, "agents.main", parent.ID+"/msg/agent/"+agent[0].ID, "asideQuote", map[string]any{"quote": "hi"})
 	beside := f.h.WaitSlot(t, workspace, "agents.aside", func(n sdui.Node) bool { return n.Type != "empty" })
