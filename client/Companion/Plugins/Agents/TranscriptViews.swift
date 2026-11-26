@@ -123,6 +123,8 @@ struct EntryView: View {
             CompactionView(compaction: compaction)
         case .openItems(let items):
             OpenClosedRow(items: items)
+        case .step(let step):
+            StepHeaderRow(step: step)
         case .other:
             EmptyView()
         }

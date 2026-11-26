@@ -9,6 +9,8 @@ struct WorkspaceLayout: View {
     let section: String
     @Binding var rowWidth: CGFloat
 
+    @State private var tourWidth: Double?
+
     @Environment(AppModel.self) private var app
     @Environment(WindowRouter.self) private var windows
     @Environment(\.theme) private var theme
@@ -127,22 +129,23 @@ struct WorkspaceLayout: View {
     }
 
     private var mainPane: some View {
-        let stacked = store.asideShown && ChatColumn.stacksChat(width: Double(rowWidth))
+        let stacked = asideVisible && ChatColumn.stacksChat(width: Double(rowWidth))
         let split = stacked ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
         return split {
             SlotPane(store: store, slot: "\(section).main")
                 .background(PaneMarker(slot: "\(section).main"))
                 .environment(\.chatColumnShown, store.columnShown)
                 .environment(\.documentFind, mainFind)
+                .environment(\.guidePaneShown, guidePaneShown)
                 .keyMonitor(active: pageFindActive, handle: handlePageFind)
                 .modifier(MainFocus(store: store, slot: "\(section).main"))
                 .overlay(alignment: .top) {
                     if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
                 }
                 .frame(maxHeight: .infinity)
-            if store.asideShown {
+            if asideVisible {
                 AsideColumn(store: store, stacked: stacked, width: asideWidth, limit: asideLimit) { [store] width in
-                    store.asideWidth = width
+                    if GuideTour.isTour(asideTree) { tourWidth = width } else { store.asideWidth = width }
                 }
             }
         }
@@ -195,8 +198,22 @@ struct WorkspaceLayout: View {
         return max(0, rowWidth - theme.rail - 1 - sidebar)
     }
 
+    private var asideTree: SDUINode? {
+        store.slot(AgentsSection.asideSlot)?.tree
+    }
+
+    private var asideVisible: Bool {
+        GuideTour.asideVisible(shown: store.asideShown, aside: asideTree, main: Double(mainWidth))
+    }
+
+    private var guidePaneShown: Bool {
+        GuideTour.paneShown(shown: store.asideShown, aside: asideTree, main: Double(mainWidth))
+    }
+
     private var asideWidth: CGFloat {
-        min(max(store.asideWidth.map { CGFloat($0) } ?? mainWidth / 2, AsideColumn.minWidth), asideLimit)
+        let fallback = GuideTour.isTour(asideTree) ? AsideColumn.minWidth + 40 : mainWidth / 2
+        let saved = GuideTour.isTour(asideTree) ? tourWidth : store.asideWidth
+        return min(max(saved.map { CGFloat($0) } ?? fallback, AsideColumn.minWidth), asideLimit)
     }
 
     private var columnLimit: CGFloat {

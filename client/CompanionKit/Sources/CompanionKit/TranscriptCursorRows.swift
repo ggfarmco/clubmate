@@ -107,7 +107,7 @@ public enum TranscriptCursorRows {
             return TranscriptBlock(id: id, kind: .plan, folds: folds, expanded: folds && open(id, false))
         case .permission, .elicitation, .openItems:
             return TranscriptBlock(id: id, kind: .card)
-        case .notice, .compaction, .other:
+        case .notice, .compaction, .step, .other:
             return nil
         }
     }

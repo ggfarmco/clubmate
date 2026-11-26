@@ -69,6 +69,8 @@ type transcriptState struct {
 
 	subagents map[string]*subagent
 
+	guide guideState
+
 	openState
 }
 
@@ -87,10 +89,12 @@ type transcriptView struct {
 	Request   *sdui.Node                `json:"request,omitempty"`
 	Repos     *sdui.Node                `json:"repos,omitempty"`
 
-	Prefills     []prefillView     `json:"prefills,omitempty"`
-	OptionAsides []optionAsideView `json:"optionAsides,omitempty"`
-	Pinned       *sdui.Node        `json:"pinned,omitempty"`
-	AsidePanel   *asidePanel       `json:"asidePanel,omitempty"`
+	Prefills     []prefillView           `json:"prefills,omitempty"`
+	OptionAsides []optionAsideView       `json:"optionAsides,omitempty"`
+	Pinned       *sdui.Node              `json:"pinned,omitempty"`
+	AsidePanel   *asidePanel             `json:"asidePanel,omitempty"`
+	Steps        *sdui.StepControlsProps `json:"steps,omitempty"`
+	Tour         *sdui.TourMapProps      `json:"tour,omitempty"`
 
 	ReviewStates map[string]map[int64]string `json:"-"`
 
@@ -150,6 +154,8 @@ type entry struct {
 	QuizState   *quizState               `json:"-"`
 	Grade       *quizGrade               `json:"-"`
 	Quiz        *sdui.QuizProps          `json:"quiz,omitempty"`
+	Mark        *stepMark                `json:"-"`
+	Step        *sdui.GuideStepProps     `json:"step,omitempty"`
 	Response    *acp.ElicitationResponse `json:"response,omitempty"`
 	Completed   bool                     `json:"completed,omitempty"`
 	At          time.Time                `json:"at,omitzero"`
@@ -660,6 +666,10 @@ func (s *session) apply(e envelope) {
 		s.applyQuizState(e)
 	case kindQuizGrade:
 		s.applyQuizGrade(e)
+	case kindStep:
+		s.applyStep(e)
+	case kindStepPressed:
+		s.applyStepPressed(e)
 	case kindOpenItems:
 		s.applyOpenItems(e)
 	case kindOpenChanged:

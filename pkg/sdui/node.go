@@ -297,6 +297,7 @@ type ComposerProps struct {
 	Context     string
 	Draft       *ComposerDraft
 	Suggestion  string
+	Continue    string
 }
 
 type ComposerDraft struct {
@@ -1133,6 +1134,7 @@ func Composer(id string, p ComposerProps) Node {
 	}
 	props = withOptional(props, "context", p.Context)
 	props = withOptional(props, "suggestion", p.Suggestion)
+	props = withOptional(props, "continue", p.Continue)
 	if p.Draft != nil {
 		props["draft"] = *p.Draft
 	}

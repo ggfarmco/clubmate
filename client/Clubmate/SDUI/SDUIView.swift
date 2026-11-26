@@ -313,6 +313,10 @@ struct SDUINodeView: View, Equatable {
         case "request.connectRepo": ConnectRepoCardView(node: node)
         case "request.land": LandRequestCardView(node: node)
         case "request.quiz": QuizCardView(node: node)
+        case "guide.step": GuideStepRowView(node: node)
+        case "guide.steps": GuideStepsView(node: node)
+        case "guide.tour": TourPaneView(node: node)
+        case "guide.strip": GuideStripView(node: node)
         case "repos": ReposCardView(node: node)
         case "impact": ImpactNodeView(node: node)
         case "composer": ComposerNodeView(node: node)
@@ -364,7 +368,7 @@ enum SDUIGutter {
             false
         case "list", "tree", "table", "header", "crumb", "empty", "graph", "lanes", "runstrip", "composer", "surface", "webview":
             false
-        case "transcript", "message", "plan", "toolCard", "permissionCard", "offer", "request.connectRepo", "request.land", "request.quiz", "repos":
+        case "transcript", "message", "plan", "toolCard", "permissionCard", "offer", "request.connectRepo", "request.land", "request.quiz", "repos", "guide.step", "guide.steps", "guide.tour", "guide.strip":
             false
         case "button", "progress", "radio":
             false

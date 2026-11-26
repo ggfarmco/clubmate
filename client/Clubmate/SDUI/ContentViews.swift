@@ -553,6 +553,11 @@ struct HeaderNodeView: View {
             if !session { badges }
             Spacer(minLength: 0)
             if metaInline { lineMeta }
+            if let strip = node.headerStrip {
+                SDUINodeView(node: strip.node)
+                    .equatable()
+                    .fixedSize()
+            }
             if session {
                 if let pill = node.headerPill {
                     HeaderPillView(node: pill.node)

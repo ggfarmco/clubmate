@@ -882,6 +882,19 @@ public final class AgentsStore {
         await refreshSession(session)
     }
 
+    public func stepAct(_ session: String, action: StepControls.Action) async throws -> String? {
+        let reply = try await submit(GuideCommand.stepAct, ["session": .string(session), "action": .string(action.id)], target: "steps/" + session, title: action.label, keeps: false)
+        let aside = reply?["aside"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
+        if aside != nil { await refresh() }
+        await refreshSession(session)
+        return aside
+    }
+
+    public func tourOffer(_ session: String, concept: String, offer: TourMap.Chip) async throws {
+        try await submit(GuideCommand.tourOffer, ["session": .string(session), "concept": .string(concept), "offer": .string(offer.id)], target: "tour/" + session + "/" + concept, title: offer.label, keeps: false)
+        await refreshSession(session)
+    }
+
     public func quizDraft(_ request: String) -> QuizDraft {
         quizDrafts[request] ?? QuizDraft()
     }

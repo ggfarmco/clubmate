@@ -349,6 +349,33 @@ actor FixtureServer {
             Self.regroup(&sessions[3])
             transcripts["agt_0000000000000004"] = ["entries": .array(entries)]
         }
+        if let guideFixture = UserDefaults.standard.string(forKey: "guideFixture"), sessions.count > 3 {
+            var steps = decode(Self.quizSamples + "guide-steps.json")["props"] ?? .null
+            let tour = decode(Self.quizSamples + "guide-tour.json")["props"] ?? .null
+            if guideFixture == "continue", case .object(var props) = steps {
+                props["pressed"] = nil
+                props["aside"] = nil
+                props["actions"] = .array((props["actions"]?.arrayValue ?? []).map { action in
+                    guard case .object(var fields) = action, fields["id"] == .string("smaller_steps") else { return action }
+                    fields["enabled"] = .bool(false)
+                    return .object(fields)
+                })
+                steps = .object(props)
+            }
+            sessions[3]["title"] = .string("guide · notify limiter")
+            sessions[3]["status"] = .string("done")
+            sessions[3]["activity"] = nil
+            Self.regroup(&sessions[3])
+            transcripts["agt_0000000000000004"] = [
+                "entries": .array([
+                    Self.entry("user", "guide-u1", text: "Walk me through how notify limits a workspace"),
+                    .object(["kind": .string("step"), "id": .string("step-12"), "turn": .number(1), "step": .object(["step": .string("step-12"), "label": .string("Step 5 · Cap at burst"), "node": .string("guide")])]),
+                    Self.entry("agent", "guide-a1", text: "Line 31 compares before it assigns, so a long quiet spell can never bank more than `l.burst`. Refill is marked missed; I'll ask it again after step 6."),
+                ]),
+                "steps": steps,
+                "tour": tour,
+            ]
+        }
         if let asideFixture, sessions.count > 3 {
             sessions[3]["canAside"] = .bool(true)
             let parent = sessions[3]
@@ -568,7 +595,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", QuizCommand.answer, "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", AgentCommand.sessionsOlder, "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.close", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", AgentCommand.toolCall, "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string) + (WikiFixture.on ? [.string("wiki.locate")] : [])
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", QuizCommand.answer, GuideCommand.stepAct, GuideCommand.tourOffer, "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", AgentCommand.sessionsOlder, "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.close", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", AgentCommand.toolCall, "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string) + (WikiFixture.on ? [.string("wiki.locate")] : [])
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed"), .string("awake.changed"), .string("agents.usage")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge")), "reports": .bool(true), "rename": .bool(true)])]))
         case "report":
             return (200, Self.json(["result": .object(["id": .string("r-fixture")])]))
@@ -760,6 +787,8 @@ actor FixtureServer {
             return .object(["removed": .bool(true)])
         case "agents.permission":
             answer(session, request: args["request"]?.stringValue ?? "", option: args["option"]?.stringValue ?? "")
+            return .null
+        case GuideCommand.stepAct, GuideCommand.tourOffer:
             return .null
         case QuizCommand.answer:
             quizAnswer(session, args)

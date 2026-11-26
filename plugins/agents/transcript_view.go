@@ -203,6 +203,9 @@ func transcript(sc screen) sdui.Node {
 	if card, ok := reposCard(sc); ok {
 		nodes = append(nodes, card)
 	}
+	if p := sc.Guide.steps; p != nil {
+		nodes = append(nodes, sdui.WithAction(sdui.StepControls(sid+"/"+stepsNode, *p), actStepAct))
+	}
 	if v.Session.isAside() && hidden == 0 {
 		nodes = slices.Insert(nodes, 0, forkedBlock(v.Session))
 	}
@@ -324,6 +327,8 @@ func entryShape(sc screen, shown []*entry, i int) (show, tool bool) {
 		return !en.Hidden, !en.Hidden && !blockShown(en) && len(en.HeldCalls) == 0
 	case entryElicitation:
 		return en.Elicitation != nil, false
+	case entryStep:
+		return en.Step != nil, false
 	case entryPlan:
 		var p planUpdate
 		return json.Unmarshal(en.Plan, &p) == nil, false
@@ -608,6 +613,8 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		return elicitationCard(sc, en), en.Elicitation != nil
 	case entryOpenItems:
 		return openEntryNode(sc, en)
+	case entryStep:
+		return stepEntryNode(sid, en)
 	case entryCompaction:
 		return compactionCard(sid+"/compaction/"+en.ID, en), true
 	case entryNotice:

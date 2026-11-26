@@ -55,8 +55,12 @@ struct SessionDetailView: View {
     @State private var sendingBack: SendBackStart?
     @State private var closeQuestion: String?
     @State private var foldingOpen = false
+    @State private var showingTour = false
+    @State private var stepping: String?
+    @State private var columnWidth = 0.0
 
     private static let pairedWidth = 520.0
+    private static let tourPaneWidth = 960.0
     private static let rowsSpace = "transcript-rows"
 
     private func updateWindow(count: Int, atBottom: Bool) {
@@ -96,7 +100,19 @@ struct SessionDetailView: View {
         let session = store.session(sessionID)
         let transcript = store.transcripts[sessionID]
         let blocked = context.connection.blocked
-        screen
+        HStack(spacing: 0) {
+            screen
+            if tourPane, let tour = transcript?.tour {
+                Divider()
+                TourPane(tour: tour, blocked: blocked != nil) { concept, chip in await tourOffer(concept, chip) }
+            }
+        }
+        .onGeometryChange(for: Double.self) { $0.size.width } action: { columnWidth = $0 }
+        .sheet(isPresented: $showingTour) {
+            if let tour = transcript?.tour {
+                TourSheet(tour: tour, blocked: blocked != nil) { concept, chip in await tourOffer(concept, chip) }
+            }
+        }
         .sheet(item: asideSheet, onDismiss: asideSheetDismissed) { item in
             NavigationStack {
                 SessionDetailView(context: context, store: store, sessionID: item.id, role: .asideSheet)
@@ -177,7 +193,7 @@ struct SessionDetailView: View {
         let anchor = growing ?? (drawn < rows.count ? rows[drawn].id : nil)
         let cardTyping = typingInCard(screen)
         let echoes = entries.count { $0.isOutgoing }
-        let keySend: (() -> Void)? = cardTyping ? nil : { send() }
+        let keySend: (() -> Void)? = cardTyping ? nil : { if !continueStep() { send() } }
         let keyStop = stopKey(session)
         let keyPanes = paneKeys(session, hasMessages: !entries.isEmpty, cardTyping: cardTyping)
         let answerDocked = switch screen.dock {
@@ -222,6 +238,10 @@ struct SessionDetailView: View {
                         position.scrollTo(y: scrollY.value + new - old)
                     }
                     .equatable()
+                }
+                if let steps = transcript?.steps, session?.isClosed != true {
+                    StepControlsRow(steps: steps, wide: stopInHeader, blocked: blocked != nil, busy: stepping) { action in await stepAct(action, steps: steps) }
+                        .id("guide.steps")
                 }
                 if let repos {
                     ReposCardView(card: repos, fold: store.reposFold(sessionID), blocked: blocked) {
@@ -545,14 +565,29 @@ struct SessionDetailView: View {
                         PadHeader(title: session.displayTitle) {
                             TimelineView(.periodic(from: .now, by: 30)) { timeline in
                                 SessionHeader.subtitle(session, mac: context.model.tag(context.connection.computer.id), mode: true, now: timeline.date)
+                                    + (transcript?.tour.map { Text(" · " + $0.stepLabel).foregroundStyle(Color.captionInk) } ?? Text(""))
                             }
                         }
                     }
                     .sharedBackgroundVisibility(.hidden)
                 } else {
                     ToolbarItem(placement: .principal) {
-                        SessionHeader(session: session, mac: context.model.tag(context.connection.computer.id))
+                        if let tour = transcript?.tour {
+                            Button { showingTour = true } label: {
+                                SessionHeader(session: session, mac: context.model.tag(context.connection.computer.id), step: tour.stepLabel)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Shows the reading tour")
+                            .accessibilityIdentifier("guide.header")
+                        } else {
+                            SessionHeader(session: session, mac: context.model.tag(context.connection.computer.id))
+                        }
                     }
+                }
+            }
+            if stopInHeader, !tourPane, let tour = transcript?.tour {
+                ToolbarItem(placement: .primaryAction) {
+                    TourStrip(tour: tour, blocked: blocked != nil) { concept, chip in await tourOffer(concept, chip) }
                 }
             }
             if stopInHeader, session?.isTurnActive == true {
@@ -1222,6 +1257,43 @@ struct SessionDetailView: View {
         }
     }
 
+    private var tourPane: Bool {
+        mode == .plain && stopInHeader && columnWidth >= Self.tourPaneWidth
+    }
+
+    private func continueStep() -> Bool {
+        guard draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, attachments.isEmpty, context.connection.blocked == nil, stepping == nil,
+              let steps = store.transcripts[sessionID]?.steps, let action = steps.actions.first(where: { $0.primary && $0.enabled }) else { return false }
+        Task { await stepAct(action, steps: steps) }
+        return true
+    }
+
+    private func stepAct(_ action: StepControls.Action, steps: StepControls) async {
+        guard stepping == nil else { return }
+        stepping = action.id
+        defer { stepping = nil }
+        if let aside = steps.openAside(action) {
+            store.asidePresentation[sessionID] = .sheet(aside)
+            return
+        }
+        do {
+            if let aside = try await store.stepAct(sessionID, action: action) {
+                store.asidePresentation[sessionID] = .sheet(aside)
+            }
+        } catch {
+            failure = Self.message(error)
+        }
+    }
+
+    private func tourOffer(_ concept: TourMap.Concept, _ chip: TourMap.Chip) async {
+        do {
+            try await store.tourOffer(sessionID, concept: concept.id, offer: chip)
+        } catch {
+            failure = Self.message(error)
+        }
+        showingTour = false
+    }
+
     private func quizPlaceholder(_ screen: SessionScreen) -> String? {
         if case .quiz(let quiz) = screen.dock { quiz.labels.sayIt } else { nil }
     }
@@ -1387,6 +1459,7 @@ private struct WholeWidth: Layout {
 struct SessionHeader: View {
     let session: AgentSession
     var mac: MacTag?
+    var step: String?
 
     var body: some View {
         VStack(spacing: 1) {
@@ -1394,7 +1467,7 @@ struct SessionHeader: View {
                 .font(.headline)
                 .lineLimit(1)
             TimelineView(.periodic(from: .now, by: 30)) { timeline in
-                Self.subtitle(session, mac: mac, now: timeline.date)
+                (Self.subtitle(session, mac: mac, now: timeline.date) + (step.map { Text(" · " + $0).foregroundStyle(Color.captionInk) } ?? Text("")))
                     .font(.footnote)
                     .lineLimit(1)
             }

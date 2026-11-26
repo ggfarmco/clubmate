@@ -22,7 +22,7 @@ final class SDUIRendererTests: XCTestCase {
             node.children.forEach(walk)
         }
         walk(tree)
-        let placeholderOnPhone: Set<String> = ["sheet", "choice", "keys", "impact", "crumb", "repos", "request.connectRepo", "request.land", "request.quiz", "radio"]
+        let placeholderOnPhone: Set<String> = ["sheet", "choice", "keys", "impact", "crumb", "repos", "request.connectRepo", "request.land", "request.quiz", "radio", "guide.step", "guide.steps", "guide.tour", "guide.strip"]
         XCTAssertEqual(types.subtracting(MacOnlyCaption.types).subtracting(placeholderOnPhone).filter { SDUIKind(rawValue: $0) == nil }, [])
     }
 

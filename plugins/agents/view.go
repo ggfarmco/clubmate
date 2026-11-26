@@ -110,6 +110,7 @@ type screen struct {
 	AsideCount   int
 	ForkedFrom   string
 	Beside       bool
+	Guide        guideView
 	Suggestion   string
 	NeedsYou     string
 	OfferTurn    int
@@ -355,6 +356,9 @@ func header(sc screen) sdui.Node {
 	if b, ok := contextButton(sc); ok && sc.Code == nil {
 		buttons = append(buttons, b)
 	}
+	if t := sc.Guide.tour; t != nil && sc.Code == nil && !rec.isAside() {
+		buttons = append(buttons, sdui.WithAction(sdui.TourStrip(sid+"/"+stripNode, *t), actTourOffer))
+	}
 	if sc.Changes && sc.EditorReview == reviewDiffview {
 		buttons = append(buttons, reviewButton(sid, sc.ReviewBases, sc.ReviewBase))
 	}
@@ -523,6 +527,7 @@ func composer(sc screen) sdui.Node {
 		Context:     contextLabel,
 		Draft:       composerDraftNode(rec.ComposerDraft),
 		Suggestion:  sc.Suggestion,
+		Continue:    continueLabel(sc),
 	})
 }
 

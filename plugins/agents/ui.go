@@ -127,6 +127,8 @@ type sessionUI struct {
 	contextOpen     map[string]bool
 	contextReader   *claudectx.Reader
 	contextOff      map[string]string
+
+	tourHidden bool
 }
 
 func newUIState() uiState {
@@ -351,6 +353,8 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 					sc.Workspace, sc.Folders = workspace.Name, workspace
 					aside = mainView(sc)
 				}
+			} else if shown != nil && shown.Guide.tour != nil && shown.Guide.tour.Shown {
+				aside = sdui.WithAction(sdui.TourMap(shown.View.Session.ID+"/"+tourNode, *shown.Guide.tour), actTourOffer)
 			}
 		}
 		if err := a.push(ctx, p, workspaceID, asideSlot, aside); err != nil {
@@ -550,6 +554,10 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 	gateReview := a.reviewHead(ctx, v.Session)
 	held := a.heldBlockOf(ctx, v.Session)
 	calls := a.callLives(v.Session)
+	a.uiMu.Lock()
+	tourHidden := st.tourHidden
+	a.uiMu.Unlock()
+	guide := a.guideViewOf(s, tourHidden)
 	sendBack := a.sendBackScreen(workspaceID, s, v)
 	closeAsk := ""
 	if v.Session.isAside() {
@@ -611,6 +619,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		GateReview:   gateReview,
 		Held:         held,
 		Calls:        calls,
+		Guide:        guide,
 		SendBack:     sendBack,
 		CloseAsk:     closeAsk,
 		AsideCount:   asideCount,

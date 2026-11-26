@@ -90,7 +90,7 @@ var (
 	errUserAction    = errors.New("only the user presses this")
 )
 
-var userActions = []string{actSend, actAsidePick, actAsideAsk, actAsideQuote, actAsideFull, actAsideBeside, actAsideParent, actAsideNext, actAsideKeep, actAsideClose, actSendBackOpen, actSendBackDraft, actSendBackFrom, actSendBackSend, actSendBackCancel, actSendBackKey, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actQuizPick, actQuizRate, actQuizUndo, actQuizSkip, actQuizOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph, actPhoneNotNow, actSetupFix, actJump, actLast, actNeeds}
+var userActions = []string{actSend, actAsidePick, actAsideAsk, actAsideQuote, actAsideFull, actAsideBeside, actAsideParent, actAsideNext, actAsideKeep, actAsideClose, actSendBackOpen, actSendBackDraft, actSendBackFrom, actSendBackSend, actSendBackCancel, actSendBackKey, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actQuizPick, actQuizRate, actQuizUndo, actQuizSkip, actQuizOpen, actStepAct, actTourOffer, actTourPanel, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph, actPhoneNotNow, actSetupFix, actJump, actLast, actNeeds}
 
 type textValue struct {
 	Text string `json:"text"`
@@ -497,6 +497,10 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if err := decode(ev.Value, &v); err != nil {
 			return err
 		}
+		if a.continuesOnEmpty(s, st, v.Text) {
+			_, err := a.actOnStep(ctx, ev.WorkspaceID, s, sdui.StepContinue, true)
+			return err
+		}
 		return a.send(ctx, ev.WorkspaceID, s, st, v.Text, a.panelAttachments(ctx, ev, s.snapshot()))
 	case actStop:
 		a.cancel(s, true)
@@ -564,6 +568,8 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return a.landAct(ctx, ev.WorkspaceID, v)
 	case actElicitation, actElicitPick, actElicitDecline, actElicitOpen:
 		return a.elicitAct(ev, s, node)
+	case actStepAct, actTourOffer, actTourPanel:
+		return a.guideAct(ctx, ev, s, st)
 	case actQuizPick, actQuizRate, actQuizUndo, actQuizSkip, actQuizOpen:
 		act, err := quizUIAct(ev, s)
 		if err != nil {

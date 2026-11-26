@@ -78,6 +78,7 @@ struct ComposerNodeView: View {
         .reportsFocus(pane, focused, slot: focusSlot)
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
+        .onChange(of: (node.string("continue").map { !$0.isEmpty } ?? false) && node.attachments().isEmpty, initial: true) { _, continues in model.continues = continues }
         .onChange(of: disabled ? nil : suggestion, initial: true) { _, suggestion in model.prompt = suggestion }
         .onChange(of: node.composerDraft(), initial: true) { _, draft in
             guard let draft, model.apply(draft: draft.text, rev: draft.rev) else { return }
@@ -542,6 +543,7 @@ struct ComposerNodeView: View {
         model.stepsOut = stepsOut
         switch model.handle(key, before: model.character(before: caret)) {
         case .send(let text): send(text)
+        case .continueStep: dispatch(node, .named("send", .object(["text": .string("")])))
         case .stop: dispatch(node, .named("stop", .null))
         case .attachFile: pickFile()
         case .handled: break

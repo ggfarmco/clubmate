@@ -39,6 +39,9 @@ var (
 		"agents.quiz":           withArgs((*app).quizCommand),
 		"agents.quiz-grade":     withArgs((*app).quizGradeCommand),
 		"agents.quiz-answer":    withArgs((*app).quizAnswerCommand),
+		"agents.guide-step":     withArgs((*app).guideStepCommand),
+		"agents.step-act":       withArgs((*app).stepActCommand),
+		"agents.tour-offer":     withArgs((*app).tourOfferCommand),
 		"agents.mode":           withArgs((*app).modeCommand),
 		"agents.config":         withArgs((*app).configCommand),
 		"agents.sessions":       withArgs((*app).sessionsCommand),
@@ -608,6 +611,8 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 		withCallContent(&v, s, lives)
 		a.withTaskContent(&v, w)
 		a.withAsideContent(&v, s)
+		g := a.guideViewOf(s, false)
+		v.Steps, v.Tour = g.steps, g.tour
 	}
 	if args.Last {
 		v = v.lastTurn()

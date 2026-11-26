@@ -74,6 +74,7 @@ type asideAnchor struct {
 	Question    string `json:"question,omitempty"`
 	Message     string `json:"message,omitempty"`
 	Quote       string `json:"quote,omitempty"`
+	Step        string `json:"step,omitempty"`
 }
 
 type asideInfo struct {
@@ -193,6 +194,8 @@ func anchorOf(pairs []keyValue) asideAnchor {
 			an.Message = kv.Value
 		case "quote":
 			an.Quote = kv.Value
+		case "step":
+			an.Step = kv.Value
 		}
 	}
 	return an
@@ -213,8 +216,8 @@ func (s *session) anchorQuestion(an asideAnchor) string {
 }
 
 func asideLabel(an asideAnchor) string {
-	if an.Option != "" {
-		return asidePrefix + an.Option
+	if an.Option != "" || an.Step != "" {
+		return asidePrefix + cmp.Or(an.Option, an.Quote)
 	}
 	return asidePrefix + "“" + clipRunes(strings.Join(strings.Fields(an.Quote), " "), asideQuoteRunes) + "”"
 }
@@ -245,6 +248,8 @@ func (a *app) newAside(ctx context.Context, parent *session, an asideAnchor, fro
 func asideSeed(an asideAnchor) string {
 	subject := fmt.Sprintf(asidePassage, an.Quote)
 	switch {
+	case an.Step != "":
+		subject = fmt.Sprintf(asideStepText, an.Quote)
 	case an.Option != "" && an.Question != "":
 		subject = fmt.Sprintf(asideOptionText, an.Option, an.Question)
 	case an.Option != "":

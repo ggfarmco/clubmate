@@ -61,6 +61,7 @@ public enum ComposerKey: Sendable, Equatable {
 
 public enum ComposerEffect: Sendable, Equatable {
     case send(String)
+    case continueStep
     case stop
     case attachFile
     case handled
@@ -79,6 +80,7 @@ public final class ComposerModel {
     public var commands: [ComposerCommand] = []
     public var running = false
     public var stepsOut = false
+    public var continues = false
     public var prompt: String?
     public var caret: Int?
     public private(set) var highlighted = 0
@@ -107,9 +109,12 @@ public final class ComposerModel {
         switch key {
         case .send:
             let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return prompt.isEmpty ? .handled : .send(prompt)
+            if prompt.isEmpty { return continues ? .continueStep : .handled }
+            return .send(prompt)
         case .enter:
-            return suggestions.isEmpty ? handle(.send) : handle(.accept)
+            guard suggestions.isEmpty else { return handle(.accept) }
+            let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return prompt.isEmpty ? .handled : .send(prompt)
         case .escape:
             if !suggestions.isEmpty {
                 dismissed = text

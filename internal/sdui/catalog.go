@@ -281,7 +281,7 @@ var (
 				"status": oneOf(sessionStatuses), "agent": isString, "branch": isString, "mode": isString,
 				"field": nonEmptyString, "error": isString, "inline": isBool,
 			},
-			children: childRule{min: 0, max: 9, only: []string{"button", "textField"}, once: []string{"textField"}},
+			children: childRule{min: 0, max: 9, only: []string{"button", "textField", "guide.strip"}, once: []string{"textField", "guide.strip"}},
 		},
 		"empty": {
 			required: []string{"text"},
@@ -343,6 +343,21 @@ var (
 			children:    noChildren,
 			interactive: true,
 		},
+		"guide.step": {
+			required: []string{"step", "label"},
+			props:    map[string]propCheck{"step": isString, "label": isString, "node": isString},
+			children: noChildren,
+		},
+		"guide.steps": {
+			required: []string{"session", "step", "actions"},
+			props: map[string]propCheck{
+				"session": isString, "step": isString, "actions": arrayOf(stepActionCheck), "pressed": oneOf(stepActions), "aside": stepAsideCheck, "action": actionCheck,
+			},
+			children:    noChildren,
+			interactive: true,
+		},
+		"guide.tour":  tourSpec,
+		"guide.strip": tourSpec,
 		"request.land": {
 			required: []string{"request", "title", "name", "options"},
 			props: map[string]propCheck{
@@ -422,7 +437,7 @@ var (
 		"composer": {
 			props: map[string]propCheck{
 				"placeholder": isString, "hint": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString, "pickers": listOf(pickerCheck),
-				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachSources)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool, "docked": isBool, "disabled": isBool, "context": isString, "suggestion": isString,
+				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachSources)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool, "docked": isBool, "disabled": isBool, "context": isString, "suggestion": isString, "continue": isString,
 				"draft": objectCheck([]string{"text", "rev"}, map[string]propCheck{"text": isString, "rev": countNumber}),
 			},
 			children:    noChildren,
@@ -960,6 +975,41 @@ func quizRevealCheck(c *validator, v any) error {
 func quizLabelsCheck(c *validator, v any) error {
 	return objectCheck([]string{"skip", "undo", "sending", "fold", "answerHint", "you", "answer", "allLines", "secondsLeft", "sayIt", "openOnMac", "line", "range"}, map[string]propCheck{
 		"skip": isString, "undo": isString, "sending": isString, "fold": isString, "answerHint": isString, "you": isString, "answer": isString, "allLines": isString, "secondsLeft": isString, "sayIt": isString, "openOnMac": isString, "line": isString, "range": isString,
+	})(c, v)
+}
+
+var (
+	stepActions = []string{"continue", "test_me", "show_me", "go_deeper", "smaller_steps"}
+	tourStates  = []string{"known", "shaky", "missed", "current", "not_yet"}
+	tourOffers  = []string{"ask_again", "go_back"}
+	tourSpec    = spec{
+		required: []string{"session", "title", "step", "of", "stepLabel", "summary", "counts", "concepts", "legend", "shown"},
+		props: map[string]propCheck{
+			"session": isString, "title": isString, "step": nonNegative, "of": nonNegative, "stepLabel": isString, "summary": isString, "current": isString,
+			"counts":   objectCheck([]string{"known", "shaky", "missed", "notYet"}, map[string]propCheck{"known": nonNegative, "shaky": nonNegative, "missed": nonNegative, "notYet": nonNegative}),
+			"concepts": arrayOf(tourConceptCheck), "edges": arrayOf(objectCheck([]string{"from", "to"}, map[string]propCheck{"from": isString, "to": isString, "branch": isBool})),
+			"legend": arrayOf(objectCheck([]string{"state", "label"}, map[string]propCheck{"state": oneOf(tourStates), "label": isString})),
+			"shown":  isBool, "shortcut": shortcutCheck, "action": actionCheck,
+		},
+		children:    noChildren,
+		interactive: true,
+	}
+)
+
+func stepActionCheck(c *validator, v any) error {
+	return objectCheck([]string{"id", "label", "enabled"}, map[string]propCheck{"id": oneOf(stepActions), "label": isString, "enabled": isBool, "primary": isBool, "shortcut": shortcutCheck})(c, v)
+}
+
+func stepAsideCheck(c *validator, v any) error {
+	return objectCheck([]string{"step", "title", "open"}, map[string]propCheck{"step": isString, "title": isString, "open": isBool, "session": isString})(c, v)
+}
+
+func tourConceptCheck(c *validator, v any) error {
+	ref := objectCheck([]string{"id", "label"}, map[string]propCheck{"id": isString, "label": isString})
+	offer := objectCheck([]string{"id", "label"}, map[string]propCheck{"id": oneOf(tourOffers), "label": isString})
+	return objectCheck([]string{"id", "label", "state", "stateLabel", "step", "stepLabel", "depth"}, map[string]propCheck{
+		"id": isString, "label": isString, "state": oneOf(tourStates), "stateLabel": isString, "step": nonNegative, "stepLabel": isString, "depth": nonNegative,
+		"note": isString, "links": arrayOf(ref), "offers": arrayOf(offer),
 	})(c, v)
 }
 

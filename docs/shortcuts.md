@@ -329,6 +329,23 @@ A quiz question ([agents § Quiz questions](agents.md#quiz-questions)) is docked
 
 Other letters typed while the card has focus go to the composer, which is the question's Other. Skip has no key. Defined by the `request.quiz` node in `plugins/agents/quiz_view.go`, handled in `SDUI/Agents/QuizCardView.swift` (iPad: `client/Companion/Plugins/Agents/QuizViews.swift`).
 
+## Guide steps and concept map (Agents section, guided code reading)
+
+The step controls sit under the latest step of a guide session ([agents § Guide steps](agents.md#guide-steps)) and hide while a question is open; a key works only while its control shows and is enabled. Same keys on the iPad with a keyboard.
+
+| Keys | Action |
+|---|---|
+| ⌥T | I know this · test me |
+| ⌥S | Show me |
+| ⌥D | Go deeper: open the step's aside (⌘[ goes back to the session, as in every aside) |
+| ⌥M | Smaller steps |
+| ⌘↩ | Continue, only on a step without a check and only while the composer is empty; with text ⌘↩ sends the message |
+| ⇧⌘M | Show or hide the Tour pane (the concept map, [agents § Concept map](agents.md#concept-map)) |
+| ↑ ↓ | Move the selected concept in the map's tree (pane or popover) |
+| ↩ | Show the selected concept's offers (Ask again, Back to step N) |
+
+Defined by the `guide.steps` and `guide.strip` nodes in `plugins/agents/guide.go` and `view.go`, handled in `SDUI/Agents/GuideViews.swift` (iPhone and iPad: `client/Companion/Plugins/Agents/GuideViews.swift`).
+
 ## Repos card (Agents section)
 
 Only while the card has focus (a click in it, its header pill), never in the composer.

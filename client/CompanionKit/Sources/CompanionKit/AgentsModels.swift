@@ -313,10 +313,12 @@ public struct AgentTranscript: Codable, Sendable, Equatable {
     public let optionAsides: [OptionAside]
     public let pinned: PinnedQuestion?
     public let asidePanel: AsidePanel?
+    public let steps: StepControls?
+    public let tour: TourMap?
     let header: [String: JSONValue]
 
     enum CodingKeys: String, CodingKey {
-        case session, modes, configOptions, advisor, usage, turns, entries, cursor, delta, request, repos, prefills, optionAsides, pinned, asidePanel
+        case session, modes, configOptions, advisor, usage, turns, entries, cursor, delta, request, repos, prefills, optionAsides, pinned, asidePanel, steps, tour
     }
 
     static let headerRevKey = "headerRev"
@@ -337,7 +339,7 @@ public struct AgentTranscript: Codable, Sendable, Equatable {
 
     init(
         session: AgentSession, modes: [AgentMode], configOptions: [AgentConfigOption], advisor: String, usage: AgentUsage?, turns: [AgentTurn], entries: [TranscriptEntry], cursor: String? = nil, request: RequestCard? = nil, repos: ReposCard? = nil,
-        prefills: [AsidePrefill] = [], optionAsides: [OptionAside] = [], pinned: PinnedQuestion? = nil, asidePanel: AsidePanel? = nil, header: [String: JSONValue] = [:]
+        prefills: [AsidePrefill] = [], optionAsides: [OptionAside] = [], pinned: PinnedQuestion? = nil, asidePanel: AsidePanel? = nil, steps: StepControls? = nil, tour: TourMap? = nil, header: [String: JSONValue] = [:]
     ) {
         self.session = session
         self.modes = modes
@@ -354,6 +356,8 @@ public struct AgentTranscript: Codable, Sendable, Equatable {
         self.optionAsides = optionAsides
         self.pinned = pinned
         self.asidePanel = asidePanel
+        self.steps = steps
+        self.tour = tour
         self.header = header
     }
 
@@ -365,7 +369,7 @@ public struct AgentTranscript: Codable, Sendable, Equatable {
         AgentTranscript(
             session: newer.session, modes: newer.modes, configOptions: newer.configOptions, advisor: newer.advisor, usage: newer.usage, turns: newer.turns,
             entries: entries.filter { $0.turn < fromTurn } + newer.entries, cursor: newer.cursor, request: newer.request, repos: newer.repos,
-            prefills: newer.prefills, optionAsides: newer.optionAsides, pinned: newer.pinned, asidePanel: newer.asidePanel, header: newer.header
+            prefills: newer.prefills, optionAsides: newer.optionAsides, pinned: newer.pinned, asidePanel: newer.asidePanel, steps: newer.steps, tour: newer.tour, header: newer.header
         )
     }
 
@@ -387,7 +391,7 @@ public struct AgentTranscript: Codable, Sendable, Equatable {
             configOptions: kept.contains(CodingKeys.configOptions.rawValue) ? configOptions : newer.configOptions, advisor: newer.advisor, usage: newer.usage,
             turns: kept.contains(CodingKeys.turns.rawValue) ? turns : newer.turns,
             entries: newer.entries.isEmpty ? entries : entries.map { changed[$0.id] ?? $0 } + newer.entries.filter { !known.contains($0.id) }, cursor: newer.cursor, request: newer.request, repos: newer.repos,
-            prefills: newer.prefills, optionAsides: newer.optionAsides, pinned: newer.pinned, asidePanel: newer.asidePanel, header: header
+            prefills: newer.prefills, optionAsides: newer.optionAsides, pinned: newer.pinned, asidePanel: newer.asidePanel, steps: newer.steps, tour: newer.tour, header: header
         )
     }
 
@@ -408,6 +412,8 @@ public struct AgentTranscript: Codable, Sendable, Equatable {
         optionAsides = (try? c.decodeIfPresent([OptionAside].self, forKey: .optionAsides)) ?? []
         pinned = (try? c.decodeIfPresent(JSONValue.self, forKey: .pinned)).flatMap { $0 }.flatMap(PinnedQuestion.init(node:))
         asidePanel = try? c.decodeIfPresent(AsidePanel.self, forKey: .asidePanel)
+        steps = try? c.decodeIfPresent(StepControls.self, forKey: .steps)
+        tour = try? c.decodeIfPresent(TourMap.self, forKey: .tour)
         let all = try decoder.container(keyedBy: Key.self)
         var header: [String: JSONValue] = [:]
         for key in all.allKeys where key.stringValue != CodingKeys.entries.rawValue && key.stringValue != CodingKeys.delta.rawValue {
@@ -417,7 +423,7 @@ public struct AgentTranscript: Codable, Sendable, Equatable {
     }
 
     public static func == (lhs: AgentTranscript, rhs: AgentTranscript) -> Bool {
-        lhs.session == rhs.session && lhs.modes == rhs.modes && lhs.configOptions == rhs.configOptions && lhs.advisor == rhs.advisor && lhs.usage == rhs.usage && lhs.turns == rhs.turns && lhs.cursor == rhs.cursor && lhs.delta == rhs.delta && lhs.request == rhs.request && lhs.repos == rhs.repos && lhs.prefills == rhs.prefills && lhs.optionAsides == rhs.optionAsides && lhs.pinned == rhs.pinned && lhs.asidePanel == rhs.asidePanel && lhs.headerRev == rhs.headerRev && lhs.entries == rhs.entries
+        lhs.session == rhs.session && lhs.modes == rhs.modes && lhs.configOptions == rhs.configOptions && lhs.advisor == rhs.advisor && lhs.usage == rhs.usage && lhs.turns == rhs.turns && lhs.cursor == rhs.cursor && lhs.delta == rhs.delta && lhs.request == rhs.request && lhs.repos == rhs.repos && lhs.prefills == rhs.prefills && lhs.optionAsides == rhs.optionAsides && lhs.pinned == rhs.pinned && lhs.asidePanel == rhs.asidePanel && lhs.steps == rhs.steps && lhs.tour == rhs.tour && lhs.headerRev == rhs.headerRev && lhs.entries == rhs.entries
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -441,6 +447,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case notice(Notice)
         case compaction(Compaction)
         case openItems(OpenItems)
+        case step(GuideStep)
         case other(String)
     }
 
@@ -459,7 +466,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     let raw: JSONValue
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, afk, from, compaction, elicitation, response, completed, stoppable, doc, hidden, docLinks, docCards, images, imageLinks, taskLinks, open, handoff, card, voice, items, overflow, later, toolSummary, gate, heldCalls, gateMessage, quiz
+        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, afk, from, compaction, elicitation, response, completed, stoppable, doc, hidden, docLinks, docCards, images, imageLinks, taskLinks, open, handoff, card, voice, items, overflow, later, toolSummary, gate, heldCalls, gateMessage, quiz, step
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -508,6 +515,10 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         open = (try? c.decodeIfPresent(Bool.self, forKey: .open)) ?? false
         handoff = (try? c.decodeIfPresent(JSONValue.self, forKey: .handoff))?.flatMap { $0.objectValue.map { $0["to"]?.stringValue ?? "" } }
         let text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
+        if raw == "step", let step = try? c.decodeIfPresent(GuideStep.self, forKey: .step) {
+            content = .step(step)
+            return
+        }
         switch TranscriptEntryKind(raw) {
         case .user:
             if let voice = try? c.decodeIfPresent(VoicePrompt.Heard.self, forKey: .voice) {

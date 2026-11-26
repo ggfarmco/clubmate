@@ -1,0 +1,17 @@
+{
+ "type": "guide.steps",
+ "id": "agt_1/steps",
+ "props": {
+  "session": "agt_1",
+  "step": "step-12",
+  "actions": [
+   {"id": "continue", "label": "Continue", "enabled": true, "primary": true, "shortcut": "cmd+return"},
+   {"id": "test_me", "label": "I know this · test me", "enabled": true, "shortcut": "opt+t"},
+   {"id": "show_me", "label": "Show me", "enabled": true, "shortcut": "opt+s"},
+   {"id": "go_deeper", "label": "Go deeper", "enabled": true, "shortcut": "opt+d"},
+   {"id": "smaller_steps", "label": "Smaller steps", "enabled": true, "shortcut": "opt+m"}
+  ],
+  "pressed": "go_deeper",
+  "aside": {"step": "step-12", "title": "Aside · Cap at burst", "open": true, "session": "agt_2"}
+ }
+}

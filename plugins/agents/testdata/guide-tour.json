@@ -1,0 +1,42 @@
+{
+ "type": "guide.tour",
+ "id": "agt_1/tour",
+ "props": {
+  "session": "agt_1",
+  "title": "Reading tour",
+  "step": 5,
+  "of": 8,
+  "stepLabel": "step 5 of 8",
+  "summary": "2 known · 1 shaky · 1 missed",
+  "current": "c5",
+  "counts": {"known": 2, "shaky": 1, "missed": 1, "notYet": 3},
+  "concepts": [
+   {"id": "c1", "label": "Limiter", "state": "known", "stateLabel": "known", "step": 1, "stepLabel": "step 1", "depth": 0, "offers": [{"id": "ask_again", "label": "Ask again"}, {"id": "go_back", "label": "Back to step 1"}]},
+   {"id": "c2", "label": "Bucket per workspace", "state": "known", "stateLabel": "known", "step": 2, "stepLabel": "step 2", "depth": 1, "offers": [{"id": "ask_again", "label": "Ask again"}, {"id": "go_back", "label": "Back to step 2"}]},
+   {"id": "c3", "label": "Lazy create", "state": "shaky", "stateLabel": "shaky", "step": 3, "stepLabel": "step 3", "depth": 2, "offers": [{"id": "ask_again", "label": "Ask again"}, {"id": "go_back", "label": "Back to step 3"}]},
+   {"id": "c4", "label": "Refill", "state": "missed", "stateLabel": "missed", "step": 4, "stepLabel": "step 4", "depth": 2, "note": "line 32 · think so; answer line 30", "offers": [{"id": "ask_again", "label": "Ask again"}, {"id": "go_back", "label": "Back to step 4"}]},
+   {"id": "c5", "label": "Cap at burst", "state": "current", "stateLabel": "now", "step": 5, "stepLabel": "step 5", "depth": 3},
+   {"id": "c6", "label": "Spend a token", "state": "not_yet", "stateLabel": "not yet", "step": 6, "stepLabel": "step 6", "depth": 2},
+   {"id": "c7", "label": "ErrRateLimited", "state": "not_yet", "stateLabel": "not yet", "step": 7, "stepLabel": "step 7", "depth": 3},
+   {"id": "c8", "label": "Global cap", "state": "not_yet", "stateLabel": "not yet", "step": 8, "stepLabel": "step 8", "depth": 0, "links": [{"id": "c7", "label": "ErrRateLimited"}]}
+  ],
+  "edges": [
+   {"from": "c1", "to": "c2"},
+   {"from": "c2", "to": "c3"},
+   {"from": "c2", "to": "c4"},
+   {"from": "c4", "to": "c5"},
+   {"from": "c2", "to": "c6"},
+   {"from": "c6", "to": "c7"},
+   {"from": "c8", "to": "c7", "branch": true}
+  ],
+  "legend": [
+   {"state": "known", "label": "known"},
+   {"state": "shaky", "label": "shaky"},
+   {"state": "missed", "label": "missed"},
+   {"state": "current", "label": "now"},
+   {"state": "not_yet", "label": "not yet"}
+  ],
+  "shown": true,
+  "shortcut": "cmd+shift+m"
+ }
+}
