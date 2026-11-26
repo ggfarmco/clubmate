@@ -41,6 +41,14 @@ final class TranscriptBlocksTests: XCTestCase {
         XCTAssertEqual(open[5], TranscriptBlock(id: "s/e", kind: .action, folds: true, parent: "s/r/actions", file: true))
     }
 
+    func testAHandoffAnswerFoldsLikeAPrompt() {
+        var props = message("s/h", "agent", "Report").props
+        props["handoff"] = .object(["to": .string("Reviewer")])
+        let node = SDUINode(type: "transcript", id: "s/transcript", children: [SDUINode(type: "message", id: "s/h", props: props), message("s/a", "agent", "Done.")])
+        let blocks = TranscriptBlocks.blocks(node, folds: TranscriptFolds(messages: ["s/h"]))
+        XCTAssertEqual(blocks, [TranscriptBlock(id: "s/h", kind: .answer, folds: true, expanded: true), TranscriptBlock(id: "s/a", kind: .answer)])
+    }
+
     func testCopyGivesMarkdownOfTheBlock() {
         XCTAssertEqual(TranscriptBlocks.markdown("s/a", in: transcript), "Done.")
         XCTAssertEqual(TranscriptBlocks.markdown("s/e", in: transcript), "**Edit `a.go`**\n\n```diff\n@@ -1 +1 @@\n-a\n+b\n```")

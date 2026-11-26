@@ -79,7 +79,7 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 		rec.GateFor, rec.DisallowedTools = args.gate, gateReviewerDenied
 	}
 	if args.Run != "" {
-		rec.Run = &api.Run{ID: args.Run, Title: args.RunTitle, After: args.RunAfter}
+		rec.Run = &api.Run{ID: args.Run, Title: args.RunTitle, After: args.RunAfter, Next: args.RunNext}
 	}
 	var prec record
 	if parent, err := a.lookup(workspaceID, from); err == nil {

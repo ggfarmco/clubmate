@@ -60,6 +60,7 @@ type Run struct {
 	Title  string     `json:"title"`
 	Number int        `json:"number,omitempty"`
 	After  []RunAfter `json:"after,omitempty"`
+	Next   []string   `json:"next,omitempty"`
 }
 
 type RunNeed struct {

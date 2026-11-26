@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -103,6 +104,7 @@ type newArgs struct {
 	Run      string         `json:"run"`
 	RunTitle string         `json:"runTitle"`
 	RunAfter []api.RunAfter `json:"runAfter,omitempty"`
+	RunNext  []string       `json:"runNext,omitempty"`
 }
 
 type newResult struct {
@@ -198,7 +200,7 @@ func (x *runner) start(ctx context.Context, g *Graph) error {
 		if x.stopped != nil && x.stopped() {
 			return fmt.Errorf(errStoppedStarting, x.run.ID)
 		}
-		args := newArgs{Title: x.run.Title + " · " + n.label(), Branch: x.render(n.Branch), Afk: n.Afk, Model: n.Model, Effort: n.Effort, Run: x.run.ID, RunTitle: cmp.Or(x.run.Title, x.run.Graph), RunAfter: g.after(n.ID)}
+		args := newArgs{Title: x.run.Title + " · " + n.label(), Branch: x.render(n.Branch), Afk: n.Afk, Model: n.Model, Effort: n.Effort, Run: x.run.ID, RunTitle: cmp.Or(x.run.Title, x.run.Graph), RunAfter: g.after(n.ID), RunNext: g.next(n.ID)}
 		var out newResult
 		var err error
 		if x.newNode != nil {
@@ -350,6 +352,16 @@ func (g *Graph) after(id string) []api.RunAfter {
 	for _, e := range g.Edges {
 		if from := g.node(e.From); e.To == id && from != nil {
 			out = append(out, api.RunAfter{Role: from.label(), On: e.On, Outcome: e.Outcome})
+		}
+	}
+	return out
+}
+
+func (g *Graph) next(id string) []string {
+	var out []string
+	for _, e := range g.Edges {
+		if to := g.node(e.To); e.From == id && e.On != onError && to != nil && !slices.Contains(out, to.label()) {
+			out = append(out, to.label())
 		}
 	}
 	return out

@@ -13,6 +13,8 @@ public enum TranscriptCursorRows {
                 if let block = block(entry, open: open) { blocks.append(block) }
             case .agent(let id, _, _, _, _, _, _, _):
                 blocks.append(TranscriptBlock(id: id, kind: .answer))
+            case .handoff(let id, _, _):
+                blocks.append(TranscriptBlock(id: id, kind: .answer, folds: true, expanded: open(id, false)))
             case .tools(let id, let group):
                 guard group.calls.count > 1 else {
                     blocks.append(TranscriptBlock(id: id, kind: .action, folds: true, expanded: open(id, false)))
@@ -62,6 +64,8 @@ public enum TranscriptCursorRows {
                 return markdown(entry.content)
             case .agent(let rowID, let text, _, _, _, _, _, _) where rowID == id:
                 return text
+            case .handoff(let rowID, _, let agent) where rowID == id:
+                return markdown(rowID, in: [agent])
             case .thought(let rowID, let text, _, _) where rowID == id:
                 return text
             case .held(let rowID, let call) where rowID == id:

@@ -32,26 +32,34 @@ struct MessageNodeView: View, Equatable {
         case .thought:
             ThoughtView(id: node.id ?? "", text: text, seconds: node.props["seconds"]?.numberValue.map(Int.init), open: node.bool("open") == true)
         case .agent:
-            let open = { [node, dispatch] (target: String) in dispatch(node, .named("openDoc", .string(target))) }
-            let message = node.id ?? ""
-            let images = node.images
-            let openImage = { (path: String) in ImageViewer.shared.open(message: message, path: path) }
-            VStack(alignment: .leading, spacing: theme.spacing.l) {
-                MarkdownText(text: text, links: ProseLinks(docs: node.docLinks, images: node.imageLinks, tasks: node.taskLinks), openDoc: open, openImage: openImage)
-                    .equatable()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                let cards = node.docCards
-                if !cards.isEmpty {
-                    MessageDocCards(id: (node.id ?? cards[0].path) + "/docs", groups: DocCardGroups(cards), open: open)
-                }
-                if !images.isEmpty {
-                    MessageImages(message: message, images: images)
-                }
+            if let to = node.handoffTo, let id = node.id {
+                HandoffView(id: id, title: Handoff.title(to: to, text: text)) { agent(text) }
+            } else {
+                agent(text)
             }
-            .environment(\.askAside, asideQuote.map { quote in { [node] passage in quote.ask(node, passage ?? text) } })
-            .sheet(item: ImageViewer.shared.binding(message: message)) { shown in
-                ImageViewerSheet(path: shown.path, rel: images.first { $0.path == shown.path }?.rel, size: NSApp.keyWindow?.contentLayoutRect.size)
+        }
+    }
+
+    @ViewBuilder private func agent(_ text: String) -> some View {
+        let open = { [node, dispatch] (target: String) in dispatch(node, .named("openDoc", .string(target))) }
+        let message = node.id ?? ""
+        let images = node.images
+        let openImage = { (path: String) in ImageViewer.shared.open(message: message, path: path) }
+        VStack(alignment: .leading, spacing: theme.spacing.l) {
+            MarkdownText(text: text, links: ProseLinks(docs: node.docLinks, images: node.imageLinks, tasks: node.taskLinks), openDoc: open, openImage: openImage)
+                .equatable()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            let cards = node.docCards
+            if !cards.isEmpty {
+                MessageDocCards(id: (node.id ?? cards[0].path) + "/docs", groups: DocCardGroups(cards), open: open)
             }
+            if !images.isEmpty {
+                MessageImages(message: message, images: images)
+            }
+        }
+        .environment(\.askAside, asideQuote.map { quote in { [node] passage in quote.ask(node, passage ?? text) } })
+        .sheet(item: ImageViewer.shared.binding(message: message)) { shown in
+            ImageViewerSheet(path: shown.path, rel: images.first { $0.path == shown.path }?.rel, size: NSApp.keyWindow?.contentLayoutRect.size)
         }
     }
 
@@ -176,6 +184,40 @@ private struct VoicePromptView: View {
               let pretty = String(data: data, encoding: .utf8)
         else { return text }
         return pretty
+    }
+}
+
+private struct HandoffView<Content: View>: View {
+    let id: String
+    let title: String
+    @ViewBuilder let content: Content
+
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let expanded = MessageExpansion.shared.expanded.contains(id)
+        VStack(alignment: .leading, spacing: theme.spacing.s) {
+            Button { MessageExpansion.shared.toggle(id) } label: {
+                HStack(spacing: theme.spacing.s) {
+                    DisclosureChevron(expanded: expanded)
+                    Text(title)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .font(theme.uiSmall)
+                .foregroundStyle(hovering ? theme.foreground : theme.muted)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering = $0 }
+            .help(title)
+            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+            if expanded {
+                content
+                    .padding(.leading, theme.indent)
+            }
+        }
     }
 }
 

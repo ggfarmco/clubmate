@@ -161,6 +161,7 @@ type entry struct {
 	TaskLinks  map[string]string `json:"taskLinks,omitempty"`
 	Hidden     bool              `json:"hidden,omitempty"`
 	Open       bool              `json:"open,omitempty"`
+	Handoff    *handoffMark      `json:"handoff,omitempty"`
 	Voice      *voicePrompt      `json:"voice,omitempty"`
 	Review     *reviewSent       `json:"review,omitempty"`
 	Gate       *gateMessage      `json:"gateMessage,omitempty"`
@@ -204,6 +205,8 @@ type turnInfo struct {
 	StopReason    string   `json:"stopReason,omitempty"`
 	Commits       []string `json:"commits,omitempty"`
 	Ended         bool     `json:"ended,omitempty"`
+	relayed       bool
+	failed        bool
 }
 
 type promptPayload struct {
@@ -216,6 +219,7 @@ type promptPayload struct {
 	Sent      string       `json:"sent,omitempty"`
 	Queued    []string     `json:"queued,omitempty"`
 	Gate      *gateMessage `json:"gate,omitempty"`
+	Relayed   bool         `json:"relayed,omitempty"`
 }
 
 type permissionPayload struct {
@@ -270,6 +274,7 @@ func (s *session) viewSince(fromTurn int, since *cursor, always func(*entry) boo
 	marked := s.markedLocked()
 	numbers := openNumbers(s.opens)
 	opened := openThoughts(s.entries, s.runningTurnLocked())
+	handoffs := s.handoffsLocked()
 	for _, en := range s.entries {
 		if since == nil && en.Turn < fromTurn {
 			continue
@@ -278,6 +283,9 @@ func (s *session) viewSince(fromTurn int, since *cursor, always func(*entry) boo
 		changed, derived := en.node == nil, false
 		if opened[en] != en.Open {
 			en.Open, en.node, derived = opened[en], nil, true
+		}
+		if h := handoffs[en]; !sameHandoff(h, en.Handoff) {
+			en.Handoff, en.node, derived = h, nil, true
 		}
 		if marked[en] != en.marked {
 			en.marked, en.node, derived = marked[en], nil, true
@@ -600,6 +608,7 @@ func (s *session) apply(e envelope) {
 		var p turnEndPayload
 		if json.Unmarshal(e.Payload, &p) == nil {
 			s.turnInfo(e.Turn).StopReason = p.StopReason
+			s.turnInfo(e.Turn).failed = p.Error != "" || p.StopReason == acp.StopCancelled
 			s.failedTurn = strings.TrimPrefix(acpErrorRe.ReplaceAllString(firstLine(p.Error), ""), internalErrorPrefix)
 		}
 	case kindPresented:
@@ -609,6 +618,9 @@ func (s *session) apply(e envelope) {
 		}
 	case kindError:
 		s.changesFresh = false
+		if t := s.turnInfo(e.Turn); !t.Ended {
+			t.failed = true
+		}
 		s.failedTurn = ""
 	case kindCancel:
 		s.cancelTools(e.Turn)
@@ -680,6 +692,7 @@ func (s *session) applyPrompt(e envelope) {
 		id += "-" + strconv.Itoa(s.nextID)
 	default:
 		s.edited = false
+		s.turnInfo(e.Turn).relayed = req.Relayed
 	}
 	en := s.upsert(entryUser, id, e.Turn)
 	if req.FromTitle != "" && !slices.Contains(s.senders, req.FromTitle) {

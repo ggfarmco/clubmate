@@ -135,6 +135,18 @@ final class SessionScreenTests: XCTestCase {
         XCTAssertEqual(taskLinks, ["601": "Number search"])
     }
 
+    func testHandoffReplyIsOneFoldedRowOverItsAgentRow() throws {
+        let json = #"""
+        [{"kind":"agent","id":"a1","text":"## Report\nAll green.","handoff":{"to":"Reviewer"}},{"kind":"agent","id":"a2","text":"Hi"}]
+        """#
+        let entries = try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: Data(json.utf8))
+        let rows = SessionScreen(entries: entries, session: nil).rows
+        guard case .handoff("agent/a1", "→ Reviewer · Report", .agent("agent/a1", _, _, _, _, _, _, _)) = rows.first, case .agent = rows.last else { return XCTFail("unexpected rows \(rows)") }
+        let blocks = TranscriptCursorRows.blocks(rows, open: { id, _ in id == "agent/a1" }, listed: nil)
+        XCTAssertEqual(blocks, [TranscriptBlock(id: "agent/a1", kind: .answer, folds: true, expanded: true), TranscriptBlock(id: "agent/a2", kind: .answer)])
+        XCTAssertEqual(TranscriptCursorRows.markdown("agent/a1", in: rows), "## Report\nAll green.")
+    }
+
     func testMessageThatIsOnlyAPlanFoldsIntoThePlanCard() throws {
         let json = #"""
         [{"kind":"agent","id":"a1","text":"Steps:\n\n1. One\n2. Two"},

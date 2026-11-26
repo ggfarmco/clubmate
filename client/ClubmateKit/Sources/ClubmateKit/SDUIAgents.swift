@@ -230,6 +230,10 @@ extension SDUINode {
         string("statusWord")
     }
 
+    public var handoffTo: String? {
+        props["handoff"]?.objectValue.map { $0["to"]?.stringValue ?? "" }
+    }
+
     public var gateMessage: SDUIGateMessage? {
         props["gate"].flatMap(SDUIGateMessage.init)
     }

@@ -32,6 +32,7 @@ type queuedPrompt struct {
 	Land        bool         `json:"-"`
 	Gate        bool         `json:"gate,omitempty"`
 	Message     *gateMessage `json:"message,omitempty"`
+	Relayed     bool         `json:"relayed,omitempty"`
 }
 
 func (s *session) enqueueLocked(args promptArgs) {
@@ -82,7 +83,7 @@ func (s *session) queued() []queuedPrompt {
 }
 
 func (s *session) queuedLocked(args promptArgs) queuedPrompt {
-	return queuedPrompt{ID: rand.Text(), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review, Answered: args.Answered, Land: args.Land, Gate: args.Gate, Message: args.Message}
+	return queuedPrompt{ID: rand.Text(), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review, Answered: args.Answered, Land: args.Land, Gate: args.Gate, Message: args.Message, Relayed: !args.User}
 }
 
 func (s *session) dequeueLocked() (promptArgs, bool) {
@@ -102,7 +103,7 @@ func (s *session) dequeueLocked() (promptArgs, bool) {
 	}
 	parts := s.queue[:n]
 	s.queue = slices.Clone(s.queue[n:])
-	args := promptArgs{From: from, Voice: voice, Review: parts[0].Review}
+	args := promptArgs{From: from, Voice: voice, Review: parts[0].Review, User: slices.ContainsFunc(parts, func(q queuedPrompt) bool { return !q.Relayed })}
 	var texts, ids []string
 	for _, q := range parts {
 		ids = append(ids, q.ID)

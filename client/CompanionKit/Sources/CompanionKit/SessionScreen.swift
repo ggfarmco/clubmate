@@ -142,11 +142,12 @@ public enum TranscriptRow: Sendable, Equatable, Identifiable {
     case answered(PermissionRequest)
     case asked(Elicitation)
     case openClosed(id: String, OpenItems)
+    indirect case handoff(id: String, title: String, agent: TranscriptRow)
 
     public var id: String {
         switch self {
         case .entry(let entry): entry.id
-        case .agent(let id, _, _, _, _, _, _, _), .tools(let id, _), .held(let id, _), .thought(let id, _, _, _), .openClosed(let id, _): id
+        case .agent(let id, _, _, _, _, _, _, _), .tools(let id, _), .held(let id, _), .thought(let id, _, _, _), .openClosed(let id, _), .handoff(let id, _, _): id
         case .answered(let request): "permission/" + request.id
         case .asked(let question): "elicitation/" + question.id
         }
@@ -197,7 +198,10 @@ public struct SessionScreen: Sendable, Equatable {
                 if asked?.index == index, asked?.drop == true, case .paragraph = blocks.last {
                     blocks.removeLast()
                 }
-                if !blocks.isEmpty || !entry.images.isEmpty { rows.append(.agent(id: entry.id, text: text, blocks: blocks, docLinks: entry.docLinks, docCards: entry.docCards, images: entry.images, imageLinks: entry.imageLinks, taskLinks: entry.taskLinks)) }
+                if !blocks.isEmpty || !entry.images.isEmpty {
+                    let agent = TranscriptRow.agent(id: entry.id, text: text, blocks: blocks, docLinks: entry.docLinks, docCards: entry.docCards, images: entry.images, imageLinks: entry.imageLinks, taskLinks: entry.taskLinks)
+                    rows.append(entry.handoff.map { .handoff(id: entry.id, title: Handoff.title(to: $0, text: text), agent: agent) } ?? agent)
+                }
             case .thought(let text):
                 let next = index + 1 < entries.count ? entries[index + 1].at : nil
                 rows.append(.thought(id: entry.id, text: text, title: Self.thoughtTitle(from: entry.at, to: next), open: entry.open))

@@ -43,9 +43,9 @@ import ClubmateKit
             ToolExpansion.shared.set(card: block.id, expanded: expanded)
         case .thought:
             MessageExpansion.shared.set(thought: block.id, expanded: expanded)
-        case .prompt, .plan:
+        case .prompt, .plan, .answer:
             if MessageExpansion.shared.expanded.contains(block.id) != expanded { MessageExpansion.shared.toggle(block.id) }
-        case .answer, .card, .earlier:
+        case .card, .earlier:
             break
         }
     }

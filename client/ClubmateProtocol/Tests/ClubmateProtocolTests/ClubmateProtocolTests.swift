@@ -4,6 +4,11 @@ import XCTest
 import ClubmateProtocol
 
 final class ClubmateProtocolTests: XCTestCase {
+    func testHandoffTitleTakesTheFirstTextLine() {
+        XCTAssertEqual(Handoff.title(to: "Reviewer, Tester", text: "\n## Report\nmore"), "→ Reviewer, Tester · Report")
+        XCTAssertEqual(Handoff.title(to: "", text: " "), "→ next node")
+    }
+
     func testLongMessagePreview() throws {
         XCTAssertNil(LongMessage(String(repeating: "line\n", count: 39)))
 

@@ -555,6 +555,9 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		if en.Kind == entryThought && en.Open {
 			n.Props["open"] = true
 		}
+		if en.Kind == entryAgent && en.Handoff != nil {
+			n.Props["handoff"] = en.Handoff
+		}
 		if en.Kind == entryAgent && len(en.DocLinks) > 0 {
 			n.Props["docLinks"] = en.DocLinks
 		}

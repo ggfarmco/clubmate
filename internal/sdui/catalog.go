@@ -297,7 +297,7 @@ var (
 		"transcript": {props: map[string]propCheck{"center": isBool, "anchor": isString, "anchorRev": countNumber, "asideAction": actionCheck}, children: anyChildren},
 		"message": {
 			required: []string{"role", "text"},
-			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString, "seconds": countNumber, "open": isBool, "heard": isString, "docLinks": stringMap, "docCards": docCardsCheck, "images": imageRefsCheck, "imageLinks": stringMap, "taskLinks": stringMap, "sending": isBool, "gate": gateMessageCheck},
+			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString, "seconds": countNumber, "open": isBool, "heard": isString, "docLinks": stringMap, "docCards": docCardsCheck, "images": imageRefsCheck, "imageLinks": stringMap, "taskLinks": stringMap, "sending": isBool, "gate": gateMessageCheck, "handoff": objectCheck(nil, map[string]propCheck{"to": isString})},
 			children: noChildren,
 		},
 		"plan": {required: []string{"entries"}, props: map[string]propCheck{"entries": listOf(planEntryCheck)}, children: noChildren},

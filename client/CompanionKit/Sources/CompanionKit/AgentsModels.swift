@@ -455,10 +455,11 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public let imageLinks: [String: String]
     public let taskLinks: [String: String]
     public let open: Bool
+    public let handoff: String?
     let raw: JSONValue
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, afk, from, compaction, elicitation, response, completed, stoppable, doc, hidden, docLinks, docCards, images, imageLinks, taskLinks, open, card, voice, items, overflow, later, toolSummary, gate, heldCalls, gateMessage
+        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, afk, from, compaction, elicitation, response, completed, stoppable, doc, hidden, docLinks, docCards, images, imageLinks, taskLinks, open, handoff, card, voice, items, overflow, later, toolSummary, gate, heldCalls, gateMessage
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -475,11 +476,12 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         imageLinks = [:]
         taskLinks = [:]
         open = false
+        handoff = nil
         raw = .null
     }
 
     public static func == (lhs: TranscriptEntry, rhs: TranscriptEntry) -> Bool {
-        lhs.id == rhs.id && lhs.turn == rhs.turn && lhs.at == rhs.at && lhs.content == rhs.content && lhs.docLinks == rhs.docLinks && lhs.docCards == rhs.docCards && lhs.images == rhs.images && lhs.imageLinks == rhs.imageLinks && lhs.taskLinks == rhs.taskLinks && lhs.open == rhs.open
+        lhs.id == rhs.id && lhs.turn == rhs.turn && lhs.at == rhs.at && lhs.content == rhs.content && lhs.docLinks == rhs.docLinks && lhs.docCards == rhs.docCards && lhs.images == rhs.images && lhs.imageLinks == rhs.imageLinks && lhs.taskLinks == rhs.taskLinks && lhs.open == rhs.open && lhs.handoff == rhs.handoff
     }
 
     public var isOutgoing: Bool {
@@ -504,6 +506,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         imageLinks = (try? c.decodeIfPresent([String: String].self, forKey: .imageLinks)) ?? [:]
         taskLinks = (try? c.decodeIfPresent([String: String].self, forKey: .taskLinks)) ?? [:]
         open = (try? c.decodeIfPresent(Bool.self, forKey: .open)) ?? false
+        handoff = (try? c.decodeIfPresent(JSONValue.self, forKey: .handoff))?.flatMap { $0.objectValue.map { $0["to"]?.stringValue ?? "" } }
         let text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
         switch TranscriptEntryKind(raw) {
         case .user:

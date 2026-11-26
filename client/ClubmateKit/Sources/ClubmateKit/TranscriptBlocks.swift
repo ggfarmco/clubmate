@@ -112,7 +112,8 @@ public enum TranscriptBlocks {
             case .thought:
                 return TranscriptBlock(id: child.id, kind: .thought, folds: true, expanded: folds.thought(child.id, open: node.bool("open") == true))
             case .agent:
-                return TranscriptBlock(id: child.id, kind: .answer)
+                let handoff = node.handoffTo != nil
+                return TranscriptBlock(id: child.id, kind: .answer, folds: handoff, expanded: handoff && folds.messages.contains(child.id))
             }
         case "plan":
             let fold = PlanFold(node.planEntries().map(\.status)).folds

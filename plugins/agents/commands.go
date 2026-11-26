@@ -179,6 +179,7 @@ type newArgs struct {
 	Run             string         `json:"run"`
 	RunTitle        string         `json:"runTitle"`
 	RunAfter        []api.RunAfter `json:"runAfter"`
+	RunNext         []string       `json:"runNext"`
 	DisallowedTools []string       `json:"disallowedTools"`
 	SystemPrompt    string         `json:"systemPrompt"`
 	Mode            string         `json:"mode"`

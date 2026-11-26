@@ -148,14 +148,22 @@ struct MessageNode: View {
                 }
             case .thought: ThoughtView(key: node.id, text: text, title: thought, open: node.bool("open") == true)
             case .agent:
-                AgentMessage(cards: node.docCards, entry: entry, images: node.images) { MarkdownView(text: text, docLinks: node.docLinks, imageLinks: node.imageLinks, taskLinks: node.taskLinks) }
-                    .environment(\.openDoc, Opener(key: node.id ?? "") { target in
-                        context.run { await $0.fire(node, .named("openDoc", .string(target))) }
-                    })
-                    .environment(\.imageSession, session)
+                if let to = node.props["handoff"]?.objectValue.map({ $0["to"]?.stringValue ?? "" }), let id = node.id {
+                    HandoffRow(key: id, title: Handoff.title(to: to, text: text)) { agent(text) }
+                } else {
+                    agent(text)
+                }
             }
         }
         .padding(.horizontal, inset)
+    }
+
+    private func agent(_ text: String) -> some View {
+        AgentMessage(cards: node.docCards, entry: entry, images: node.images) { MarkdownView(text: text, docLinks: node.docLinks, imageLinks: node.imageLinks, taskLinks: node.taskLinks) }
+            .environment(\.openDoc, Opener(key: node.id ?? "") { target in
+                context.run { await $0.fire(node, .named("openDoc", .string(target))) }
+            })
+            .environment(\.imageSession, session)
     }
 }
 

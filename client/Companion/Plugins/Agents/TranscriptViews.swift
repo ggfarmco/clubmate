@@ -16,9 +16,10 @@ struct RowView: View, Equatable {
         case .entry(let entry):
             EntryView(entry: entry)
                 .opacity(entry.isOutgoing ? 0.6 : 1)
-        case .agent(let id, let text, let blocks, let docLinks, let docCards, let images, let imageLinks, let taskLinks):
-            AgentMessage(cards: docCards, entry: id, images: images) { MarkdownView(blocks: blocks, docLinks: docLinks, imageLinks: imageLinks, taskLinks: taskLinks) }
-                .messageAsideMenu(id, text: text)
+        case .agent:
+            AgentRow(row: row)
+        case .handoff(let id, let title, let agent):
+            HandoffRow(key: id, title: title) { AgentRow(row: agent) }
         case .tools(let id, let group):
             if group.calls.count == 1 {
                 ToolRow(tool: group.calls[0], key: id)
@@ -35,6 +36,56 @@ struct RowView: View, Equatable {
             AskedRow(question: question)
         case .openClosed(_, let items):
             OpenClosedRow(items: items)
+        }
+    }
+}
+
+private struct AgentRow: View {
+    let row: TranscriptRow
+
+    var body: some View {
+        if case .agent(let id, let text, let blocks, let docLinks, let docCards, let images, let imageLinks, let taskLinks) = row {
+            AgentMessage(cards: docCards, entry: id, images: images) { MarkdownView(blocks: blocks, docLinks: docLinks, imageLinks: imageLinks, taskLinks: taskLinks) }
+                .messageAsideMenu(id, text: text)
+        }
+    }
+}
+
+struct HandoffRow<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+    @Fold private var expanded: Bool
+
+    init(key: String, title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+        _expanded = Fold(key)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                Motion.disclose { expanded.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                    Text(title)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .font(.footnote)
+                .foregroundStyle(Color.captionInk)
+                .frame(minHeight: 44)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Hand-off: \(title)")
+            .accessibilityHint(expanded ? "Hides the reply sent to the next node" : "Shows the reply sent to the next node")
+            if expanded {
+                content
+            }
         }
     }
 }
