@@ -29,7 +29,7 @@ private struct SlotPopup: ViewModifier {
                         case .popOut: popOut()
                         case .close: session.closePopup(slot)
                         case .switchFocus: session.switchPopupFocus()
-                        case .resetZoom: break
+                        case .resetZoom, .find: break
                         }
                     }
                 }
@@ -113,6 +113,7 @@ enum PopupAction: String {
     case close
     case switchFocus
     case resetZoom
+    case find
 }
 
 struct PopupPanel: View {
@@ -151,7 +152,7 @@ struct PopupPanel: View {
         let key = PopupKeys.key(
             keyCode: event.keyCode, characters: event.charactersIgnoringModifiers,
             command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift),
-            document: store.slot(slot)?.tree.hasDocument == true, lightbox: zoom.lightbox, finding: find.visible
+            document: store.slot(slot)?.tree.hasPageDocument == true, lightbox: zoom.lightbox, finding: find.visible
         )
         switch key {
         case .close: perform(.close)
@@ -201,9 +202,10 @@ struct PopupContent: View {
 
     private var buttons: [SDUINode] {
         var buttons: [SDUINode] = []
-        if zoom.scale != 1, store.slot(slot)?.tree.hasDocument == true {
+        if zoom.scale != 1, store.slot(slot)?.tree.hasPageDocument == true {
             buttons.append(SDUINode(type: "button", id: PopupAction.resetZoom.rawValue, props: ["label": .string("\(Int((zoom.scale * 100).rounded()))%"), "variant": .string("ghost")]))
         }
+        if store.slot(slot)?.tree.hasPageDocument == true { buttons.append(Self.button(.find, label: "Find", icon: "magnifyingglass", shortcut: "cmd+f")) }
         if !poppedOut { buttons.append(Self.button(.popOut, label: "Pop out", icon: "rectangle.portrait.on.rectangle.portrait", shortcut: Self.popOutKey)) }
         buttons.append(Self.button(.close, label: "Close", icon: "xmark", shortcut: nil))
         return buttons
@@ -216,10 +218,12 @@ struct PopupContent: View {
     private var dispatch: SDUIDispatch {
         let perform = perform
         let zoom = zoom
+        let find = find
         return SDUIDispatch(slot: slot, workspaceID: store.workspaceID, sink: { event in
             await MainActor.run {
                 switch PopupAction(rawValue: event.nodeId) {
                 case .resetZoom: zoom.apply(.fit)
+                case .find: find.show()
                 case let action?: perform(action)
                 case nil: break
                 }

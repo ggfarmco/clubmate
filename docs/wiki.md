@@ -38,7 +38,7 @@ The project of a command is the calling agent session's worktree, else the works
 - A `ui.event` with `agent: true` on New page, Edit, Reveal in Finder, Delete or Restore this version is refused (`not for agents`): agents use the `wiki.*` commands, where `wiki.delete` asks the user.
 - Empty wiki: a centred `empty` "No wiki pages yet" — "Agents write here as they work: how things work, why they were decided, examples. You can add a page too." — with **New page**, which writes `untitled.md` (`untitled-2.md`, …) with `# Untitled` and opens it in the editor. The Home workspace reads "Agents write here as they work: plans, lists and notes for your life outside projects." A workspace with no folders reads "Add a folder to see its wiki." in both slots.
 - While a workspace shows the section, a 3 s poll stats each wiki; a change runs the sweep and re-renders, and every tick re-renders the section so `stale` follows main.
-- Keys: E edits the page, ⌘Y shows its history and again goes back (`docs/shortcuts.md`); the phone shows no wiki yet.
+- Keys: E edits the page, ⌘Y shows its history and again goes back, ⌘F finds in the page (the docs viewer's find bar, [docs-viewer.md](docs-viewer.md) § Find) (`docs/shortcuts.md`); the phone shows no wiki yet.
 
 ## Agent guidance
 

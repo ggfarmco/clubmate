@@ -86,6 +86,26 @@ func TestWikiMarginAllChangesOpensHistory(t *testing.T) {
 	in.eventually("a click on All 4 changes in the margin opens History", opened)
 }
 
+func TestWikiPageFindOpensOnCmdFAndEscClosesIt(t *testing.T) {
+	in := start(t, "macui-wiki-find", "")
+	args, err := json.Marshal(map[string]string{"page": "a.md", "content": "# A\n\nThe fox and the fox.\n", "summary": "seed"})
+	require.NoError(t, err)
+	in.cm("command", "run", "wiki.write", "--args", string(args))
+	in.focusSection("wiki", "wiki.sidebar")
+	in.eventually("the page shows", func() bool { return in.snapshot().main().has("page") })
+
+	findFocused := func() bool { w := in.snapshot().key(); return w != nil && w.Focus == "page" && w.Responder == "NSTextView" }
+	require.Equal(t, []string{"monitor"}, in.key("cmd+f"))
+	in.eventually("⌘F puts the caret in the find field over the page", findFocused)
+	for _, key := range []string{"shift+return", "esc"} {
+		require.NotContains(t, in.key("--focus", "search", key), "monitor", "%s in the sidebar's search field stays there while the find bar is open", key)
+	}
+	require.Equal(t, []string{"monitor"}, in.key("cmd+f"))
+	in.eventually("⌘F from the sidebar takes the caret back to the find field", findFocused)
+	require.Equal(t, []string{"monitor"}, in.key("esc"))
+	in.eventually("Esc closes the find field", func() bool { return !findFocused() })
+}
+
 func TestWikiChatPanelOpensOnPicker(t *testing.T) {
 	in := start(t, "macui-wiki-chat", askScript)
 	for i := range 4 {

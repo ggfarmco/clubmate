@@ -38,6 +38,7 @@ final class WorkspaceSession {
     @ObservationIgnored var popupHost: PopupWindowHost?
     let popupZoom = DocumentZoom()
     let popupFind = DocumentFind()
+    let mainFind = DocumentFind()
     @ObservationIgnored var autoNew = AutoNewGate()
     private(set) var store: WorkspaceUIStore?
     let launchRecord: LaunchRecord?

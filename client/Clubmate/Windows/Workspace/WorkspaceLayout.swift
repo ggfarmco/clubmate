@@ -1,5 +1,7 @@
+import AppKit
 import SwiftUI
 
+import ClubmateDocument
 import ClubmateKit
 
 struct WorkspaceLayout: View {
@@ -100,6 +102,7 @@ struct WorkspaceLayout: View {
                 _ = await store.send(UIEvent(workspaceId: store.workspaceID, slot: CodeSection.reviewSlot, nodeId: "review", action: "layout", value: .string(layout)))
             }
         }
+        .onChange(of: section) { mainFind?.hide() }
         .onChange(of: app.voiceSettings.isOn) { _, on in
             if !on { app.sessions.existing(store.workspaceID)?.voice.cancel() }
         }
@@ -130,6 +133,8 @@ struct WorkspaceLayout: View {
             SlotPane(store: store, slot: "\(section).main")
                 .background(PaneMarker(slot: "\(section).main"))
                 .environment(\.chatColumnShown, store.columnShown)
+                .environment(\.documentFind, mainFind)
+                .keyMonitor(active: pageFindActive, handle: handlePageFind)
                 .modifier(MainFocus(store: store, slot: "\(section).main"))
                 .overlay(alignment: .top) {
                     if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
@@ -141,6 +146,44 @@ struct WorkspaceLayout: View {
                 }
             }
         }
+    }
+
+    private var mainFind: DocumentFind? {
+        app.sessions.existing(store.workspaceID)?.mainFind
+    }
+
+    private var pageFindActive: Bool {
+        guard let session = app.sessions.existing(store.workspaceID), session.overlay == nil else { return false }
+        guard store.popup == nil || session.popupPoppedOut || session.popupHidden else { return false }
+        return store.slot("\(section).main")?.tree.hasPageDocument == true
+    }
+
+    private func handlePageFind(_ event: NSEvent) -> Bool {
+        guard let find = mainFind else { return false }
+        let flags = event.modifierFlags
+        let key = PopupKeys.pageFindKey(
+            keyCode: event.keyCode, characters: event.charactersIgnoringModifiers,
+            command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift),
+            finding: find.visible
+        )
+        if key != .find, !Self.focusIn("\(section).main", event.window) { return false }
+        switch key {
+        case .find: find.show()
+        case .findNext: Task { await find.next() }
+        case .findPrevious: Task { await find.previous() }
+        case .closeFind:
+            find.hide()
+            router?.request("\(section).main")
+        default: return false
+        }
+        return true
+    }
+
+    private static func focusIn(_ slot: String, _ window: NSWindow?) -> Bool {
+        guard let window else { return false }
+        let responder = window.firstResponder
+        if responder == nil || responder === window || responder === window.contentView || responder === window.contentView?.superview { return true }
+        return PaneMarker.holds(slot, responder)
     }
 
     private var asideLimit: CGFloat {

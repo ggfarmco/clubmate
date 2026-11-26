@@ -40,4 +40,19 @@ final class PopupKeysTests: XCTestCase {
         XCTAssertEqual(key("cmd+j", document: false), .switchFocus)
         XCTAssertNil(key("cmd+shift+j"))
     }
+
+    func testPageFindTakesOnlyFindKeysOverAPageDocument() {
+        func page(_ combo: String, finding: Bool = false) -> PopupKey? {
+            let combo = KeyCombo(combo)!
+            return PopupKeys.pageFindKey(keyCode: combo.keyCode, characters: combo.charactersIgnoringModifiers, command: combo.command, control: combo.control, option: combo.option, shift: combo.shift, finding: finding)
+        }
+        XCTAssertEqual(page("cmd+f"), .find)
+        XCTAssertEqual(page("esc", finding: true), .closeFind)
+        XCTAssertNil(page("esc"))
+        XCTAssertNil(page("cmd+w"))
+        XCTAssertNil(page("cmd+="))
+        let card = SDUINode(type: "document", props: ["size": .string("fit")])
+        XCTAssertFalse(SDUINode(type: "column", children: [card]).hasPageDocument)
+        XCTAssertTrue(SDUINode(type: "column", children: [card, SDUINode(type: "document")]).hasPageDocument)
+    }
 }

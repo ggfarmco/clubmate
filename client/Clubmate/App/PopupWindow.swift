@@ -95,7 +95,7 @@ private struct PopupWindowRoot: View {
         switch action {
         case .close: close()
         case .switchFocus: session.switchPopupFocus()
-        case .popOut, .resetZoom: break
+        case .popOut, .resetZoom, .find: break
         }
     }
 

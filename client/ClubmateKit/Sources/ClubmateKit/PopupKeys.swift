@@ -36,4 +36,14 @@ public enum PopupKeys {
         default: return nil
         }
     }
+
+    public static func pageFindKey(keyCode: UInt16, characters: String?, command: Bool, control: Bool, option: Bool, shift: Bool, finding: Bool) -> PopupKey? {
+        switch key(keyCode: keyCode, characters: characters, command: command, control: control, option: option, shift: shift, document: true, lightbox: false, finding: finding) {
+        case .find: .find
+        case .findNext: .findNext
+        case .findPrevious: .findPrevious
+        case .closeFind: .closeFind
+        default: nil
+        }
+    }
 }

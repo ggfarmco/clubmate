@@ -62,8 +62,8 @@ extension SDUINode {
         type == "tabs" ? self : children.lazy.compactMap(\.firstTabs).first
     }
 
-    public var hasDocument: Bool {
-        type == "document" || children.contains { $0.hasDocument }
+    public var hasPageDocument: Bool {
+        type == "document" && string("size") != "fit" || children.contains { $0.hasPageDocument }
     }
 
     public var firstHeader: SDUINode? {
