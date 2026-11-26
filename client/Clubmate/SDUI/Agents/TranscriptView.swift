@@ -184,7 +184,7 @@ struct TranscriptNodeView: View {
     }
 
     private func pick(_ id: String) {
-        guard column != nil else { return }
+        guard column != nil, blocks.contains(where: { $0.id == id }) else { return }
         cursor = id
         if !reading { focused = true }
     }
