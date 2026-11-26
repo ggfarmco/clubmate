@@ -35,7 +35,7 @@ public struct PaneStep: Equatable, Sendable {
 }
 
 public enum PaneLadder {
-    public static let controlKeys: [String: PaneArrow] = ["j": .down, "k": .up]
+    public static let controlKeys: [String: PaneArrow] = ["h": .left, "j": .down, "k": .up, "l": .right]
 
     public static func escape(from pane: AgentsPane?, _ facts: PaneFacts) -> PaneStep {
         let next: AgentsPane = switch pane {

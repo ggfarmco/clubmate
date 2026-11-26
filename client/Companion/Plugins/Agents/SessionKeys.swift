@@ -190,7 +190,7 @@ struct SessionCommands: Commands {
             paneButton("Go to Transcript", .up, .upArrow)
             paneButton("Go to Composer", .down, .downArrow)
             ForEach(PaneLadder.controlKeys.sorted { $0.key > $1.key }, id: \.key) { key, arrow in
-                paneButton(arrow == .up ? "Go to Transcript (Alternate)" : "Go to Composer (Alternate)", arrow, KeyEquivalent(Character(key)), modifiers: .control)
+                paneButton(Self.alternate[arrow] ?? "", arrow, KeyEquivalent(Character(key)), modifiers: .control)
             }
             Divider()
             Button("Transcript Keys") {
@@ -200,6 +200,8 @@ struct SessionCommands: Commands {
             .disabled(keys?.help == nil)
         }
     }
+
+    private static let alternate: [PaneArrow: String] = [.left: "Go to List (Alternate)", .right: "Go to Session (Alternate)", .up: "Go to Transcript (Alternate)", .down: "Go to Composer (Alternate)"]
 
     private func paneButton(_ title: String, _ arrow: PaneArrow, _ key: KeyEquivalent, modifiers: EventModifiers = [.option, .command]) -> some View {
         Button(title) {

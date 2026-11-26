@@ -47,7 +47,7 @@ struct AgentsFocus {
         let responder = window.firstResponder
         if (responder as? NSTextInputClient)?.hasMarkedText() == true { return false }
         if AgentsChord.control(keyCode: event.keyCode, command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift)),
-           (responder as? NSTextView)?.isFieldEditor == true, panes.pane != .field || panes.slot != AgentsSection.sidebarSlot + SidebarField.suffix { return false }
+           (responder as? NSTextView)?.isFieldEditor == true, panes.pane != .field || panes.slot != AgentsSection.sidebarSlot + SidebarField.suffix || chord == .column(-1) || chord == .column(1) { return false }
         if chord == .keys {
             panes.keysShown.toggle()
             return true

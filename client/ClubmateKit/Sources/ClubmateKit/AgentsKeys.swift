@@ -37,10 +37,15 @@ public enum AgentsChord: Equatable, Sendable {
     case right
     case transcript
     case composer
+    case column(Int)
     case keys
 
     public static func control(keyCode: UInt16, command: Bool, control: Bool, option: Bool, shift: Bool) -> Bool {
-        control && !command && !option && !shift && [.transcript, .composer].contains(resolve(keyCode: keyCode, command: command, control: control, option: option, shift: shift))
+        guard control, !command, !option, !shift else { return false }
+        switch resolve(keyCode: keyCode, command: command, control: control, option: option, shift: shift) {
+        case .transcript, .composer, .column: return true
+        default: return false
+        }
     }
 
     public static func resolve(keyCode: UInt16, command: Bool, control: Bool, option: Bool, shift: Bool) -> AgentsChord? {
@@ -53,6 +58,8 @@ public enum AgentsChord: Equatable, Sendable {
         case (124, true, false, true): return .right
         case (126, true, false, true), (40, false, true, false): return .transcript
         case (125, true, false, true), (38, false, true, false): return .composer
+        case (4, false, true, false): return .column(-1)
+        case (37, false, true, false): return .column(1)
         default: return nil
         }
     }
@@ -61,18 +68,17 @@ public enum AgentsChord: Equatable, Sendable {
 public enum TranscriptKey: Equatable, Sendable {
     case type
     case page(Int)
-    case column(Int)
     case step(TranscriptStep)
     case leader
     case help
 
     public static func resolve(keyCode: UInt16, characters: String?, command: Bool, control: Bool, option: Bool, shift: Bool) -> TranscriptKey? {
         if command || option { return nil }
-        if control { return shift ? nil : keyCode == 4 ? .column(-1) : keyCode == 37 ? .column(1) : nil }
+        if control { return nil }
         if keyCode == 49 { return .page(shift ? -1 : 1) }
         if shift { return keyCode == 5 ? .step(.last) : characters == "?" ? .help : nil }
-        if characters == "i" || characters == "a" { return .type }
         switch keyCode {
+        case 34, 0: return .type
         case 38, 125: return .step(.move(1))
         case 40, 126: return .step(.move(-1))
         case 37, 124: return .step(.unfold)
@@ -159,6 +165,7 @@ public enum AgentsKeys {
         case .right: right(from: place, in: layout)
         case .transcript: layout.transcripts.contains(place?.column ?? .main) ? .focus(.transcript(place?.column ?? .main)) : .stay
         case .composer: compose(place?.column ?? layout.typing ?? .main, in: layout)
+        case .column(let delta): place.map { column(delta, from: $0, in: layout) } ?? .stay
         }
     }
 
@@ -170,6 +177,7 @@ public enum AgentsKeys {
         let next = at + delta
         guard columns.indices.contains(next) else { return .stay }
         let target = columns[next]
+        if place == .tree { return layout.composers.contains(.main) || !layout.transcripts.contains(.main) ? compose(.main, in: layout) : .focus(.transcript(.main)) }
         if case .transcript(let column) = target, !layout.transcripts.contains(column) { return compose(column, in: layout) }
         return .focus(target)
     }

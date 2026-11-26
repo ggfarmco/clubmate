@@ -148,6 +148,7 @@ public enum AppShortcuts {
             Shortcut("agents-panes.main", ["opt+cmd+right"], "Go to the main pane's prompt; from the main pane, to the aside", when: "Agents"),
             Shortcut("agents-panes.transcript", ["opt+cmd+up", "ctrl+k"], "Go to the transcript of the column you are in", when: "Agents"),
             Shortcut("agents-panes.composer", ["opt+cmd+down", "ctrl+j"], "Go to the prompt of the column you are in", when: "Agents"),
+            Shortcut("agents-panes.column", ["ctrl+h", "ctrl+l"], "Column left, right: tree, main pane, aside", when: "Agents"),
             Shortcut("agents-panes.keys", ["cmd+/"], "Show or hide the keys of the focused pane", when: "Agents"),
         ]),
         ShortcutGroup(id: "transcript", title: "Agent transcript", shortcuts: [
@@ -162,7 +163,6 @@ public enum AppShortcuts {
             Shortcut("transcript.keys", ["?"], "Show the keys of the focused pane", when: "Agents, transcript focused"),
             Shortcut("transcript.type", ["i", "a"], "Go to the prompt, the draft kept", when: "Agents, transcript focused"),
             Shortcut("transcript.page", ["space", "shift+space"], "Page down, up", when: "Agents, transcript focused"),
-            Shortcut("transcript.column", ["ctrl+h", "ctrl+l"], "Column left, right: tree, main pane, aside", when: "Agents, transcript focused"),
             Shortcut("transcript.full-diff", ["cmd+d"], "Full diff of the focused edit, else of the newest edit, in nvim"),
             Shortcut("transcript.aside", ["cmd+\\"], "Ask aside about the selection, else the focused answer, else the last answer", when: "Agents"),
         ]),

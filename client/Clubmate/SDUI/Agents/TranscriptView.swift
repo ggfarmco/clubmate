@@ -279,7 +279,6 @@ struct TranscriptNodeView: View {
         guard let key = TranscriptKey.resolve(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers, command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift)) else { return false }
         switch key {
         case .type: agentsFocus.apply(.focus(.composer(column)))
-        case .column(let delta): agentsFocus.apply(AgentsKeys.column(delta, from: .transcript(column), in: agentsFocus.layout))
         case .page(let delta):
             let geometry = page.geometry
             let end = max(geometry.content - geometry.container, 0)

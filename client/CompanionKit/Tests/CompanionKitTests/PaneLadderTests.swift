@@ -31,8 +31,8 @@ final class PaneLadderTests: XCTestCase {
         XCTAssertEqual([PaneArrow.left, .right, .up, .down].map { PaneLadder.arrow($0, bare) }, [nil, nil, nil, nil])
     }
 
-    func testControlJAndKGoToTheComposerAndTheTranscript() {
-        XCTAssertEqual(PaneLadder.controlKeys.mapValues { PaneLadder.arrow($0, full) }, ["j": .composer, "k": .transcript])
+    func testControlHJKLGoToTheListTheComposerTheTranscriptAndTheSession() {
+        XCTAssertEqual(PaneLadder.controlKeys.mapValues { PaneLadder.arrow($0, full) }, ["h": .list, "j": .composer, "k": .transcript, "l": .composer])
     }
 
     func testTheStopHintShowsTwentyTimesPerDevice() throws {

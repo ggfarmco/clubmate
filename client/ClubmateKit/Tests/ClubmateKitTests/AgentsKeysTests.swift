@@ -52,6 +52,15 @@ final class AgentsKeysTests: XCTestCase {
         XCTAssertNil(AgentsChord.resolve(keyCode: 38, command: true, control: true, option: false, shift: false))
     }
 
+    func testControlHAndLMoveOneColumnFromThePromptToo() {
+        XCTAssertEqual(AgentsChord.resolve(keyCode: 4, command: false, control: true, option: false, shift: false), .column(-1))
+        XCTAssertEqual(AgentsChord.resolve(keyCode: 37, command: false, control: true, option: false, shift: false), .column(1))
+        XCTAssertTrue(AgentsChord.control(keyCode: 4, command: false, control: true, option: false, shift: false))
+        XCTAssertEqual(AgentsKeys.move(.column(-1), from: .composer(.main), in: both), .focus(.tree))
+        XCTAssertEqual(AgentsKeys.move(.column(1), from: .composer(.main), in: both), .focus(.transcript(.aside)))
+        XCTAssertEqual(AgentsKeys.move(.column(1), from: .tree, in: both), .focus(.composer(.main)))
+    }
+
     func testColumnKeysFollowTheSidebarSide() {
         XCTAssertEqual(AgentsKeys.column(-1, from: .transcript(.main), in: both), .focus(.tree))
         XCTAssertEqual(AgentsKeys.column(1, from: .transcript(.main), in: both), .focus(.transcript(.aside)))
@@ -60,12 +69,12 @@ final class AgentsKeysTests: XCTestCase {
         right.side = .right
         XCTAssertEqual(AgentsKeys.column(1, from: .transcript(.aside), in: right), .focus(.tree))
         XCTAssertEqual(AgentsKeys.column(-1, from: .transcript(.main), in: right), .stay)
+        XCTAssertEqual(AgentsKeys.column(-1, from: .tree, in: right), .focus(.composer(.main)))
     }
 
     func testTranscriptKeys() {
-        XCTAssertEqual(TranscriptKey.resolve(keyCode: 34, characters: "i", command: false, control: false, option: false, shift: false), .type)
+        XCTAssertEqual(TranscriptKey.resolve(keyCode: 34, characters: "ш", command: false, control: false, option: false, shift: false), .type)
         XCTAssertEqual(TranscriptKey.resolve(keyCode: 49, characters: " ", command: false, control: false, option: false, shift: true), .page(-1))
-        XCTAssertEqual(TranscriptKey.resolve(keyCode: 4, characters: "h", command: false, control: true, option: false, shift: false), .column(-1))
         XCTAssertNil(TranscriptKey.resolve(keyCode: 0, characters: "a", command: true, control: false, option: false, shift: false))
         XCTAssertEqual(TranscriptKey.resolve(keyCode: 38, characters: "j", command: false, control: false, option: false, shift: false), .step(.move(1)))
         XCTAssertEqual(TranscriptKey.resolve(keyCode: 123, characters: nil, command: false, control: false, option: false, shift: false), .step(.fold))
