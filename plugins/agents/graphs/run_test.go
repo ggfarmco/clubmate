@@ -557,8 +557,8 @@ func TestListWithoutProjectGraphsOrRuns(t *testing.T) {
 		Runs   json.RawMessage `json:"runs"`
 	}
 	require.NoError(t, json.Unmarshal(raw, &res))
-	require.Len(t, res.Graphs, 4)
-	assert.Equal(t, []any{"pr-walkthrough", true}, []any{res.Graphs[2].Name, res.Graphs[2].Builtin})
+	require.Len(t, res.Graphs, 5)
+	assert.Equal(t, []any{"pr-walkthrough", true}, []any{res.Graphs[3].Name, res.Graphs[3].Builtin})
 	assert.JSONEq(t, `[]`, string(res.Runs))
 }
 
