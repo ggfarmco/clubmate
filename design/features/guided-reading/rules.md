@@ -72,11 +72,7 @@ The designer kept off ⌘1–⌘8 (sections), ⌥1–⌥3 (permission card) and 
 
 On iPhone a typed answer shows the three ratings as a segmented control above Send.
 
-## Left to the user
+## Decided by the user (26 Nov 2026)
 
-- **(a) Confidence keys vs the choice card's 1–4 options.** The boards draw option 1 until this is decided.
-  - Options take a–d in guide sessions; digits 1–3 always rate (designer's recommendation). Cost: the choice card has other keys in guide sessions than elsewhere.
-  - Confidence on ⌥1–⌥3; options keep 1–4. Works while typing. Cost: ⌥1–⌥3 are Allow / Always / Reject on the permission card, which can be docked at the same time; ⌥ + digit types ¡ ™ £ in text fields.
-  - g / t / s. No clash with digits. Cost: dead while typing, English-only mnemonics.
-  - Digits follow focus: options until one is picked, then confidence. No new keys. Cost: modal; one key does two things a second apart.
-- **(b) Length of the send hold:** 2 s proposed; 0 turns the hold off.
+- **(a) Confidence keys:** in guide sessions the choice card's options take a–d, and digits 1–3 always rate confidence (the designer's recommendation). Outside guide sessions the choice card keeps 1–4.
+- **(b) Send hold:** 2 s, with the bar under the card; ⌘Z or Undo goes back to the pick.
