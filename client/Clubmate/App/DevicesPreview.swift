@@ -83,6 +83,7 @@ enum DevicesPreview {
             "remote.enable": listening,
             "remote.pair": pair,
             "remote.set-colour": listening,
+            "remote.set-name": listening,
             "remote.set-title-bar-colour": listening,
             "remote.set-tunnel": listening,
             "remote.tunnel-rotate": listening,

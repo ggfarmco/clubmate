@@ -129,6 +129,10 @@ type colourRequest struct {
 	Colour string `json:"colour"`
 }
 
+type nameRequest struct {
+	Name string `json:"name"`
+}
+
 type identityResult struct {
 	Computer computer `json:"computer"`
 }
@@ -141,6 +145,7 @@ type helloResult struct {
 	UI       bool        `json:"ui"`
 	Requests bool        `json:"requests"`
 	Reports  bool        `json:"reports"`
+	Rename   bool        `json:"rename"`
 	Tunnel   *tunnelInfo `json:"tunnel,omitempty"`
 }
 
@@ -338,6 +343,12 @@ func (s *server) call(ctx context.Context, d device, req rpcRequest) (any, error
 			return nil, err
 		}
 		return s.setIdentityColour(ctx, p.Colour)
+	case "setIdentityName":
+		var p nameRequest
+		if err := decodeParams(req.Params, &p); err != nil {
+			return nil, err
+		}
+		return s.setIdentityName(ctx, p.Name)
 	case "pushToken":
 		var p pushTokenRequest
 		if err := decodeParams(req.Params, &p); err != nil {
@@ -383,7 +394,7 @@ func (s *server) hello(ctx context.Context) (helloResult, error) {
 	if err != nil {
 		return helloResult{}, err
 	}
-	res := helloResult{Computer: s.identity.get(), Version: version, Commands: cmds, Topics: slices.Clone(forwardedTopics), UI: true, Requests: true, Reports: true}
+	res := helloResult{Computer: s.identity.get(), Version: version, Commands: cmds, Topics: slices.Clone(forwardedTopics), UI: true, Requests: true, Reports: true, Rename: true}
 	if s.tun != nil {
 		res.Tunnel = s.tun.info()
 	}
@@ -469,6 +480,17 @@ func (s *server) macs(ctx context.Context, d device, macs []macInfo) error {
 func (s *server) setIdentityColour(ctx context.Context, colour string) (identityResult, error) {
 	c, err := s.identity.setColour(ctx, colour)
 	if errors.Is(err, errBadColour) {
+		return identityResult{}, &apiError{Code: codeInvalidParams, Message: err.Error()}
+	}
+	if err != nil {
+		return identityResult{}, err
+	}
+	return identityResult{Computer: c}, nil
+}
+
+func (s *server) setIdentityName(ctx context.Context, name string) (identityResult, error) {
+	c, err := s.identity.setName(ctx, name)
+	if errors.Is(err, errBadName) {
 		return identityResult{}, &apiError{Code: codeInvalidParams, Message: err.Error()}
 	}
 	if err != nil {

@@ -49,9 +49,10 @@ public struct Hello: Codable, Sendable, Equatable {
     public let ui: Bool
     public let requests: Bool
     public let reports: Bool
+    public let rename: Bool
     public let tunnel: RelayRoute?
 
-    public init(computer: ComputerInfo, version: String, commands: [String], topics: [String], ui: Bool = false, requests: Bool = false, reports: Bool = false, tunnel: RelayRoute? = nil) {
+    public init(computer: ComputerInfo, version: String, commands: [String], topics: [String], ui: Bool = false, requests: Bool = false, reports: Bool = false, rename: Bool = false, tunnel: RelayRoute? = nil) {
         self.computer = computer
         self.version = version
         self.commands = commands
@@ -59,6 +60,7 @@ public struct Hello: Codable, Sendable, Equatable {
         self.ui = ui
         self.requests = requests
         self.reports = reports
+        self.rename = rename
         self.tunnel = tunnel
     }
 
@@ -71,6 +73,7 @@ public struct Hello: Codable, Sendable, Equatable {
         ui = try c.decodeIfPresent(Bool.self, forKey: .ui) ?? false
         requests = try c.decodeIfPresent(Bool.self, forKey: .requests) ?? false
         reports = try c.decodeIfPresent(Bool.self, forKey: .reports) ?? false
+        rename = try c.decodeIfPresent(Bool.self, forKey: .rename) ?? false
         tunnel = try? c.decodeIfPresent(RelayRoute.self, forKey: .tunnel)
     }
 }
@@ -293,6 +296,10 @@ public actor RemoteClient {
 
     public func setIdentityColour(_ colour: String) async throws -> ComputerInfo {
         try await rpc("setIdentityColour", params: .object(["colour": .string(colour)])).decode(IdentityReply.self).computer
+    }
+
+    public func setIdentityName(_ name: String) async throws -> ComputerInfo {
+        try await rpc("setIdentityName", params: .object(["name": .string(name)])).decode(IdentityReply.self).computer
     }
 
     public func command(_ id: String, workspace: String?, args: JSONValue? = nil, requestId: String? = nil) async throws -> JSONValue {

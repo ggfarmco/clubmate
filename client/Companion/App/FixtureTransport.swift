@@ -184,6 +184,7 @@ actor FixtureServer {
     private let mac: FixtureMac
     private let workspace: String
     private var colour: String
+    private var ownName: String?
 
     private var sessions: [[String: JSONValue]] = []
     private lazy var olderRows: [[String: JSONValue]] = Self.olderRows(sessions.first)
@@ -568,7 +569,7 @@ actor FixtureServer {
         switch request["method"]?.stringValue {
         case "hello":
             let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", QuizCommand.answer, "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", AgentCommand.sessionsOlder, "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.close", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", AgentCommand.toolCall, "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string) + (WikiFixture.on ? [.string("wiki.locate")] : [])
-            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed"), .string("awake.changed"), .string("agents.usage")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge")), "reports": .bool(true)])]))
+            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed"), .string("awake.changed"), .string("agents.usage")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge")), "reports": .bool(true), "rename": .bool(true)])]))
         case "report":
             return (200, Self.json(["result": .object(["id": .string("r-fixture")])]))
         case "uiSections":
@@ -626,6 +627,11 @@ actor FixtureServer {
             colour = params["colour"]?.stringValue ?? colour
             publish("remote.identity", ["computer": computer])
             return (200, Self.json(["result": .object(["computer": computer])]))
+        case "setIdentityName":
+            let name = (params["name"]?.stringValue ?? "").trimmingCharacters(in: .whitespaces)
+            ownName = name.isEmpty ? nil : name
+            publish("remote.identity", ["computer": computer])
+            return (200, Self.json(["result": .object(["computer": computer])]))
         case "command" where params["id"]?.stringValue == "agents.image":
             guard let image = Self.image(params["args"]?["path"]?.stringValue ?? "") else {
                 return (200, Self.json(["error": .object(["code": .string("internal"), "message": .string("open: no such file or directory")])]))
@@ -653,7 +659,7 @@ actor FixtureServer {
     }
 
     private var computer: JSONValue {
-        .object(["id": .string(mac.id), "name": .string(mac.name), "colour": .string(colour), "model": .string(mac.model)])
+        .object(["id": .string(mac.id), "name": .string(ownName ?? mac.name), "colour": .string(colour), "model": .string(mac.model)])
     }
 
     private func command(_ id: String, workspace: String, args: JSONValue) -> JSONValue {

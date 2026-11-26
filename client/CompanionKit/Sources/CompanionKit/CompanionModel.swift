@@ -167,6 +167,11 @@ public final class CompanionModel {
         identified(try await connection.setColour(colour))
     }
 
+    public func setName(_ name: String, computer: String) async throws {
+        guard let connection = connections[computer] else { return }
+        identified(try await connection.setName(name))
+    }
+
     private func identified(_ computer: Computer) {
         let before = computers.first { $0.id == computer.id }?.tag
         try? store.identify(computer.id, as: ComputerInfo(id: computer.id, name: computer.name, colour: computer.colour, model: computer.model))

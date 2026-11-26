@@ -18,6 +18,7 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
     public let hosts: [String]
     public let error: String
     public let computer: RemoteComputer?
+    public let systemName: String
     public let titleBarColour: Bool
     public let otherMacs: [RemoteOtherMac]
     public let titleDot: Bool
@@ -28,13 +29,14 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
     public let pairHint: String
     public let companion: RemoteCompanion?
 
-    public init(enabled: Bool, port: Int, listening: [String], hosts: [String], error: String, computer: RemoteComputer? = nil, titleBarColour: Bool = true, otherMacs: [RemoteOtherMac] = [], titleDot: Bool = false, relay: RemoteRelay? = nil, tunnel: RemoteTunnel? = nil, tailnet: RemoteTailnet? = nil, pairReady: Bool? = nil, pairHint: String = "", companion: RemoteCompanion? = nil) {
+    public init(enabled: Bool, port: Int, listening: [String], hosts: [String], error: String, computer: RemoteComputer? = nil, systemName: String = "", titleBarColour: Bool = true, otherMacs: [RemoteOtherMac] = [], titleDot: Bool = false, relay: RemoteRelay? = nil, tunnel: RemoteTunnel? = nil, tailnet: RemoteTailnet? = nil, pairReady: Bool? = nil, pairHint: String = "", companion: RemoteCompanion? = nil) {
         self.enabled = enabled
         self.port = port
         self.listening = listening
         self.hosts = hosts
         self.error = error
         self.computer = computer
+        self.systemName = systemName
         self.titleBarColour = titleBarColour
         self.otherMacs = otherMacs
         self.titleDot = titleDot
@@ -54,6 +56,7 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
         hosts = try container.decodeIfPresent([String].self, forKey: .hosts) ?? []
         error = try container.decodeIfPresent(String.self, forKey: .error) ?? ""
         computer = try container.decodeIfPresent(RemoteComputer.self, forKey: .computer)
+        systemName = try container.decodeIfPresent(String.self, forKey: .systemName) ?? ""
         titleBarColour = try container.decodeIfPresent(Bool.self, forKey: .titleBarColour) ?? true
         otherMacs = try container.decodeIfPresent([RemoteOtherMac].self, forKey: .otherMacs) ?? []
         titleDot = try container.decodeIfPresent(Bool.self, forKey: .titleDot) ?? false
@@ -66,7 +69,7 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case enabled, port, listening, hosts, error, computer, titleBarColour, otherMacs, titleDot, relay, tunnel, tailnet, pairReady, pairHint, companion
+        case enabled, port, listening, hosts, error, computer, systemName, titleBarColour, otherMacs, titleDot, relay, tunnel, tailnet, pairReady, pairHint, companion
     }
 
     public var state: State {
@@ -458,6 +461,12 @@ public final class RemoteDevicesModel {
 
     public func setColour(_ colour: String) async {
         await act { self.status = try await self.call("remote.set-colour", ["colour": .string(colour)]) }
+    }
+
+    @discardableResult
+    public func setName(_ name: String) async -> Bool {
+        await act { self.status = try await self.call("remote.set-name", ["name": .string(name)]) }
+        return error == nil
     }
 
     public func setTitleBarColour(_ enabled: Bool) async {

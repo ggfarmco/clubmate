@@ -56,6 +56,19 @@
         }
       },
       {
+        "id": "remote.set-name",
+        "title": "Set Mac name",
+        "hidden": true,
+        "scope": "app",
+        "description": "Set the name this Mac shows on paired phones, in their notifications and in Settings → Remote (at most 40 characters, one line; empty goes back to the macOS computer name); kept across restarts; publishes remote.identity. Returns the status.",
+        "args": {
+          "properties": {
+            "name": {"type": "string", "description": "New name; empty for the macOS computer name."}
+          },
+          "required": ["name"]
+        }
+      },
+      {
         "id": "remote.set-title-bar-colour",
         "title": "Show Mac colour in title bar",
         "hidden": true,

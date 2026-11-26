@@ -1,23 +1,34 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"crypto/rand"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 )
 
-const identityTopic = "remote.identity"
+const (
+	identityTopic = "remote.identity"
+	nameKey       = "computerName"
+	maxNameRunes  = 40
+)
 
 var (
 	colourOrder = []string{"blue", "magenta", "sky", "purple", "indigo", "graphite"}
 
 	errBadColour = errors.New("colour must be one of sky, blue, indigo, purple, magenta, graphite")
+	errBadName   = errors.New("name must be at most 40 characters, on one line")
 )
 
 type identity struct {
 	kv      kvStore
 	publish func(topic string, payload any)
+	system  string
 
 	mu   sync.Mutex
 	comp computer
@@ -42,22 +53,43 @@ func (i *identity) setColour(ctx context.Context, colour string) (computer, erro
 	if !slices.Contains(colourOrder, colour) {
 		return computer{}, errBadColour
 	}
-	return i.update(ctx, func(c computer) (string, bool) { return colour, c.Colour != colour })
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.save(ctx, func(c computer) computer { c.Colour = colour; return c })
 }
 
 func (i *identity) ensureColour(ctx context.Context, used []string) (computer, error) {
-	return i.update(ctx, func(c computer) (string, bool) { return defaultColour(used), c.Colour == "" })
-}
-
-func (i *identity) update(ctx context.Context, next func(computer) (string, bool)) (computer, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	colour, ok := next(i.comp)
-	if !ok {
-		return i.comp, nil
+	return i.save(ctx, func(c computer) computer {
+		if c.Colour == "" {
+			c.Colour = defaultColour(used)
+		}
+		return c
+	})
+}
+
+func (i *identity) setName(ctx context.Context, name string) (computer, error) {
+	name = strings.TrimSpace(name)
+	if utf8.RuneCountInString(name) > maxNameRunes || len(name) > maxDeviceField || strings.ContainsFunc(name, unicode.IsControl) {
+		return computer{}, errBadName
 	}
-	c := i.comp
-	c.Colour = colour
+	if name == i.system {
+		name = ""
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if err := i.kv.StorageSet(ctx, nameKey, name); err != nil {
+		return computer{}, err
+	}
+	return i.save(ctx, func(c computer) computer { c.Name = cmp.Or(name, i.system); return c })
+}
+
+func (i *identity) save(ctx context.Context, next func(computer) computer) (computer, error) {
+	c := next(i.comp)
+	if c == i.comp {
+		return c, nil
+	}
 	if err := i.kv.StorageSet(ctx, computerKey, c); err != nil {
 		return computer{}, err
 	}
@@ -65,6 +97,23 @@ func (i *identity) update(ctx context.Context, next func(computer) (string, bool
 	i.publish(identityTopic, identityEvent{Computer: c})
 	i.publish(changedTopic, struct{}{})
 	return c, nil
+}
+
+func loadComputer(ctx context.Context, kv kvStore, system, model string) (computer, error) {
+	var c computer
+	if _, err := kv.StorageGet(ctx, computerKey, &c); err != nil {
+		return computer{}, err
+	}
+	var name string
+	if _, err := kv.StorageGet(ctx, nameKey, &name); err != nil {
+		return computer{}, err
+	}
+	if c.ID == "" {
+		c.ID = rand.Text()
+	}
+	c.Name = cmp.Or(name, system)
+	c.Model = model
+	return c, kv.StorageSet(ctx, computerKey, c)
 }
 
 func defaultColour(used []string) string {

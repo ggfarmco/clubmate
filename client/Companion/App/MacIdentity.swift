@@ -59,7 +59,9 @@ struct MacDetailsView: View {
     @State private var choosing: MacColour?
     @State private var failure: String?
     @State private var forgetting = false
-    @State private var pathFailure: String?
+    @State private var thisMacFailure: String?
+    @State private var renaming = false
+    @State private var draft = ""
 
     var body: some View {
         if let connection = model.connection(computerID) {
@@ -117,7 +119,7 @@ struct MacDetailsView: View {
             .disabled(reason != nil || choosing != nil)
             if connection.pathChoices.isEmpty {
                 Section {
-                    LabeledContent("Name", value: tag.name)
+                    nameRow(connection, name: tag.name)
                     connectionRows(connection)
                 } header: {
                     Text("This Mac")
@@ -126,7 +128,7 @@ struct MacDetailsView: View {
                 }
             } else {
                 Section {
-                    LabeledContent("Name", value: tag.name)
+                    nameRow(connection, name: tag.name)
                     PathPicker(connection: connection) { choose(path: $0) }
                 } header: {
                     Text("This Mac")
@@ -154,6 +156,55 @@ struct MacDetailsView: View {
             }
         } message: {
             Text("This phone forgets the Mac and its access token. Revoke the device in Clubmate on the Mac to cut access there too.")
+        }
+        .alert("Rename Mac", isPresented: $renaming) {
+            TextField("Name", text: $draft)
+                .accessibilityIdentifier("mac.name.field")
+            Button("Cancel", role: .cancel) {}
+            Button("Save") { rename(draft) }
+        } message: {
+            Text("Shown on this iPhone and iPad and in their notifications. Leave it empty to use the Mac's own name.")
+        }
+    }
+
+    @ViewBuilder
+    private func nameRow(_ connection: ComputerConnection, name: String) -> some View {
+        if connection.renames, connection.state == .online {
+            Button {
+                draft = name
+                renaming = true
+            } label: {
+                LabeledContent("Name") {
+                    HStack(spacing: 6) {
+                        Text(name)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Image(systemName: "pencil")
+                            .font(.footnote)
+                            .accessibilityHidden(true)
+                    }
+                    .foregroundStyle(Color.captionInk)
+                }
+                .foregroundStyle(Color.primary)
+                .contentShape(.rect)
+            }
+            .accessibilityIdentifier("mac.name")
+            .accessibilityHint("Rename this Mac")
+        } else {
+            LabeledContent("Name", value: name)
+        }
+    }
+
+    private func rename(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != model.connection(computerID)?.computer.name else { return }
+        thisMacFailure = nil
+        Task {
+            do {
+                try await model.setName(trimmed, computer: computerID)
+            } catch {
+                thisMacFailure = "Couldn't rename the Mac: " + ((error as? RemoteError)?.message ?? error.localizedDescription)
+            }
         }
     }
 
@@ -197,7 +248,7 @@ struct MacDetailsView: View {
 
     @ViewBuilder
     private func pathFooter(_ connection: ComputerConnection) -> some View {
-        if let note = pathFailure ?? (connection.pathChoices.isEmpty ? nil : "Auto starts with the path that answered last and tries the other one when it can't connect.") {
+        if let note = thisMacFailure ?? (connection.pathChoices.isEmpty ? nil : "Auto starts with the path that answered last and tries the other one when it can't connect.") {
             Text(note)
                 .accessibilityIdentifier("mac.path.footer")
         }
@@ -217,9 +268,9 @@ struct MacDetailsView: View {
     private func choose(path: PathChoice) {
         do {
             try model.setPath(path, computer: computerID)
-            pathFailure = nil
+            thisMacFailure = nil
         } catch {
-            pathFailure = "Couldn't save the path: " + error.localizedDescription
+            thisMacFailure = "Couldn't save the path: " + error.localizedDescription
         }
     }
 

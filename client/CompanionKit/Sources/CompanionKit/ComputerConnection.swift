@@ -518,8 +518,20 @@ public final class ComputerConnection: CommandRunner {
     }
 
     public func setColour(_ colour: MacColour) async throws -> Computer {
+        try await setIdentity { try await $0.setIdentityColour(colour.rawValue) }
+    }
+
+    public func setName(_ name: String) async throws -> Computer {
+        try await setIdentity { try await $0.setIdentityName(name) }
+    }
+
+    public var renames: Bool {
+        hello?.rename ?? false
+    }
+
+    private func setIdentity(_ call: (RemoteClient) async throws -> ComputerInfo) async throws -> Computer {
         do {
-            identify(try await client.setIdentityColour(colour.rawValue))
+            identify(try await call(client))
             return computer
         } catch let error as RemoteError where error == .unauthorized || error == .relayRevoked {
             revoke(error)

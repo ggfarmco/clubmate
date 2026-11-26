@@ -18,7 +18,9 @@ struct DevicesSettings: View {
                 unavailable(detail)
             case .ready:
                 if let status = model.status, let computer = status.computer {
-                    ThisMacSection(status: status, computer: computer, busy: model.busy) { colour in
+                    ThisMacSection(status: status, computer: computer, busy: model.busy) { name in
+                        await model.setName(name)
+                    } setColour: { colour in
                         Task { await model.setColour(colour) }
                     } setTitleBar: { enabled in
                         Task { await model.setTitleBarColour(enabled) }
@@ -143,20 +145,27 @@ private struct ThisMacSection: View {
     let status: RemoteStatus
     let computer: RemoteComputer
     let busy: Bool
+    let setName: (String) async -> Bool
     let setColour: (String) -> Void
     let setTitleBar: (Bool) -> Void
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
+    @State private var name = ""
+    @FocusState private var editing: Bool
 
     var body: some View {
         Section("This Mac") {
-            LabeledContent("Name") {
-                Text(computer.name)
-                    .lineLimit(1)
-                    .truncationMode(.label)
-                    .help(computer.name)
-                    .textSelection(.enabled)
+            VStack(alignment: .leading, spacing: theme.spacing.m) {
+                TextField("Name", text: $name, prompt: Text(status.systemName))
+                    .multilineTextAlignment(.trailing)
+                    .focused($editing)
+                    .onSubmit(commitName)
+                    .onChange(of: editing) { if !editing { commitName() } }
+                    .onChange(of: computer.name, initial: true) { name = computer.name }
+                    .accessibilityIdentifier("remote.name")
+                    .disabled(busy)
+                SettingsDetail(nameCaption)
             }
             VStack(alignment: .leading, spacing: theme.spacing.m) {
                 LabeledContent("Colour") {
@@ -175,6 +184,23 @@ private struct ThisMacSection: View {
             )
             .disabled(busy)
             preview
+        }
+    }
+
+    private var nameCaption: String {
+        let system = status.systemName.isEmpty ? "the macOS computer name" : "“\(status.systemName)”"
+        return "Shown on your iPhone and iPad and in their notifications. Leave it empty to use \(system)."
+    }
+
+    private func commitName() {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != computer.name, !(trimmed.isEmpty && computer.name == status.systemName) else {
+            name = computer.name
+            return
+        }
+        let before = computer.name
+        Task {
+            if await !setName(trimmed) { name = before }
         }
     }
 

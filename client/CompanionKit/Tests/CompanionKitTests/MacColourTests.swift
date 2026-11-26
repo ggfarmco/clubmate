@@ -29,6 +29,7 @@ final class MacColourTests: XCTestCase {
             case "hello": return (FakeTransport.result(#"{"computer":{"id":"mac1","name":"Mac Studio","colour":"blue"},"version":"0.0.16","commands":[],"topics":[]}"#), 200)
             case "macs" where old: return (Data(#"{"error":{"code":"invalid_params","message":"unknown method"}}"#.utf8), 200)
             case "macs": return (FakeTransport.result("null"), 200)
+            case "setIdentityName": return (FakeTransport.result(#"{"computer":{"id":"mac1","name":"Studio","colour":"blue"}}"#), 200)
             case "setIdentityColour": return (FakeTransport.result(#"{"computer":{"id":"mac1","name":"Mac Studio","colour":"magenta"}}"#), 200)
             default: return (FakeTransport.result("null"), 200)
             }
@@ -84,6 +85,21 @@ final class MacColourTests: XCTestCase {
         let request = try XCTUnwrap(macs.transport.requests.first { FakeTransport.rpc($0) == "setIdentityColour" })
         XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: request.httpBody ?? Data())["params"], .object(["colour": .string("magenta")]))
         XCTAssertEqual(macs.model.computers.first?.colour, "magenta")
+        try macs.model.remove("mac1")
+        try macs.model.remove("mac2")
+    }
+
+    func testARenameFromThePhoneIsSavedAndSentToTheOtherMacs() async throws {
+        let macs = try pairedMacs()
+        macs.model.start()
+        try await waitUntil { macs.model.connection("mac1")?.state == .online }
+
+        try await macs.model.setName("Studio", computer: "mac1")
+
+        try await waitUntil { self.sentMacs(macs.transport, to: Self.oldHost).last == [MacTag(name: "Studio", colour: "blue")] }
+        let request = try XCTUnwrap(macs.transport.requests.first { FakeTransport.rpc($0) == "setIdentityName" })
+        XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: request.httpBody ?? Data())["params"], .object(["name": .string("Studio")]))
+        XCTAssertEqual(ComputerStore(file: macs.file, vault: MemoryTokenVault()).computers.first?.name, "Studio")
         try macs.model.remove("mac1")
         try macs.model.remove("mac2")
     }

@@ -353,6 +353,66 @@ func TestSetIdentityColour(t *testing.T) {
 	}
 }
 
+func TestSetIdentityName(t *testing.T) {
+	tests := []struct {
+		name   string
+		set    string
+		want   computer
+		code   string
+		topics []string
+	}{
+		{"own name", "  Studio  ", computer{ID: "cmp", Name: "Studio"}, "", []string{identityTopic, changedTopic}},
+		{"empty is the system name", "", computer{ID: "cmp", Name: "Mac"}, "", nil},
+		{"two lines", "Stu\ndio", computer{ID: "cmp", Name: "Mac"}, codeInvalidParams, nil},
+		{"too long", strings.Repeat("é", maxNameRunes+1), computer{ID: "cmp", Name: "Mac"}, codeInvalidParams, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			token, _, err := f.srv.devices.add(t.Context(), deviceInfo{ID: "phone"})
+			require.NoError(t, err)
+
+			_, res := f.call(t, token, "setIdentityName", nameRequest{Name: tt.set})
+
+			if tt.code != "" {
+				require.NotNil(t, res.Error)
+				assert.Equal(t, tt.code, res.Error.Code)
+			} else {
+				var got identityResult
+				require.NoError(t, json.Unmarshal(res.Result, &got))
+				assert.Equal(t, tt.want, got.Computer)
+			}
+			assert.Equal(t, tt.want, f.srv.identity.get())
+			assert.Equal(t, tt.topics, f.topics.list())
+		})
+	}
+}
+
+func TestNameSurvivesRestartUntilReset(t *testing.T) {
+	kv := &memKV{data: map[string][]byte{}}
+	comp, err := loadComputer(t.Context(), kv, "MacBook", "laptop")
+	require.NoError(t, err)
+	ident := &identity{kv: kv, publish: func(string, any) {}, system: "MacBook", comp: comp}
+
+	_, err = ident.setName(t.Context(), "Travel")
+	require.NoError(t, err)
+	got, err := loadComputer(t.Context(), kv, "MacBook Pro", "laptop")
+	require.NoError(t, err)
+	assert.Equal(t, computer{ID: comp.ID, Name: "Travel", Model: "laptop"}, got)
+
+	_, err = ident.setName(t.Context(), "")
+	require.NoError(t, err)
+	got, err = loadComputer(t.Context(), kv, "MacBook Pro", "laptop")
+	require.NoError(t, err)
+	assert.Equal(t, "MacBook Pro", got.Name)
+
+	_, err = ident.setName(t.Context(), "MacBook")
+	require.NoError(t, err)
+	got, err = loadComputer(t.Context(), kv, "MacBook Air", "laptop")
+	require.NoError(t, err)
+	assert.Equal(t, "MacBook Air", got.Name, "the macOS name typed as the own name follows a later macOS rename")
+}
+
 func TestSessionCallerCannotPairOrChangeAccess(t *testing.T) {
 	f := newFixture(t)
 	a := &app{ready: make(chan struct{}), srv: f.srv, ident: f.srv.identity}
@@ -437,7 +497,7 @@ func TestCommandRunsOnlyRemoteCommands(t *testing.T) {
 	_, ok := f.call(t, token, "command", map[string]any{"id": "agents.sessions", "workspace": "prj_1", "args": map[string]any{"x": 1}})
 	_, denied := f.call(t, token, "command", map[string]any{"id": "agents.delete", "workspace": "prj_1"})
 
-	assert.JSONEq(t, `{"computer":{"id":"cmp","name":"Mac","colour":"","model":"laptop"},"version":"1.2.3","commands":["agents.sessions"],"topics":["agents.changed","agents.usage","awake.changed","backlog.changed","docs.changed","docs.opened","notify.posted","plugin.changed","remote.identity","voice.changed","voice.settings-changed"],"ui":true,"requests":true,"reports":true}`, string(hello.Result))
+	assert.JSONEq(t, `{"computer":{"id":"cmp","name":"Mac","colour":"","model":"laptop"},"version":"1.2.3","commands":["agents.sessions"],"topics":["agents.changed","agents.usage","awake.changed","backlog.changed","docs.changed","docs.opened","notify.posted","plugin.changed","remote.identity","voice.changed","voice.settings-changed"],"ui":true,"requests":true,"reports":true,"rename":true}`, string(hello.Result))
 	assert.JSONEq(t, `{"ran":"agents.sessions"}`, string(ok.Result))
 	assert.Equal(t, []runCall{{id: "agents.sessions", workspace: "prj_1", args: `{"x":1}`}}, f.backend.calls())
 	assert.Equal(t, codeNotAllowed, denied.Error.Code)
@@ -794,7 +854,7 @@ func newFixture(t *testing.T) *fixture {
 		devices:  newDeviceStore(f.kv, f.clock.Now),
 		pairing:  newPairing(f.clock.Now),
 		hub:      newHub(func() {}),
-		identity: &identity{kv: f.kv, publish: f.topics.add, comp: computer{ID: "cmp", Name: "Mac"}},
+		identity: &identity{kv: f.kv, publish: f.topics.add, system: "Mac", comp: computer{ID: "cmp", Name: "Mac"}},
 		relay:    newRelayClient(f.kv, http.DefaultClient),
 		requests: newRequestLog(f.kv, f.clock.Now),
 		presence: fixedPresence(false),

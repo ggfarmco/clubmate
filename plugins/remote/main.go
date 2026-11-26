@@ -3,7 +3,6 @@ package main
 import (
 	"cmp"
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -100,6 +99,7 @@ type status struct {
 	Hosts          []string      `json:"hosts"`
 	Error          string        `json:"error"`
 	Computer       computer      `json:"computer"`
+	SystemName     string        `json:"systemName"`
 	TitleBarColour bool          `json:"titleBarColour"`
 	OtherMacs      []otherMac    `json:"otherMacs"`
 	TitleDot       bool          `json:"titleDot"`
@@ -160,6 +160,10 @@ type colourArgs struct {
 	Colour string `json:"colour"`
 }
 
+type nameArgs struct {
+	Name string `json:"name"`
+}
+
 type revokeArgs struct {
 	Device string `json:"device"`
 }
@@ -184,7 +188,8 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.ctx = ctx
 	a.host = h
 	a.store = h
-	comp, err := loadComputer(ctx, h)
+	system := computerName(ctx)
+	comp, err := loadComputer(ctx, h, system, computerModel(ctx))
 	if err != nil {
 		return err
 	}
@@ -214,7 +219,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 			return err
 		}
 	}
-	a.ident = &identity{kv: h, publish: a.publish, comp: comp}
+	a.ident = &identity{kv: h, publish: a.publish, system: system, comp: comp}
 	relay := newRelayClient(h, &http.Client{Timeout: relayTimeout})
 	relay.dir = pluginsdk.StateDir()
 	relay.changed = a.changed
@@ -302,6 +307,15 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		if _, err := a.ident.setColour(ctx, args.Colour); err != nil {
+			return nil, err
+		}
+		return a.status(), nil
+	case "remote.set-name":
+		var args nameArgs
+		if err := decodeArgs(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		if _, err := a.ident.setName(ctx, args.Name); err != nil {
 			return nil, err
 		}
 		return a.status(), nil
@@ -699,6 +713,7 @@ func (a *app) status() status {
 		Listening:      []string{},
 		Hosts:          []string{},
 		Computer:       a.ident.get(),
+		SystemName:     a.ident.system,
 		TitleBarColour: a.titleBar,
 		OtherMacs:      others,
 		TitleDot:       a.titleBar && len(others) > 0,
@@ -808,19 +823,6 @@ func (a *app) publish(topic string, payload any) {
 	if _, err := a.host.Publish(a.ctx, topic, payload); err != nil {
 		logf("publish %s: %v", topic, err)
 	}
-}
-
-func loadComputer(ctx context.Context, h *pluginsdk.Host) (computer, error) {
-	var c computer
-	if _, err := h.StorageGet(ctx, computerKey, &c); err != nil {
-		return computer{}, err
-	}
-	if c.ID == "" {
-		c.ID = rand.Text()
-	}
-	c.Name = computerName(ctx)
-	c.Model = computerModel(ctx)
-	return c, h.StorageSet(ctx, computerKey, c)
 }
 
 func otherMacs(devices []device) []otherMac {
