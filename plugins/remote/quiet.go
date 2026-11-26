@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -17,6 +16,7 @@ import (
 
 const (
 	quietPrefix   = "quiet/"
+	decidedPrefix = "quiet-decided/"
 	outcomeAtMac  = " quiet, at the Mac"
 	escalateEvery = 10 * time.Second
 	escalateMax   = 10 * time.Minute
@@ -38,11 +38,14 @@ type quietLog struct {
 
 	mu      sync.Mutex
 	decided map[string]quietDecision
+	loaded  bool
+
+	entries sync.Mutex
 }
 
 type quietDecision struct {
-	here bool
-	at   time.Time
+	Here bool      `json:"here"`
+	At   time.Time `json:"at"`
 }
 
 type quietEntry struct {
@@ -62,26 +65,74 @@ func newQuietLog(kv kvStore, now func() time.Time) *quietLog {
 	return &quietLog{kv: kv, now: now, decided: map[string]quietDecision{}}
 }
 
-func (l *quietLog) decide(id string, here func() bool) bool {
+func (l *quietLog) decide(ctx context.Context, id string, here func() bool) bool {
 	if id == "" {
 		return here()
 	}
+	l.load(ctx)
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	now := l.now()
-	maps.DeleteFunc(l.decided, func(_ string, d quietDecision) bool { return now.Sub(d.at) > pushMaxAge })
-	if d, ok := l.decided[id]; ok {
-		return d.here
+	var expired []string
+	for old, d := range l.decided {
+		if now.Sub(d.At) > pushMaxAge {
+			delete(l.decided, old)
+			expired = append(expired, old)
+		}
 	}
-	v := here()
-	l.decided[id] = quietDecision{here: v, at: now}
-	return v
+	d, ok := l.decided[id]
+	if !ok {
+		d = quietDecision{Here: here(), At: now}
+		l.decided[id] = d
+	}
+	l.mu.Unlock()
+	for _, old := range expired {
+		if err := l.kv.StorageDelete(ctx, decidedPrefix+old); err != nil {
+			logf("drop quiet decision %s: %v", old, err)
+		}
+	}
+	if !ok {
+		if err := l.kv.StorageSet(ctx, decidedPrefix+id, d); err != nil {
+			logf("save quiet decision %s: %v", id, err)
+		}
+	}
+	return d.Here
 }
 
-func (l *quietLog) quieted(id string) bool {
+func (l *quietLog) quieted(ctx context.Context, id string) bool {
+	l.load(ctx)
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.decided[id].here
+	d, ok := l.decided[id]
+	return ok && d.Here && l.now().Sub(d.At) <= pushMaxAge
+}
+
+func (l *quietLog) load(ctx context.Context) {
+	l.mu.Lock()
+	loaded := l.loaded
+	l.mu.Unlock()
+	if loaded {
+		return
+	}
+	keys, err := l.kv.StorageList(ctx, decidedPrefix)
+	if err != nil {
+		logf("list quiet decisions: %v", err)
+		return
+	}
+	stored := map[string]quietDecision{}
+	for _, k := range keys {
+		var d quietDecision
+		if found, err := l.kv.StorageGet(ctx, k, &d); err == nil && found {
+			stored[strings.TrimPrefix(k, decidedPrefix)] = d
+		}
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for id, d := range stored {
+		if _, ok := l.decided[id]; !ok {
+			l.decided[id] = d
+		}
+	}
+	l.loaded = true
 }
 
 func (l *quietLog) hold(ctx context.Context, n notifyPayload) {
@@ -98,6 +149,12 @@ func (l *quietLog) save(ctx context.Context, e quietEntry) {
 }
 
 func (l *quietLog) failed(ctx context.Context, e quietEntry) {
+	l.entries.Lock()
+	defer l.entries.Unlock()
+	var cur quietEntry
+	if found, err := l.kv.StorageGet(ctx, quietPrefix+e.Notification.ID, &cur); err != nil || !found {
+		return
+	}
 	e.Tries++
 	e.Next = l.now().Add(min(escalateEvery<<e.Tries, escalateMax))
 	l.save(ctx, e)
@@ -125,16 +182,14 @@ func (l *quietLog) pending(ctx context.Context) []quietEntry {
 }
 
 func (l *quietLog) drop(ctx context.Context, id string) {
+	l.entries.Lock()
+	defer l.entries.Unlock()
 	if err := l.kv.StorageDelete(ctx, quietPrefix+id); err != nil {
 		logf("drop quiet notification %s: %v", id, err)
 	}
 }
 
-func (l *quietLog) resolved(ctx context.Context, ev pluginsdk.Event) {
-	var c agentsChanged
-	if err := json.Unmarshal(ev.Payload, &c); err != nil || c.Kind != changeResolved || c.Session == "" {
-		return
-	}
+func (l *quietLog) resolved(ctx context.Context, c agentsChanged) {
 	kinds := resolvedKinds[cmp.Or(c.RequestKind, requestPermission)]
 	for _, e := range l.pending(ctx) {
 		n := e.Notification
@@ -148,11 +203,19 @@ func (l *quietLog) resolved(ctx context.Context, ev pluginsdk.Event) {
 	}
 }
 
-func (s *server) quietHere(n notifyPayload) bool {
-	return !n.Quiet && s.quiet.decide(n.ID, s.presence.atMac)
+func (s *server) quietHere(ctx context.Context, n notifyPayload) bool {
+	return !n.Quiet && s.quiet.decide(ctx, n.ID, s.presence.atMac)
 }
 
-func (s *server) quietEvent(ev pluginsdk.Event) pluginsdk.Event {
+func resolvedChange(ev pluginsdk.Event) (agentsChanged, bool) {
+	var c agentsChanged
+	if ev.Topic != agentsChangedTopic || json.Unmarshal(ev.Payload, &c) != nil || c.Kind != changeResolved || c.Session == "" {
+		return agentsChanged{}, false
+	}
+	return c, true
+}
+
+func (s *server) quietEvent(ctx context.Context, ev pluginsdk.Event) pluginsdk.Event {
 	if ev.Topic != notifyTopic {
 		return ev
 	}
@@ -160,7 +223,7 @@ func (s *server) quietEvent(ev pluginsdk.Event) pluginsdk.Event {
 	if !s.relay.configured() {
 		return ev
 	}
-	if err := json.Unmarshal(ev.Payload, &n); err != nil || !s.quietHere(n) {
+	if err := json.Unmarshal(ev.Payload, &n); err != nil || !s.quietHere(ctx, n) {
 		return ev
 	}
 	return markPayload(ev, "quiet")

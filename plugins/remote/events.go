@@ -338,7 +338,7 @@ func (s *server) backfill(ctx context.Context, rc *http.ResponseController, w io
 			if !slices.Contains(forwardedTopics, ev.Topic) {
 				continue
 			}
-			if !s.send(rc, w, sseFrame(s.replayed(device, ev))) {
+			if !s.send(rc, w, sseFrame(s.replayed(ctx, device, ev))) {
 				return after, errStreamClosed
 			}
 		}

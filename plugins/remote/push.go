@@ -252,7 +252,7 @@ func (s *server) pushCommand(ctx context.Context, workspace string, enabled bool
 	if held := s.held(ctx, workspace, enabled, n); held != "" {
 		return pushResult{Summary: held}, nil
 	}
-	here := s.quietHere(n)
+	here := s.quietHere(ctx, n)
 	if here {
 		s.quiet.hold(ctx, n)
 	}
@@ -409,7 +409,7 @@ func (s *server) pushAll(ctx context.Context, p relayPush) []devicePush {
 	return out
 }
 
-func (s *server) replayed(device string, ev pluginsdk.Event) pluginsdk.Event {
+func (s *server) replayed(ctx context.Context, device string, ev pluginsdk.Event) pluginsdk.Event {
 	if ev.Topic != notifyTopic {
 		return ev
 	}
@@ -421,7 +421,7 @@ func (s *server) replayed(device string, ev pluginsdk.Event) pluginsdk.Event {
 	if s.pushed.has(device, n.ID) {
 		marks = append(marks, "pushed")
 	}
-	if !n.Quiet && s.quiet.quieted(n.ID) {
+	if !n.Quiet && s.quiet.quieted(ctx, n.ID) {
 		marks = append(marks, "quiet")
 	}
 	return markPayload(ev, marks...)

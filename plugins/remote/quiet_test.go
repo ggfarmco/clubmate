@@ -118,7 +118,7 @@ func TestLeavingDoesNotEscalate(t *testing.T) {
 	}{
 		{"done", "agt_1", "done", `[{"id":"agt_1","needsYou":true}]`, true, nil},
 		{"answered", "agt_1", "question", `[{"id":"agt_1","needsYou":true}]`, true, func(f *fixture) {
-			f.srv.quiet.resolved(t.Context(), pluginsdk.Event{Topic: agentsChangedTopic, Payload: json.RawMessage(`{"session":"agt_1","kind":"resolved","requestKind":"elicitation"}`)})
+			f.srv.quiet.resolved(t.Context(), agentsChanged{Session: "agt_1", Kind: changeResolved, RequestKind: "elicitation"})
 		}},
 		{"no longer needs you", "agt_1", "question", `[{"id":"agt_1","needsYou":false}]`, true, nil},
 		{"muted since", "agt_1", "question", `[{"id":"agt_1","needsYou":true}]`, true, func(f *fixture) {
@@ -128,7 +128,7 @@ func TestLeavingDoesNotEscalate(t *testing.T) {
 		{"terminal session", "trm_1", "needs-input", `[]`, true, nil},
 		{"gate no longer waits", "gt_1", "needs-input", `{"sessions":[{"id":"gt_1","needsYou":false}]}`, true, nil},
 		{"gate trusted", "gt_1", "needs-input", `[]`, true, func(f *fixture) {
-			f.srv.quiet.resolved(t.Context(), pluginsdk.Event{Topic: agentsChangedTopic, Payload: json.RawMessage(`{"session":"gt_1","kind":"resolved","request":"trust:gt_1","requestKind":"gate"}`)})
+			f.srv.quiet.resolved(t.Context(), agentsChanged{Session: "gt_1", Kind: changeResolved, Request: "trust:gt_1", RequestKind: requestGate})
 		}},
 	}
 	for _, c := range cases {
@@ -190,6 +190,29 @@ func TestFailedEscalationIsTriedAgain(t *testing.T) {
 
 	assert.Len(t, relay.requests(), 3)
 	assert.Empty(t, f.srv.quiet.pending(t.Context()))
+}
+
+func TestFailedEscalationKeepsADroppedEntryGone(t *testing.T) {
+	f := newFixture(t)
+	f.srv.quiet.hold(t.Context(), notifyPayload{ID: "ntf_1", Session: "agt_1", Kind: "question"})
+	e := f.srv.quiet.pending(t.Context())[0]
+	f.srv.quiet.drop(t.Context(), "ntf_1")
+
+	f.srv.quiet.failed(t.Context(), e)
+
+	assert.Empty(t, f.srv.quiet.pending(t.Context()))
+}
+
+func TestQuietDecisionSurvivesARestart(t *testing.T) {
+	f := newFixture(t)
+	f.srv.quiet.decide(t.Context(), "ntf_1", func() bool { return true })
+	restarted := newQuietLog(f.kv, f.clock.Now)
+
+	assert.True(t, restarted.quieted(t.Context(), "ntf_1"))
+	assert.True(t, restarted.decide(t.Context(), "ntf_1", func() bool { return false }))
+	f.clock.advance(pushMaxAge + time.Second)
+	assert.False(t, restarted.quieted(t.Context(), "ntf_1"))
+	assert.False(t, restarted.decide(t.Context(), "ntf_1", func() bool { return false }))
 }
 
 func TestLiveEventStaysLoudWithoutARelay(t *testing.T) {

@@ -416,9 +416,9 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 	if ev.Topic == pluginChangedTopic {
 		a.srv.forgetCommands()
 	}
-	a.srv.hub.publish(a.srv.quietEvent(ev))
-	if ev.Topic == agentsChangedTopic {
-		go a.srv.quiet.resolved(a.ctx, ev)
+	a.srv.hub.publish(a.srv.quietEvent(ctx, ev))
+	if c, ok := resolvedChange(ev); ok {
+		go a.srv.quiet.resolved(a.ctx, c)
 	}
 	if enabled && ev.Topic == agentsChangedTopic && a.srv.relay.configured() {
 		go func() {
