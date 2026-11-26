@@ -89,7 +89,7 @@ func testApp(t *testing.T, core *fakeCore) *app {
 	a.needs = func(ctx context.Context, workspace string, needs []runNeed) {
 		args, err := json.Marshal(runNeedsArgs{Runs: needs})
 		require.NoError(t, err)
-		_, _ = core.run(ctx, automation.CommandRequest{ID: "agents.run-needs", WorkspaceID: workspace, Args: args})
+		_, _ = core.run(ctx, automation.CommandRequest{ID: "fake.needs", WorkspaceID: workspace, Args: args})
 	}
 	a.summarize = func(context.Context, string, string) (string, error) { return "", claudecli.ErrMissing }
 	kv := map[string]json.RawMessage{}

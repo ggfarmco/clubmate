@@ -105,11 +105,11 @@ func TestFeedNeedsOnce(t *testing.T) {
 	flushAll := func() int {
 		a.touch("ws1")
 		a.flush(t.Context())
-		return len(called(core, "agents.run-needs"))
+		return len(called(core, "fake.needs"))
 	}
 	require.Equal(t, 1, flushAll())
 	var got runNeedsArgs
-	require.NoError(t, json.Unmarshal(called(core, "agents.run-needs")[0], &got))
+	require.NoError(t, json.Unmarshal(called(core, "fake.needs")[0], &got))
 	require.Len(t, got.Runs, 1)
 	assert.Equal(t, r.ID, got.Runs[0].Run)
 	assert.Equal(t, 1, flushAll())
@@ -117,7 +117,7 @@ func TestFeedNeedsOnce(t *testing.T) {
 	assert.Equal(t, 2, flushAll())
 	require.NoError(t, approve(t, a, r, "tests", "reject"))
 	assert.Equal(t, 3, flushAll())
-	assert.JSONEq(t, `{"runs":[]}`, string(called(core, "agents.run-needs")[2]))
+	assert.JSONEq(t, `{"runs":[]}`, string(called(core, "fake.needs")[2]))
 }
 
 func TestFeedNeedsAfterRestartClearsStaleEntries(t *testing.T) {
@@ -125,7 +125,7 @@ func TestFeedNeedsAfterRestartClearsStaleEntries(t *testing.T) {
 	a.resync = true
 	a.touch("ws1")
 	a.flush(t.Context())
-	feeds := called(core, "agents.run-needs")
+	feeds := called(core, "fake.needs")
 	require.Len(t, feeds, 1)
 	assert.JSONEq(t, `{"runs":[]}`, string(feeds[0]))
 }

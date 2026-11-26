@@ -35,7 +35,7 @@
             "limit": {"type": "integer", "description": "Runs a minute (1–60) before the loop guard pauses the trigger; 0 or unset: 10."},
             "parallel": {"type": "boolean", "description": "true: a run starts while the previous one is still running instead of the event being dropped. Default false."},
             "owner": {"type": "string", "enum": ["self", "none"], "default": "self", "description": "self (default): the trigger belongs to your agent session, fires as you and is deleted when your session is closed. none: it outlives your session and fires with no caller. Triggers created by the user have no owner."},
-            "run": {"type": "string", "description": "Id of the agent graph run (gr_…) the trigger is an edge of; only the Graphs plugin can set it; from any other caller it is ignored. The Triggers section groups the run's triggers under the run and offers Open graph instead of Delete."},
+            "run": {"type": "string", "description": "Id of the agent graph run (gr_…) the trigger is an edge of; only the agents plugin's graph engine can set it; from any other caller it is ignored. The Triggers section groups the run's triggers under the run and offers Open graph instead of Delete."},
             "runTitle": {"type": "string", "description": "Title of that run, shown on the group row and as \"created by graph <title>\"."}
           },
           "required": ["name", "on", "command"]

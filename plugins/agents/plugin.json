@@ -68,11 +68,11 @@
             "prompt": {"type": "string", "description": "First prompt; omit to start the session idle."},
             "title": {"type": "string", "description": "Session title; defaults to the first line of the first prompt."},
             "notify": {"type": "string", "enum": ["all", "needs-input", "muted"], "default": "all", "description": "Notification policy of the session: all notifications, only needs-input, permission and question ones, or none. A session's children are limited by it too."},
-            "run": {"type": "string", "description": "Id of the agent graph run (gr_…) the session is a node of; the Graphs plugin sets it. The Agents sidebar lists the run's sessions under one run row, each labelled without the \"<run title> · \" prefix of its title."},
+            "run": {"type": "string", "description": "Id of the agent graph run (gr_…) the session is a node of; the agents plugin's graph engine sets it. The Agents sidebar lists the run's sessions under one run row, each labelled without the \"<run title> · \" prefix of its title."},
             "runTitle": {"type": "string", "description": "Title of that run, shown on the run row."},
             "runAfter": {
               "type": "array",
-              "description": "The run's edges into this node, so the Code chat can say when an unstarted step runs (\"when Coder finishes its turn\"); the Graphs plugin sets it.",
+              "description": "The run's edges into this node, so the Code chat can say when an unstarted step runs (\"when Coder finishes its turn\"); the agents plugin's graph engine sets it.",
               "items": {
                 "type": "object",
                 "properties": {
