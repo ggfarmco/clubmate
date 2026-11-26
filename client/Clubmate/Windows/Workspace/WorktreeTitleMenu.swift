@@ -32,7 +32,7 @@ struct WorktreeTitleMenu: View {
                 }
                 if home {
                     Image(systemName: "house")
-                        .font(.system(size: 12))
+                        .font(theme.ui)
                         .foregroundStyle(theme.muted)
                 }
                 Text(workspace)
@@ -53,6 +53,7 @@ struct WorktreeTitleMenu: View {
                         .fixedSize()
                     if let folder = session.worktrees.currentFolder {
                         Image(systemName: "folder")
+                            .font(theme.ui)
                             .foregroundStyle(theme.muted)
                         Text(folder)
                             .foregroundStyle(theme.foreground)
@@ -65,6 +66,7 @@ struct WorktreeTitleMenu: View {
                             .fixedSize()
                     } else {
                         Image(systemName: "arrow.triangle.branch")
+                            .font(theme.ui)
                             .foregroundStyle(theme.muted)
                     }
                     Text(current.name)

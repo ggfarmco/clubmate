@@ -217,6 +217,28 @@ public struct SDUIHeaderBadge: Sendable, Equatable {
     }
 }
 
+public struct SDUIHeaderDetail: Sendable, Equatable {
+    public let label: String
+    public let value: String
+
+    public init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let label = fields["label"]?.stringValue, let value = fields["value"]?.stringValue else { return nil }
+        self.label = label
+        self.value = value
+    }
+}
+
+public struct SDUIHeaderContext: Sendable, Equatable {
+    public let fill: Int
+    public let tone: String?
+
+    public init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let fill = fields["fill"]?.numberValue else { return nil }
+        self.fill = Int(fill)
+        tone = fields["tone"]?.stringValue
+    }
+}
+
 public struct SDUIReposSegment: Sendable, Equatable {
     public let text: String
     public let tone: String?
@@ -784,6 +806,14 @@ extension SDUINode {
 
     public func headerBadges() -> [SDUIHeaderBadge] {
         props["badges"]?.arrayValue?.compactMap(SDUIHeaderBadge.init) ?? []
+    }
+
+    public func headerDetails() -> [SDUIHeaderDetail] {
+        props["details"]?.arrayValue?.compactMap(SDUIHeaderDetail.init) ?? []
+    }
+
+    public var headerContext: SDUIHeaderContext? {
+        props["context"].flatMap(SDUIHeaderContext.init)
     }
 
     public var headerField: SDUIChild? {

@@ -10,20 +10,24 @@ struct WorkspaceWindow: View {
     @Environment(WindowRouter.self) var windows
     @Environment(\.theme) var theme
     @Environment(\.openWindow) private var openWindow
+    @State var titleBar = TitleBarChrome.fallback
 
     var body: some View {
-        WindowMinimum(size: CGSize(width: 800, height: 500)) { content }
+        WindowMinimum(size: CGSize(width: 800, height: 500)) {
+            VStack(spacing: 0) {
+                topBar
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay {
+                        if let windowID, windows.switcherWindow == windowID {
+                            SwitcherGridView(windowID: windowID)
+                        }
+                    }
+            }
+            .ignoresSafeArea(.container, edges: .top)
+        }
             .background(theme.background, ignoresSafeAreaEdges: .all)
             .navigationTitle(title)
-            .toolbar(removing: titleShown && !activeIsHome ? nil : .title)
-            .overlay {
-                if let windowID, windows.switcherWindow == windowID {
-                    SwitcherGridView(windowID: windowID)
-                }
-            }
-            .toolbar { toolbarItems }
-            .toolbarBackground(theme.surface1, for: .windowToolbar)
-            .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
             .background(FullScreenTitlebar(color: NSColor(theme.surface1)))
             .modifier(WorkspacePresenters(windowID: $windowID))
             .focusedSceneValue(\.workspaceWindowID, windowID)

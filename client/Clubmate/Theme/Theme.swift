@@ -103,6 +103,7 @@ struct Theme: Sendable {
     var labelMaxWidth: CGFloat { (uiSize * 12).rounded() }
     var rowHeight2: CGFloat { (uiSize * 3).rounded() }
     var control: CGFloat { (uiSize * 2).rounded() }
+    var pill: CGFloat { (uiSize * 1.5).rounded() }
     var header: CGFloat { (uiSize * 8 / 3).rounded() }
     let rail: CGFloat = 40
     private(set) var gutter: CGFloat = 8

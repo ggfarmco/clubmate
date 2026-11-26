@@ -959,6 +959,33 @@ func TestHeaderMetaRepeatsTheSidebarDetail(t *testing.T) {
 	}
 }
 
+func TestSessionHeaderSendsDetailsContextAndUrgentBadgesFirst(t *testing.T) {
+	t.Parallel()
+	rec := record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusError, AFK: true}
+	sc := screen{
+		View:     transcriptView{Session: rec, Usage: &acp.UsageUpdate{Used: 85, Size: 100}},
+		Row:      sessionRow{Notify: notifyMuted, Ungated: &ungatedView{Badge: "ungated"}},
+		Share:    map[string]float64{windowFiveHour: 6, windowSevenDay: 0.2},
+		Now:      time.Now(),
+		Composer: "agt_p/composer/0",
+	}
+	tree := mainView(sc)
+	require.NoError(t, internalsdui.Validate(tree))
+
+	h := nodesOf(tree, "header")[0]
+	assert.Equal(t, []sdui.HeaderDetail{
+		{Label: "Context", Value: "85%"},
+		{Label: "5h window", Value: "≈6%"},
+		{Label: "7d window", Value: "<1%"},
+		{Label: "AFK", Value: "on"},
+		{Label: "Notify", Value: "Muted"},
+	}, h.Props["details"])
+	assert.Equal(t, sdui.HeaderContext{Fill: 85, Tone: "warning"}, h.Props["context"])
+	assert.Equal(t, true, h.Props["compact"])
+	badges := h.Props["badges"].([]sdui.HeaderBadge)
+	assert.Equal(t, []string{"danger", "warning", "neutral"}, []string{badges[0].Tone, badges[1].Tone, badges[2].Tone})
+}
+
 func TestPendingPermissionDocksAboveTheComposer(t *testing.T) {
 	t.Parallel()
 	call := rawJSON(t, map[string]string{"title": "go test", "kind": "execute"})

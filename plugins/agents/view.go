@@ -35,6 +35,10 @@ const (
 	queuedNote     = "Queued, sent when the turn ends"
 	heldNote       = "Queued, not sent"
 	queuePrefix    = "queue/"
+	detailActivity = "Activity"
+	detailContext  = "Context"
+	detailNotify   = "Notify"
+	detailReview   = "Review"
 
 	advisorHelp = "Advisor model for new sessions in this worktree"
 	finishHelp  = "What the agent does once the task is done"
@@ -337,21 +341,10 @@ func header(sc screen) sdui.Node {
 		meta = append(meta, nonEmpty(fill)...)
 	}
 	meta = append(meta, shareParts(sc.Share)...)
+	details := headerDetails(head, rec, notify, activity, sc.View.Usage, sc.Share)
 	var buttons []sdui.Node
 	if turnActive(rec) {
 		buttons = append(buttons, sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/stop", "Stop", "stop.fill"), actStop), sdui.VariantGhost), stopKey))
-	}
-	if sc.Parent != "" {
-		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/parent", "from "+sc.Parent, "arrow.turn.up.left"), actSelectParent))
-	}
-	if sc.ForkedFrom != "" {
-		buttons = append(buttons, forkedFromButton(sid, sc.ForkedFrom))
-	}
-	if sc.AsideCount > 0 {
-		buttons = append(buttons, asideNextButton(sid, sc.AsideCount))
-	}
-	if rec.HandoffFrom != "" {
-		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/"+handoffFromNode, "Earlier session", "clock.arrow.circlepath"), actOpenHandoff))
 	}
 	if b, ok := contextButton(sc); ok && sc.Code == nil {
 		buttons = append(buttons, b)
@@ -367,6 +360,18 @@ func header(sc screen) sdui.Node {
 	}
 	if sc.Review != nil {
 		buttons = append(buttons, openReviewButton(sid))
+	}
+	if sc.Parent != "" {
+		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/parent", "from "+sc.Parent, "arrow.turn.up.left"), actSelectParent))
+	}
+	if sc.ForkedFrom != "" {
+		buttons = append(buttons, forkedFromButton(sid, sc.ForkedFrom))
+	}
+	if sc.AsideCount > 0 {
+		buttons = append(buttons, asideNextButton(sid, sc.AsideCount))
+	}
+	if rec.HandoffFrom != "" {
+		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/"+handoffFromNode, "Earlier session", "clock.arrow.circlepath"), actOpenHandoff))
 	}
 	var top sdui.Node
 	if rec.isAside() && sc.Code == nil {
@@ -419,13 +424,16 @@ func header(sc screen) sdui.Node {
 			buttons = append(buttons, pill)
 		}
 		top = sdui.Header(title, sdui.HeaderProps{
-			Icon:   statusIcons[display],
-			Meta:   strings.Join(meta, " · "),
-			Badges: badges,
-			Status: display,
-			Agent:  agentLabel(rec.Agent),
-			Branch: sc.Branch,
-			Mode:   sessionModeLabel(sc.View),
+			Icon:    statusIcons[display],
+			Meta:    strings.Join(meta, " · "),
+			Badges:  byUrgency(badges),
+			Status:  display,
+			Agent:   agentLabel(rec.Agent),
+			Branch:  sc.Branch,
+			Mode:    sessionModeLabel(sc.View),
+			Details: details,
+			Context: headerContext(sc.View.Usage),
+			Compact: true,
 		}, buttons...)
 	}
 	children := []sdui.Node{top}
@@ -440,6 +448,53 @@ func header(sc screen) sdui.Node {
 		problem = append(problem, failureButton(sid, act))
 	}
 	return sdui.VStack(append(children, sdui.HStack(problem...))...)
+}
+
+func headerDetails(review []string, rec record, notify, activity string, u *acp.UsageUpdate, share map[string]float64) []sdui.HeaderDetail {
+	var out []sdui.HeaderDetail
+	add := func(label, value string) {
+		if value != "" {
+			out = append(out, sdui.HeaderDetail{Label: label, Value: value})
+		}
+	}
+	add(detailActivity, activity)
+	if fill, ok := contextFill(u); ok {
+		add(detailContext, strconv.Itoa(fill)+"%")
+	}
+	for _, name := range usageWindows {
+		add(shareLabels[name]+" window", shareAmount(share[name]))
+	}
+	if rec.AFK {
+		add(afkLabel, "on")
+	}
+	add(detailNotify, notify)
+	add(detailReview, strings.Join(review, " · "))
+	return out
+}
+
+func headerContext(u *acp.UsageUpdate) *sdui.HeaderContext {
+	fill, ok := contextFill(u)
+	if !ok {
+		return nil
+	}
+	c := sdui.HeaderContext{Fill: fill}
+	if fill >= contextWarnPercent {
+		c.Tone = "warning"
+	}
+	return &c
+}
+
+var badgeUrgency = map[string]int{"danger": 0, "warning": 1, "accent": 2}
+
+func byUrgency(badges []sdui.HeaderBadge) []sdui.HeaderBadge {
+	rank := func(b sdui.HeaderBadge) int {
+		if r, ok := badgeUrgency[b.Tone]; ok {
+			return r
+		}
+		return len(badgeUrgency)
+	}
+	slices.SortStableFunc(badges, func(a, b sdui.HeaderBadge) int { return rank(a) - rank(b) })
+	return badges
 }
 
 func sessionModeLabel(v transcriptView) string {

@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · top bar · 1280</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/77baef3ce02f146bccd35190e260a9d1">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.cm .tbc{display:flex;align-items:center;gap:6px;height:28px;padding:0 8px 0 14px;background:var(--s1);border-bottom:1px solid var(--bd);min-width:0;flex:none}
+.cm .tbc .lights,.cm .mg .lights{margin-right:6px}
+.cm .p18{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:5px;background:var(--s2);border:1px solid var(--bd);color:var(--fg);font-size:11px;line-height:16px;flex:none;white-space:nowrap;min-width:0}
+.cm .p18 svg.i{width:12px;height:12px}
+.cm .p18 .count{height:14px;min-width:14px;font-size:10px;padding:0 3px}
+.cm .hd{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px 0 16px;border-bottom:1px solid var(--bd);flex:none;min-width:0;position:relative;background:var(--bg)}
+.cm .hd>.ttl{margin:0}
+.cm .mg{display:grid;grid-template-columns:288px minmax(0,1fr);height:32px;border-bottom:1px solid var(--bd);flex:none;min-width:0}
+.cm .mg>.l{display:flex;align-items:center;gap:6px;padding:0 8px 0 14px;background:var(--s1);border-right:1px solid var(--bd);min-width:0}
+.cm .mg>.r{display:flex;align-items:center;gap:8px;padding:0 8px 0 16px;min-width:0}
+.cm .mg .ttl{margin:0}
+.cm .tx{display:flex;flex-direction:column;gap:6px;padding:8px 24px 0;min-height:0;overflow:hidden}
+.lab{display:flex;align-items:baseline;gap:12px;padding:16px 24px 8px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:16px;color:#3A3D3B;flex:none}
+.lab b{font-weight:600;color:#1B1D1C}
+</style>
+</helmet>
+<div class="doc" style="width: 1280px; height: 800px; display: flex; flex-direction: column; overflow: hidden">
+<div style="padding: 24px 24px 4px; display: flex; flex-direction: column; gap: 6px; flex: none">
+<div class="eyebrow">r1 · Q2 · top bar — same 170 pt crop each, count the transcript lines</div>
+<h2>Today · T1 lower bar (pick) · T2 merged</h2>
+</div>
+
+<div class="lab"><b>today</b><span>bar 38 · pills 24 · header 3 rows 80 → 118 pt of chrome</span></div>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 170px; overflow: hidden; display: flex; flex-direction: column; flex: none">
+<header class="tb" style="height: 38px; flex: none">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill" aria-label="Workspace due, worktree DUE-970-cards"><span class="mdot id-magenta"></span><span>due</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span>DUE-970-cards</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications: 3 need you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">3</span></button>
+<button class="pill" aria-label="Workspaces: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</header>
+<div class="body" style="grid-template-columns: 40px 248px minmax(0, 1fr); flex: 1 1 auto">
+<nav class="rail" aria-label="Sections">
+<button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button>
+</nav>
+<aside class="side" aria-label="Agent sessions">
+<div style="display: flex; flex-direction: column; padding: 4px">
+<div class="sec"><span style="flex: 1">DUE-970-cards</span><span>12</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Разбиение card_models на пакеты</span><span class="d cap">&lt;1 min</span></div>
+<div class="row sel" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Нейминг GetByOwnerAndId в ContractsService</span><span class="d cap">&lt;1 min</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Поиск grep без результата</span><span class="d cap ac-i">review</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">62 повторения</span><span class="d cap ac-i">review</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Copypaste linter для card-тестов</span><span class="d cap">4 min</span></div>
+</div>
+</aside>
+<main class="main">
+<div style="display: flex; flex-direction: column; padding: 4px 8px 4px 16px; border-bottom: 1px solid var(--bd); flex: none">
+<div style="display: flex; align-items: center; gap: 8px; height: 28px; min-width: 0">
+<svg class="i ac-i" viewBox="0 0 16 16" role="img" aria-label="Running"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg>
+<h1 class="ttl ell" style="margin: 0; flex: 0 1 auto">Нейминг GetByOwnerAndId в ContractsService</h1>
+<span class="mut cap ell">Claude · DUE-970-cards · Auto</span>
+<span style="flex: 1"></span>
+<button class="btn sm gh"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/></svg>Stop<span class="kbd">⌘.</span></button>
+</div>
+<div class="mut cap" style="height: 18px; padding-left: 22px">&lt;1 min · 15% context · ≈3% of 5h · &lt;1% of 7d</div>
+<div style="display: flex; gap: 4px; height: 26px; align-items: center; padding-left: 18px">
+<button class="btn sm gh"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8 14 5 8 8.2 2 5Z"/><path d="m2 8 6 3.2L14 8M2 11l6 3.2 6-3.2"/></svg>Context<span class="kbd">⌘I</span></button>
+<button class="btn sm gh"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 1.5h6l3 3v10h-9Z"/><path d="M8 6v4M6 8h4M6 12.2h4"/></svg>Review changes</button>
+</div>
+</div>
+<div class="tx">
+<p>• 10 тестов card API (<code>contracts_test</code>, <code>cards_transactions_test</code>, <code>cards_fees_api_test</code>) проходят.</p>
+</div>
+</main>
+</div>
+</div>
+
+<div class="lab"><b>T1 · pick</b><span>bar 28 (a plain macOS title bar) · pills 18: text 11, icons 12, pad 7, radius 5 · lights untouched → 56 pt (−62)</span></div>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 170px; overflow: hidden; display: flex; flex-direction: column; flex: none">
+<header class="tbc">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="p18" aria-label="Workspace due, worktree DUE-970-cards"><span class="mdot id-magenta"></span><span>due</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span>DUE-970-cards</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="p18" aria-label="Notifications: 3 need you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">3</span></button>
+<button class="p18" aria-label="Workspaces: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</header>
+<div class="body" style="grid-template-columns: 40px 248px minmax(0, 1fr); flex: 1 1 auto">
+<nav class="rail" aria-label="Sections">
+<button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button>
+</nav>
+<aside class="side" aria-label="Agent sessions">
+<div style="display: flex; flex-direction: column; padding: 4px">
+<div class="sec"><span style="flex: 1">DUE-970-cards</span><span>12</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Разбиение card_models на пакеты</span><span class="d cap">&lt;1 min</span></div>
+<div class="row sel" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Нейминг GetByOwnerAndId в ContractsService</span><span class="d cap">&lt;1 min</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Поиск grep без результата</span><span class="d cap ac-i">review</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">62 повторения</span><span class="d cap ac-i">review</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Copypaste linter для card-тестов</span><span class="d cap">4 min</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">LedgerAccount.Of и публичные…</span><span class="d cap">&lt;1 min</span></div>
+</div>
+</aside>
+<main class="main">
+<div class="hd">
+<svg class="i ac-i" viewBox="0 0 16 16" role="img" aria-label="Running"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg>
+<h1 class="ttl ell" style="flex: 0 1 auto; min-width: 160px">Нейминг GetByOwnerAndId в ContractsService</h1>
+<span class="mut cap ell" style="flex: 0 100 auto">Claude · DUE-970-cards · Auto</span>
+<span style="flex: 1 1 0; min-width: 0"></span>
+<button class="btn sm gh" aria-label="Session details: 15% context"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" style="stroke: var(--bd2); stroke-width: 2"/><circle cx="8" cy="8" r="5.5" transform="rotate(-90 8 8)" style="stroke: var(--ac); stroke-width: 2; stroke-dasharray: 5.2 40"/></svg><span class="cap">15%</span></button>
+<span class="vr" style="height: 14px; align-self: center"></span>
+<button class="btn ico sm gh" aria-label="Context ⌘I"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8 14 5 8 8.2 2 5Z"/><path d="m2 8 6 3.2L14 8M2 11l6 3.2 6-3.2"/></svg></button>
+<button class="btn sm gh" aria-label="Review changes: choose a base" style="padding: 0 3px; gap: 1px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 1.5h6l3 3v10h-9Z"/><path d="M8 6v4M6 8h4M6 12.2h4"/></svg><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span class="vr" style="height: 14px; align-self: center"></span>
+<button class="btn sm gh" aria-label="Stop ⌘."><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/></svg>Stop<span class="kbd">⌘.</span></button>
+</div>
+<div class="tx">
+<p>• 10 тестов card API (<code>contracts_test</code>, <code>cards_transactions_test</code>, <code>cards_fees_api_test</code>) проходят.</p>
+<p>• В бэкофисе <code>TestCardFeeRuleSetByIsTheStaff</code> падает с ошибкой «a fee rule that charges gives its fee to at least one recipient».</p>
+<p><b>Внимание: в этом же worktree работает кто-то ещё.</b> Пока я делал правки, появились чужие изменения примерно в 40 файлах.</p>
+</div>
+</main>
+</div>
+</div>
+
+<div class="lab"><b>T2</b><span>merged — the session header is the bar's right half (Xcode-style) → 32 pt (−86); session things and window things share one row</span></div>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 170px; overflow: hidden; display: flex; flex-direction: column; flex: none">
+<header class="mg">
+<div class="l">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="p18" style="flex: 0 1 auto" aria-label="Workspace due, worktree DUE-970-cards"><span class="mdot id-magenta"></span><span>due</span><span class="faint">/</span><span class="ell">DUE-970-cards</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+</div>
+<div class="r">
+<svg class="i ac-i" viewBox="0 0 16 16" role="img" aria-label="Running"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg>
+<h1 class="ttl ell" style="flex: 0 1 auto; min-width: 160px">Нейминг GetByOwnerAndId в ContractsService</h1>
+<span class="mut cap ell" style="flex: 0 100 auto">Claude · Auto</span>
+<span style="flex: 1 1 0; min-width: 0"></span>
+<button class="btn sm gh" aria-label="Session details: 15% context"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" style="stroke: var(--bd2); stroke-width: 2"/><circle cx="8" cy="8" r="5.5" transform="rotate(-90 8 8)" style="stroke: var(--ac); stroke-width: 2; stroke-dasharray: 5.2 40"/></svg><span class="cap">15%</span></button>
+<span class="vr" style="height: 14px; align-self: center"></span>
+<button class="btn ico sm gh" aria-label="Context ⌘I"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8 14 5 8 8.2 2 5Z"/><path d="m2 8 6 3.2L14 8M2 11l6 3.2 6-3.2"/></svg></button>
+<button class="btn sm gh" aria-label="Review changes: choose a base" style="padding: 0 3px; gap: 1px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 1.5h6l3 3v10h-9Z"/><path d="M8 6v4M6 8h4M6 12.2h4"/></svg><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<button class="btn sm gh" aria-label="Stop ⌘."><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/></svg>Stop<span class="kbd">⌘.</span></button>
+<span class="vr" style="height: 16px; align-self: center; margin: 0 2px"></span>
+<button class="p18" aria-label="Notifications: 3 need you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">3</span></button>
+<button class="p18" aria-label="Workspaces: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</div>
+</header>
+<div class="body" style="grid-template-columns: 40px 248px minmax(0, 1fr); flex: 1 1 auto">
+<nav class="rail" aria-label="Sections">
+<button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button>
+</nav>
+<aside class="side" aria-label="Agent sessions">
+<div style="display: flex; flex-direction: column; padding: 4px">
+<div class="sec"><span style="flex: 1">DUE-970-cards</span><span>12</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Разбиение card_models на пакеты</span><span class="d cap">&lt;1 min</span></div>
+<div class="row sel" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Нейминг GetByOwnerAndId в ContractsService</span><span class="d cap">&lt;1 min</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Поиск grep без результата</span><span class="d cap ac-i">review</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">62 повторения</span><span class="d cap ac-i">review</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Copypaste linter для card-тестов</span><span class="d cap">4 min</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">LedgerAccount.Of и публичные…</span><span class="d cap">&lt;1 min</span></div>
+<div class="row" style="padding-left: 14px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Видимость LedgerAccount в бэкофисе</span><span class="d cap">&lt;1 min</span></div>
+</div>
+</aside>
+<main class="main">
+<div class="tx">
+<p>• 10 тестов card API (<code>contracts_test</code>, <code>cards_transactions_test</code>, <code>cards_fees_api_test</code>) проходят.</p>
+<p>• В бэкофисе <code>TestCardFeeRuleSetByIsTheStaff</code> падает с ошибкой «a fee rule that charges gives its fee to at least one recipient».</p>
+<p><b>Внимание: в этом же worktree работает кто-то ещё.</b> Пока я делал правки, появились чужие изменения примерно в 40 файлах.</p>
+<p>Я советую отдельный коммит только с моими кусками: так чужая незаконченная работа не попадёт в мой коммит.</p>
+</div>
+</main>
+</div>
+</div>
+
+<div class="lab" style="padding-top: 18px"><b>T2 costs</b><span>every section (Code, Terminals, Backlog…) must put its header in the bar; the drag area shrinks to the gaps; at 640 the title gets ~170 pt</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"mate"},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'mate' };
+}
+}
+</script>
+</body>
+</html>

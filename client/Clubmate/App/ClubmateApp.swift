@@ -41,7 +41,7 @@ struct ClubmateApp: App {
             .modifier(SettingsTheme(settings: app.settings))
         }
         .defaultSize(width: 1100, height: 700)
-        .windowToolbarStyle(.unifiedCompact)
+        .windowStyle(.hiddenTitleBar)
         .commands { WorkspaceCommands(app: app, windows: app.windows, actions: app.actions) }
 
         Settings {

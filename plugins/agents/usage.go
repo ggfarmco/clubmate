@@ -561,9 +561,16 @@ func shareLabel(share map[string]float64) string {
 }
 
 func usageParts(u *acp.UsageUpdate) (string, bool) {
-	if u == nil || u.Size <= 0 {
+	fill, ok := contextFill(u)
+	if !ok {
 		return "", false
 	}
-	fill := int(math.Round(float64(u.Used) * 100 / float64(u.Size)))
 	return strconv.Itoa(fill) + "% context", fill >= contextWarnPercent
+}
+
+func contextFill(u *acp.UsageUpdate) (int, bool) {
+	if u == nil || u.Size <= 0 {
+		return 0, false
+	}
+	return int(math.Round(float64(u.Used) * 100 / float64(u.Size))), true
 }

@@ -387,9 +387,23 @@
                     {
                       "type": "header",
                       "id": "gallery-session-header",
-                      "props": {"title": "Rate-limit notifications per workspace", "icon": "exclamationmark.circle", "status": "waiting", "agent": "Claude", "branch": "docs/design-brief", "mode": "Ask before edits", "badges": [{"text": "waiting for you", "tone": "warning"}, {"text": "2 open", "tone": "warning", "outline": true, "id": "gallery/open/badge", "action": "openReveal"}]},
+                      "props": {"title": "Rate-limit notifications per workspace", "icon": "exclamationmark.circle", "status": "waiting", "agent": "Claude", "branch": "docs/design-brief", "mode": "Ask before edits", "compact": true, "meta": "<1 min · 15% context · ≈3% of 5h", "badges": [{"text": "waiting for you", "tone": "warning"}, {"text": "2 open", "tone": "warning", "outline": true, "id": "gallery/open/badge", "action": "openReveal"}], "context": {"fill": 15}, "details": [{"label": "Activity", "value": "<1 min"}, {"label": "Context", "value": "15%"}, {"label": "5h window", "value": "≈3%"}]},
                       "children": [
-                        {"type": "button", "id": "gallery-session-header/stop", "props": {"label": "Stop", "icon": "stop.fill", "variant": "ghost", "action": "stop"}}
+                        {"type": "button", "id": "gallery-session-header/stop", "props": {"label": "Stop", "icon": "stop.fill", "variant": "ghost", "action": "stop"}},
+                        {"type": "button", "id": "gallery-session-header/context", "props": {"label": "Context", "icon": "list.bullet.rectangle", "action": "context"}}
+                      ]
+                    },
+                    {
+                      "type": "header",
+                      "id": "gallery-session-heavy-header",
+                      "props": {"title": "Перенести расчёт комиссий карт из бэкофиса в сервис контрактов и обновить тесты получателей", "icon": "play.circle", "status": "running", "agent": "Claude", "branch": "DUE-970-cards", "mode": "Auto", "compact": true, "meta": "AFK · 2 h · ≈12% of 5h", "badges": [{"text": "Stopped · exit 1", "tone": "danger"}, {"text": "context full", "tone": "warning"}, {"text": "review 2/5", "tone": "accent"}, {"text": "3 open", "outline": true}], "context": {"fill": 96, "tone": "warning"}, "details": [{"label": "Activity", "value": "2 h"}, {"label": "Context", "value": "96%"}, {"label": "5h window", "value": "≈12%"}, {"label": "AFK", "value": "on"}]},
+                      "children": [
+                        {"type": "button", "id": "gallery-session-heavy-header/stop", "props": {"label": "Stop", "icon": "stop.fill", "variant": "ghost", "action": "stop", "shortcut": "cmd+."}},
+                        {"type": "button", "id": "gallery-session-heavy-header/context", "props": {"label": "Context", "icon": "list.bullet.rectangle", "action": "context", "shortcut": "cmd+i"}},
+                        {"type": "button", "id": "gallery-session-heavy-header/review", "props": {"label": "Review changes", "icon": "doc.text.magnifyingglass"}},
+                        {"type": "button", "id": "gallery-session-heavy-header/reviewed", "props": {"label": "Reviewed", "icon": "checkmark"}},
+                        {"type": "button", "id": "gallery-session-heavy-header/parent", "props": {"label": "from Backend readthrough", "icon": "arrow.turn.up.left"}},
+                        {"type": "button", "id": "gallery-session-heavy-header/handoff", "props": {"label": "Earlier session", "icon": "clock.arrow.circlepath"}}
                       ]
                     },
                     {

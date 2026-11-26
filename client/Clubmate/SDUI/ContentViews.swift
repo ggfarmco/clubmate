@@ -240,7 +240,7 @@ struct BadgeLabel: View {
     }
 }
 
-private struct HeaderBadgeButton: View {
+struct HeaderBadgeButton: View {
     let badge: SDUIHeaderBadge
     let id: String
     let action: String
@@ -374,8 +374,12 @@ struct HeaderNodeView: View {
 
     var body: some View {
         let title = node.string("title") ?? ""
+        let compact = node.bool("compact") == true
         Group {
-            if node.headerField != nil || node.bool("inline") == true {
+            if compact {
+                SessionHeaderRow(node: node)
+                    .padding(.trailing, trailingInset)
+            } else if node.headerField != nil || node.bool("inline") == true {
                 ViewThatFits(in: .horizontal) {
                     oneLine(title)
                     stacked(title)
@@ -385,7 +389,7 @@ struct HeaderNodeView: View {
             }
         }
         .padding(.horizontal, theme.gutter)
-        .padding(.vertical, theme.spacing.l)
+        .padding(.vertical, compact ? theme.spacing.xs : theme.spacing.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .background(alignment: .topLeading) { metaProbe }
@@ -783,7 +787,7 @@ private struct HeaderTitleField: View {
     }
 }
 
-private struct HeaderMoreMenu: View {
+struct HeaderMoreMenu: View {
     let id: String
     let actions: [SDUINode]
 

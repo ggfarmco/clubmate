@@ -1,0 +1,17 @@
+{
+  "title": "Compact session header · round 1",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 26 Nov 2026. The session header in one 28 pt row and a lower top bar. Rules: rules.md.",
+    "Pick: A · meter + icons (the meta goes behind a context ring with a popover, actions are icon ghosts, ••• takes the rest, Stop is always last) and T1 · a 28 pt top bar with 18 pt pills. Chrome above the transcript: 118 → 56 pt.",
+    "Not picked: B · inline meter + labelled overflow (rounds/), T2 · the header merged into the bar (drawn on the Top bar boards)."
+  ],
+  "boards": [
+    {"file": "r1-Pick-1280.dc.html", "w": 1280, "title": "Pick assembled · T1 bar + A header · 1280 Mate dark", "caption": "The whole window with the picked bar and header."},
+    {"file": "r1-A-1280.dc.html", "w": 1280, "title": "A · meter + icons · 1280 Mate dark", "caption": "Idle, heaviest (long Russian title, 3 badges, 5 actions, running, landing line), failed with its problem line, the ring's popover; the truncation order."},
+    {"file": "r1-A-640.dc.html", "w": 640, "title": "A · fallback · 640 Mate light", "caption": "Caption gone, top badge + n, actions into •••, Stop keeps its word; failed; ••• open."},
+    {"file": "r1-Bar-1280.dc.html", "w": 1280, "title": "Top bar · today / T1 lower (pick) / T2 merged · 1280", "caption": "Today 38 + 80 = 118 pt; T1 28 + 28 = 56 pt; T2 32 pt."},
+    {"file": "r1-Bar-640.dc.html", "w": 640, "title": "Top bar · T1 / T2 · 640 Mate light", "caption": "T2 loses the worktree name, the sidebar toggle and half the title."},
+    {"file": "rounds/r1-B-1280.dc.html", "w": 1280, "title": "B · inline meter + labelled overflow · 1280 (not picked)", "caption": "The meta stays as text, buttons keep labels and spill into +n; the title gets ≈236 pt in the heaviest case and at 640 B turns into A."}
+  ]
+}

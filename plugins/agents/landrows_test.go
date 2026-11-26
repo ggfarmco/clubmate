@@ -139,7 +139,7 @@ func TestReviewerHeaderNamesItsRoundAndLander(t *testing.T) {
 	header := nodesOf(tree, "header")[0]
 	assert.Equal(t, "Round 1 review", header.Props["title"])
 	assert.Equal(t, "of Fix login · fix/login → main", header.Props["meta"])
-	assert.Equal(t, []sdui.HeaderBadge{{Text: "reviewing", Tone: "accent"}, {Text: "asks you", Tone: "warning"}}, header.Props["badges"])
+	assert.Equal(t, []sdui.HeaderBadge{{Text: "asks you", Tone: "warning"}, {Text: "reviewing", Tone: "accent"}}, header.Props["badges"])
 	back := nodesOf(tree, "button")[0]
 	assert.Equal(t, []any{actBack, "cmd+["}, []any{back.Props["action"], back.Props["shortcut"]})
 }

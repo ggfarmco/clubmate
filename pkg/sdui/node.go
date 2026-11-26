@@ -866,16 +866,29 @@ type HeaderBadge struct {
 	Action  string `json:"action,omitempty"`
 }
 
+type HeaderDetail struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+type HeaderContext struct {
+	Fill int    `json:"fill"`
+	Tone string `json:"tone,omitempty"`
+}
+
 type HeaderProps struct {
-	Icon   string
-	Meta   string
-	Badges []HeaderBadge
-	Status string
-	Agent  string
-	Branch string
-	Mode   string
-	Field  string
-	Error  string
+	Icon    string
+	Meta    string
+	Badges  []HeaderBadge
+	Status  string
+	Agent   string
+	Branch  string
+	Mode    string
+	Field   string
+	Error   string
+	Details []HeaderDetail
+	Context *HeaderContext
+	Compact bool
 }
 
 func Header(title string, p HeaderProps, actions ...Node) Node {
@@ -885,6 +898,15 @@ func Header(title string, p HeaderProps, actions ...Node) Node {
 	}
 	if len(p.Badges) > 0 {
 		props["badges"] = p.Badges
+	}
+	if len(p.Details) > 0 {
+		props["details"] = p.Details
+	}
+	if p.Context != nil {
+		props["context"] = *p.Context
+	}
+	if p.Compact {
+		props["compact"] = true
 	}
 	return Node{Type: "header", Props: props, Children: actions}
 }

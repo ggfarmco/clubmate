@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · top bar · 640</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/77baef3ce02f146bccd35190e260a9d1">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.cm .tbc{display:flex;align-items:center;gap:6px;height:28px;padding:0 8px 0 14px;background:var(--s1);border-bottom:1px solid var(--bd);min-width:0;flex:none}
+.cm .tbc .lights,.cm .mg .lights{margin-right:6px}
+.cm .p18{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:5px;background:var(--s2);border:1px solid var(--bd);color:var(--fg);font-size:11px;line-height:16px;flex:none;white-space:nowrap;min-width:0}
+.cm .p18 svg.i{width:12px;height:12px}
+.cm .p18 .count{height:14px;min-width:14px;font-size:10px;padding:0 3px}
+.cm .hd{display:flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 8px;border-bottom:1px solid var(--bd);flex:none;min-width:0;position:relative;background:var(--bg)}
+.cm .hd>.ttl{margin:0}
+.cm .mg{display:flex;align-items:center;gap:6px;height:32px;padding:0 6px 0 14px;background:var(--s1);border-bottom:1px solid var(--bd);flex:none;min-width:0}
+.cm .mg .ttl{margin:0}
+.cm .tx{display:flex;flex-direction:column;gap:6px;padding:8px 16px 0;min-height:0;overflow:hidden}
+.lab{display:flex;align-items:baseline;gap:12px;padding:16px 24px 8px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:16px;color:#3A3D3B;flex:none}
+.lab b{font-weight:600;color:#1B1D1C}
+</style>
+</helmet>
+<div class="doc" style="width: 640px; height: 600px; display: flex; flex-direction: column; overflow: hidden">
+<div style="padding: 24px 24px 4px; display: flex; flex-direction: column; gap: 6px; flex: none">
+<div class="eyebrow">r1 · Q2 · top bar at 640 pt</div>
+<h2>T1 lower bar · T2 merged</h2>
+</div>
+
+<div class="lab"><b>T1 · pick</b><span>28 + 28 = 56 pt; the title keeps ≈330 pt</span></div>
+<div class="cm th-{{theme}}" style="width: 640px; height: 170px; overflow: hidden; display: flex; flex-direction: column; flex: none; box-shadow: 0 0 0 1px rgba(60,50,20,.14)">
+<header class="tbc">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="p18" style="flex: 0 1 auto" aria-label="Workspace due, worktree DUE-970-cards"><span class="mdot id-magenta"></span><span>due</span><span class="faint">/</span><span class="ell">DUE-970-cards</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="p18" aria-label="Notifications: 3 need you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">3</span></button>
+</header>
+<div class="body" style="grid-template-columns: 40px minmax(0, 1fr); flex: 1 1 auto">
+<nav class="rail" aria-label="Sections">
+<button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button>
+<button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button>
+</nav>
+<main class="main">
+<div class="hd">
+<button class="btn ico sm gh" aria-label="Show sessions ⌘B"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button>
+<svg class="i ac-i" viewBox="0 0 16 16" role="img" aria-label="Running"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg>
+<h1 class="ttl ell" style="flex: 0 1 auto; min-width: 120px">Нейминг GetByOwnerAndId в ContractsService</h1>
+<span style="flex: 1 1 0; min-width: 0"></span>
+<button class="btn sm gh" aria-label="Session details: 15% context"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" style="stroke: var(--bd2); stroke-width: 2"/><circle cx="8" cy="8" r="5.5" transform="rotate(-90 8 8)" style="stroke: var(--ac); stroke-width: 2; stroke-dasharray: 5.2 40"/></svg><span class="cap">15%</span></button>
+<span class="vr" style="height: 14px; align-self: center"></span>
+<button class="btn ico sm gh" aria-label="Context ⌘I"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8 14 5 8 8.2 2 5Z"/><path d="m2 8 6 3.2L14 8M2 11l6 3.2 6-3.2"/></svg></button>
+<button class="btn sm gh" aria-label="Review changes: choose a base" style="padding: 0 3px; gap: 1px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 1.5h6l3 3v10h-9Z"/><path d="M8 6v4M6 8h4M6 12.2h4"/></svg><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span class="vr" style="height: 14px; align-self: center"></span>
+<button class="btn sm gh" aria-label="Stop ⌘."><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/></svg>Stop</button>
+</div>
+<div class="tx">
+<p>• 10 тестов card API (<code>contracts_test</code>, <code>cards_fees_api_test</code>) проходят.</p>
+<p>• В бэкофисе <code>TestCardFeeRuleSetByIsTheStaff</code> падает: «a fee rule that charges gives its fee to at least one recipient».</p>
+<p>Я советую отдельный коммит только с моими кусками.</p>
+</div>
+</main>
+</div>
+</div>
+
+<div class="lab"><b>T2</b><span>32 pt, but lights + workspace eat ~110 pt: the title gets ≈170</span></div>
+<div class="cm th-{{theme}}" style="width: 640px; height: 170px; overflow: hidden; display: flex; flex-direction: column; flex: none; box-shadow: 0 0 0 1px rgba(60,50,20,.14)">
+<header class="mg">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="p18" aria-label="Workspace due, worktree DUE-970-cards"><span class="mdot id-magenta"></span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span class="vr" style="height: 16px; align-self: center"></span>
+<svg class="i ac-i" viewBox="0 0 16 16" role="img" aria-label="Running"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg>
+<h1 class="ttl ell" style="flex: 0 1 auto; min-width: 100px">Нейминг GetByOwnerAndId в ContractsService</h1>
+<span style="flex: 1 1 0; min-width: 0"></span>
+<button class="btn sm gh" aria-label="Session details: 15% context"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" style="stroke: var(--bd2); stroke-width: 2"/><circle cx="8" cy="8" r="5.5" transform="rotate(-90 8 8)" style="stroke: var(--ac); stroke-width: 2; stroke-dasharray: 5.2 40"/></svg></button>
+<button class="btn ico sm gh" aria-label="Context ⌘I"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8 14 5 8 8.2 2 5Z"/><path d="m2 8 6 3.2L14 8M2 11l6 3.2 6-3.2"/></svg></button>
+<button class="btn ico sm gh" aria-label="More actions"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r="1" style="fill: currentColor"/><circle cx="8" cy="8" r="1" style="fill: currentColor"/><circle cx="12.5" cy="8" r="1" style="fill: currentColor"/></svg></button>
+<button class="btn sm gh" aria-label="Stop ⌘."><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/></svg>Stop</button>
+<button class="p18" aria-label="Notifications: 3 need you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">3</span></button>
+</header>
+<div class="body" style="grid-template-columns: 40px minmax(0, 1fr); flex: 1 1 auto">
+<nav class="rail" aria-label="Sections">
+<button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button>
+<button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button>
+</nav>
+<main class="main">
+<div class="tx">
+<p>• 10 тестов card API (<code>contracts_test</code>, <code>cards_fees_api_test</code>) проходят.</p>
+<p>• В бэкофисе <code>TestCardFeeRuleSetByIsTheStaff</code> падает: «a fee rule that charges gives its fee to at least one recipient».</p>
+<p>Я советую отдельный коммит только с моими кусками.</p>
+<p>Жду ответа, как коммитить.</p>
+</div>
+</main>
+</div>
+</div>
+
+<div class="lab" style="padding-top: 18px"><b>read</b><span>T2 wins 24 pt and loses the worktree name, the sidebar toggle and half the title</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"matelight"},"$preview":{"width":640,"height":600}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'matelight' };
+}
+}
+</script>
+</body>
+</html>

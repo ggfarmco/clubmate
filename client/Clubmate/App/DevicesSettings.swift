@@ -234,7 +234,7 @@ private struct ThisMacSection: View {
                     Text("clubmate")
                         .lineLimit(1)
                     Text("/").foregroundStyle(theme.faint)
-                    Image(systemName: "arrow.triangle.branch").foregroundStyle(theme.muted)
+                    Image(systemName: "arrow.triangle.branch").font(theme.ui).foregroundStyle(theme.muted)
                     Text("main").foregroundStyle(theme.foreground)
                 }
                 .fixedSize()
