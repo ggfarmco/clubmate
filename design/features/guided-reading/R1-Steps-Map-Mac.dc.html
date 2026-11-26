@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>R1 · Step controls and concept map · Mac</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/cd5295310c5e9c7200233f268a9b7bfe">
+<link rel="stylesheet" href="/_blob/185b3df60707c2be0aa85adc3e135ead">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 2488px; height: 1220px; box-sizing: border-box; padding: 56px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div class="eyebrow">Round 1 · 4 + 5 · Step controls and concept map · Mac 1280 Mate <span class="draft">DRAFT · not from the designer</span></div>
+<h2>Steer the pace, see where you are</h2>
+<p class="lead" style="max-width: 1600px">Step controls sit under the guide’s latest step only; each is a fixed prompt to the guide node (“Go deeper” opens an aside on the step). The map reads the run’s <code>tour.json</code>: concepts, edges, a state for each (known, shaky, missed) and the current one; a click goes back to a concept or asks it again.</p>
+</div>
+<div class="row3">
+
+<section class="dir" style="width: 1164px">
+<h3><span class="tag a">A</span>Button row under the step · map strip under the header</h3>
+<p class="pitch">Four small buttons with their keys, always the same order. The map is one line of up to 8 concept chips under the session header, so it is in view while you read; a chip opens a menu (Go back here, Ask me again). Drawer’s pick.</p>
+<div class="cm th-mate tp" style="width: 1164px; height: 760px; position: relative">
+<div class="tph"><span class="b ell">Guide: how a question reaches the card</span><span class="mut cap">Claude · design/guided-reading</span><span style="flex: 1"></span><span class="badge">idle</span></div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--bd); background: var(--s1); min-width: 0">
+<span class="cap mut" style="flex: none">Tour 3/7</span>
+<div class="map">
+<span class="nd"><span class="dot ok-i"></span>ACP elicitation</span><span class="ed"></span>
+<span class="nd"><span class="dot wa-i"></span>JSON schema</span><span class="ed"></span>
+<span class="nd"><span class="dot er-i"></span>Plugin store</span><span class="ed"></span>
+<span class="nd cur"><span class="dot ac-i"></span>Schema → fields</span><span class="ed"></span>
+<span class="nd todo"><span class="dot faint"></span>choice node</span><span class="ed"></span>
+<span class="nd todo"><span class="dot faint"></span>Other field</span><span class="ed"></span>
+<span class="nd todo"><span class="dot faint"></span>Send guard</span>
+</div>
+<span style="flex: 1"></span>
+<div class="legend"><span><span class="dot ok-i"></span>known</span><span><span class="dot wa-i"></span>shaky</span><span><span class="dot er-i"></span>missed</span></div>
+</div>
+<div class="tpb">
+<div class="xc">
+<div class="xh"><span class="vd wa-i"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11v.1"/></svg>Not quite</span><span class="cap mut">your L48 · answer L47</span><span class="badge">think so</span><span style="flex: 1"></span><span class="cap faint">elicit_view.go:47</span></div>
+</div>
+<div class="msg"><p class="b">Step 3 of 7 · Schema to fields</p><p>Line 47 sets <code>multi</code> from the schema’s type: <code>"array"</code> means several picks. Line 48 builds the options and line 50 passes <code>multi</code> into the choice node, so the renderer draws checkboxes instead of radio buttons.</p><p>Next: how the choice node keeps the Other text apart from the picks.</p></div>
+<div class="steps">
+<button class="btn sm">I know this, test me <span class="kbd">K</span></button>
+<button class="btn sm">Show me <span class="kbd">S</span></button>
+<button class="btn sm">Go deeper <span class="kbd">D</span></button>
+<button class="btn sm">Smaller steps <span class="kbd">-</span></button>
+<span style="flex: 1"></span>
+<button class="btn pri sm">Next step <span class="kbd">↩</span></button>
+</div>
+<div class="pop" style="position: absolute; top: 80px; left: 286px; width: 220px; padding: 4px; z-index: 2">
+<div class="row cap mut">Plugin store · missed</div>
+<div class="row sel"><span class="l">Go back here</span><span class="d">↩</span></div>
+<div class="row"><span class="l">Ask me again</span><span class="d">a</span></div>
+</div>
+</div>
+<div class="tpc"><div class="in cap">Message Claude…</div></div>
+</div>
+</section>
+
+<section class="dir" style="width: 1164px">
+<h3><span class="tag b">B</span>One primary + More · map in the Context panel</h3>
+<p class="pitch">Under the step only “Show me” is a button; the other three sit in a More menu. The map lives in the Context panel (⌘I) as a list with progress: room for names and notes, out of the reading line; open it when you want to look back.</p>
+<div class="cm th-mate tp" style="width: 1164px; height: 760px">
+<div class="tph"><span class="b ell">Guide: how a question reaches the card</span><span class="mut cap">Claude · design/guided-reading</span><span style="flex: 1"></span><span class="badge">idle</span><span class="cap">Context <span class="kbd">⌘I</span></span></div>
+<div style="flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0">
+<div style="display: flex; flex-direction: column; min-height: 0; min-width: 0">
+<div class="tpb">
+<div class="xc">
+<div class="xh"><span class="vd wa-i"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11v.1"/></svg>Not quite</span><span class="cap mut">your L48 · answer L47</span><span class="badge">think so</span><span style="flex: 1"></span><span class="cap faint">elicit_view.go:47</span></div>
+</div>
+<div class="msg"><p class="b">Step 3 of 7 · Schema to fields</p><p>Line 47 sets <code>multi</code> from the schema’s type: <code>"array"</code> means several picks. Line 48 builds the options and line 50 passes <code>multi</code> into the choice node.</p><p>Next: how the choice node keeps the Other text apart from the picks.</p></div>
+<div class="steps">
+<button class="btn pri sm">Show me <span class="kbd">↩</span></button>
+<button class="btn sm hov">More <svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+</div>
+<div class="pop" style="align-self: flex-start; margin: -6px 0 0 86px; width: 240px; padding: 4px">
+<div class="row sel"><span class="l">I know this, test me</span><span class="d">K</span></div>
+<div class="row"><span class="l">Go deeper (aside)</span><span class="d">D</span></div>
+<div class="row"><span class="l">Smaller steps</span><span class="d">-</span></div>
+</div>
+</div>
+<div class="tpc"><div class="in cap">Message Claude…</div></div>
+</div>
+<aside style="border-left: 1px solid var(--bd); background: var(--s1); display: flex; flex-direction: column; min-width: 0">
+<div class="phead"><span class="b">Tour</span><span class="cap mut">3 of 7 · 1 known</span></div>
+<div style="padding: 8px 12px 4px"><div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--bd)"><span style="width: 14%; background: var(--ok)"></span><span style="width: 14%; background: var(--wa)"></span><span style="width: 14%; background: var(--er)"></span></div></div>
+<div style="padding: 4px; display: flex; flex-direction: column; gap: 1px">
+<div class="row two"><span class="dot ok-i" style="margin-top: 6px"></span><span class="l" style="display: flex; flex-direction: column"><span>ACP elicitation</span><span class="cap mut">known · right, sure</span></span></div>
+<div class="row two"><span class="dot wa-i" style="margin-top: 6px"></span><span class="l" style="display: flex; flex-direction: column"><span>JSON schema</span><span class="cap mut">shaky · right, guess</span></span></div>
+<div class="row two hov"><span class="dot er-i" style="margin-top: 6px"></span><span class="l" style="display: flex; flex-direction: column"><span>Plugin store</span><span class="cap mut">missed · ask again later</span></span><span class="d cap">Ask again a</span></div>
+<div class="row two sel"><span class="dot ac-i" style="margin-top: 6px"></span><span class="l" style="display: flex; flex-direction: column"><span class="b">Schema → fields</span><span class="cap mut">now · close (L48 for L47)</span></span></div>
+<div class="row dis"><span class="dot"></span><span class="l">choice node</span></div>
+<div class="row dis"><span class="dot"></span><span class="l">Other field</span></div>
+<div class="row dis"><span class="dot"></span><span class="l">Send guard</span></div>
+</div>
+</aside>
+</div>
+</div>
+</section>
+</div>
+<p class="note"><b>Both:</b> a concept’s state comes from the stored answers (right + sure = known, right + guess or close = shaky, wrong = missed), decided in the plugin and sent as a field; the UI only draws it. More than 8 concepts: the strip scrolls and the list groups by chapter.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2488,"height":1220}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

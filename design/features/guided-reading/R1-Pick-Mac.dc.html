@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>R1 · Line pick · Mac</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/cd5295310c5e9c7200233f268a9b7bfe">
+<link rel="stylesheet" href="/_blob/185b3df60707c2be0aa85adc3e135ead">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 2488px; height: 1220px; box-sizing: border-box; padding: 56px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div class="eyebrow">Round 1 · 1 · Code excerpt with line pick · Mac 1280 Mate <span class="draft">DRAFT · not from the designer</span></div>
+<h2>Point to the line: the question acts on the code itself</h2>
+<p class="lead" style="max-width: 1600px">Same case in each pane: step 3 of a guided reading run, the guide asks “Which line decides that a question allows several picks?” over 14 lines of <code>elicit_view.go</code> at a fixed commit. The user moved to line 48 and picked it; confidence “think so”. The card sits where today’s question card sits (docked above the composer, warning tone).</p>
+</div>
+<div class="row3">
+
+<section class="dir" style="width: 760px">
+<h3><span class="tag a">A</span>Gutter pick in the card</h3>
+<p class="pitch">The whole excerpt is in the card. Click a line, or move with j / k and press ↩; ⇧-click or ⇧J / ⇧K makes a range. Free choice, so the answer is not given away. Drawer’s pick.</p>
+<div class="cm th-mate tp" style="width: 760px; height: 760px">
+<div class="tph"><span class="wa-i">!</span><span class="b ell">Guide: how a question reaches the card</span><span class="mut cap">Claude · design/guided-reading</span><span style="flex: 1"></span><span class="badge wa">waiting for you</span></div>
+<div class="tpb">
+<div class="tool"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg>Read plugins/agents/elicit_view.go<span style="flex: 1"></span><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg></div>
+<div class="msg"><p class="b">Step 3 of 7 · Schema to fields</p><p><code>elicitFields</code> walks the schema and makes one field for each question. Before I explain it, point to it.</p></div>
+<div class="xc ask">
+<div class="xh"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/></svg><span class="wa-i b cap">Claude is asking</span><span class="badge">Point to the line</span><span style="flex: 1"></span><span class="cap faint">Fold ⌥Q</span></div>
+<div class="xq">Which line decides that a question allows several picks?</div>
+<div class="xp"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg><span class="ell t2">plugins/agents/elicit_view.go</span><span class="faint">40–53 · ce33cf7</span><span style="flex: 1"></span><button class="btn gh sm">Open in nvim <span class="kbd">⌘O</span></button></div>
+<div class="xs">
+<div class="ln"><span class="g">40</span><span class="m"></span><span class="c"><span class="kw">func</span> elicitFields(schema acp.Schema) []sdui.Node {</span></div>
+<div class="ln"><span class="g">41</span><span class="m"></span><span class="c">    <span class="kw">var</span> fields []sdui.Node</span></div>
+<div class="ln"><span class="g">42</span><span class="m"></span><span class="c">    <span class="kw">for</span> i, key := <span class="kw">range</span> schema.Order() {</span></div>
+<div class="ln"><span class="g">43</span><span class="m"></span><span class="c">        prop := schema.Properties[key]</span></div>
+<div class="ln hov"><span class="g">44</span><span class="m"></span><span class="c">        <span class="kw">if</span> strings.HasSuffix(key, <span class="st">"_custom"</span>) {</span></div>
+<div class="ln"><span class="g">45</span><span class="m"></span><span class="c">            <span class="kw">continue</span></span></div>
+<div class="ln"><span class="g">46</span><span class="m"></span><span class="c">        }</span></div>
+<div class="ln"><span class="g">47</span><span class="m"></span><span class="c">        multi := prop.Type == <span class="st">"array"</span></span></div>
+<div class="ln pick cur"><span class="g">48</span><span class="m ac-i">▸</span><span class="c">        opts := optionsOf(prop, multi)</span><span class="n ac-i">your pick</span></div>
+<div class="ln"><span class="g">49</span><span class="m"></span><span class="c">        fields = append(fields, sdui.Choice(fieldID(i), opts).</span></div>
+<div class="ln"><span class="g">50</span><span class="m"></span><span class="c">            Multi(multi).Other(key+<span class="st">"_custom"</span>))</span></div>
+<div class="ln"><span class="g">51</span><span class="m"></span><span class="c">    }</span></div>
+<div class="ln"><span class="g">52</span><span class="m"></span><span class="c">    <span class="kw">return</span> fields</span></div>
+<div class="ln"><span class="g">53</span><span class="m"></span><span class="c">}</span></div>
+</div>
+<div class="xf"><span class="cap mut">How sure?</span><span class="chips"><span class="chip"><span class="kbd">1</span>Guess</span><span class="chip on"><span class="kbd">2</span>Think so</span><span class="chip"><span class="kbd">3</span>Sure</span></span><span style="flex: 1"></span><button class="btn gh sm">Skip</button><button class="btn pri sm">Send <span class="kbd">⌘↩</span></button></div>
+<div class="xh cap faint" style="border-top: 1px solid var(--bd)">j k line · ⇧J ⇧K range · ↩ pick · 1–3 sure · o Other</div>
+</div>
+</div>
+<div class="tpc"><div class="in cap">Other · say it in words…</div></div>
+</div>
+</section>
+
+<section class="dir" style="width: 760px">
+<h3><span class="tag b">B</span>Lettered candidate lines</h3>
+<p class="pitch">The guide marks 3–5 candidate lines; each gets a letter like an option. One key picks. Fast, but the candidates give part of the answer away: good for “Smaller steps”, not as the default.</p>
+<div class="cm th-mate tp" style="width: 760px; height: 760px">
+<div class="tph"><span class="wa-i">!</span><span class="b ell">Guide: how a question reaches the card</span><span class="mut cap">Claude · design/guided-reading</span><span style="flex: 1"></span><span class="badge wa">waiting for you</span></div>
+<div class="tpb">
+<div class="tool"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg>Read plugins/agents/elicit_view.go<span style="flex: 1"></span><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg></div>
+<div class="msg"><p class="b">Step 3 of 7 · Schema to fields</p><p><code>elicitFields</code> walks the schema and makes one field for each question. Before I explain it, point to it.</p></div>
+<div class="xc ask">
+<div class="xh"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/></svg><span class="wa-i b cap">Claude is asking</span><span class="badge">Pick one of 4 lines</span><span style="flex: 1"></span><span class="cap faint">Fold ⌥Q</span></div>
+<div class="xq">Which line decides that a question allows several picks?</div>
+<div class="xp"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg><span class="ell t2">plugins/agents/elicit_view.go</span><span class="faint">40–53 · ce33cf7</span><span style="flex: 1"></span><button class="btn gh sm">Open in nvim <span class="kbd">⌘O</span></button></div>
+<div class="xs">
+<div class="ln dim"><span class="g">40</span><span class="m"></span><span class="c"><span class="kw">func</span> elicitFields(schema acp.Schema) []sdui.Node {</span></div>
+<div class="ln dim"><span class="g">41</span><span class="m"></span><span class="c">    <span class="kw">var</span> fields []sdui.Node</span></div>
+<div class="ln dim"><span class="g">42</span><span class="m"></span><span class="c">    <span class="kw">for</span> i, key := <span class="kw">range</span> schema.Order() {</span></div>
+<div class="ln"><span class="g">43</span><span class="m"><span class="lk">a</span></span><span class="c">        prop := schema.Properties[key]</span></div>
+<div class="ln dim"><span class="g">44</span><span class="m"></span><span class="c">        <span class="kw">if</span> strings.HasSuffix(key, <span class="st">"_custom"</span>) {</span></div>
+<div class="ln dim"><span class="g">45</span><span class="m"></span><span class="c">            <span class="kw">continue</span></span></div>
+<div class="ln dim"><span class="g">46</span><span class="m"></span><span class="c">        }</span></div>
+<div class="ln"><span class="g">47</span><span class="m"><span class="lk">b</span></span><span class="c">        multi := prop.Type == <span class="st">"array"</span></span></div>
+<div class="ln pick"><span class="g">48</span><span class="m"><span class="lk">c</span></span><span class="c">        opts := optionsOf(prop, multi)</span><span class="n ac-i">your pick</span></div>
+<div class="ln dim"><span class="g">49</span><span class="m"></span><span class="c">        fields = append(fields, sdui.Choice(fieldID(i), opts).</span></div>
+<div class="ln"><span class="g">50</span><span class="m"><span class="lk">d</span></span><span class="c">            Multi(multi).Other(key+<span class="st">"_custom"</span>))</span></div>
+<div class="ln dim"><span class="g">51</span><span class="m"></span><span class="c">    }</span></div>
+<div class="ln dim"><span class="g">52</span><span class="m"></span><span class="c">    <span class="kw">return</span> fields</span></div>
+<div class="ln dim"><span class="g">53</span><span class="m"></span><span class="c">}</span></div>
+</div>
+<div class="xf"><span class="cap mut">How sure?</span><span class="chips"><span class="chip"><span class="kbd">1</span>Guess</span><span class="chip on"><span class="kbd">2</span>Think so</span><span class="chip"><span class="kbd">3</span>Sure</span></span><span style="flex: 1"></span><button class="btn gh sm">Skip</button><button class="btn pri sm">Send <span class="kbd">⌘↩</span></button></div>
+<div class="xh cap faint" style="border-top: 1px solid var(--bd)">a–d pick · 1–3 sure · o Other</div>
+</div>
+</div>
+<div class="tpc"><div class="in cap">Other · say it in words…</div></div>
+</div>
+</section>
+
+<section class="dir" style="width: 760px">
+<h3><span class="tag c">C</span>Pick in nvim</h3>
+<p class="pitch">The card holds only the question and a short preview; ⌘O opens the file at the commit in nvim and <code>,q</code> sends the cursor line or the visual range back. Real editor, LSP, search; but a trip to the Code section for every check.</p>
+<div class="cm th-mate tp" style="width: 760px; height: 760px">
+<div class="tph"><span class="wa-i">!</span><span class="b ell">Guide: how a question reaches the card</span><span class="mut cap">Claude · design/guided-reading</span><span style="flex: 1"></span><span class="badge wa">waiting for you</span></div>
+<div class="tpb">
+<div class="tool"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg>Read plugins/agents/elicit_view.go<span style="flex: 1"></span><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg></div>
+<div class="msg"><p class="b">Step 3 of 7 · Schema to fields</p><p><code>elicitFields</code> walks the schema and makes one field for each question. Before I explain it, point to it.</p></div>
+<div style="border-radius: 8px; overflow: hidden; border: 1px solid var(--bd2); background: #0F1411">
+<div class="xp" style="background: #0F1411"><span class="t2">nvim · elicit_view.go @ ce33cf7</span><span style="flex: 1"></span><span class="faint">Code ⌘1</span></div>
+<div class="xs" style="background: #0F1411">
+<div class="ln dim"><span class="g">46</span><span class="m"></span><span class="c">        }</span></div>
+<div class="ln dim"><span class="g">47</span><span class="m"></span><span class="c">        multi := prop.Type == <span class="st">"array"</span></span></div>
+<div class="ln cur"><span class="g">48</span><span class="m"></span><span class="c">        opts := optionsOf(prop, multi)</span><span class="n ac-i">,q  answer with L48</span></div>
+<div class="ln dim"><span class="g">49</span><span class="m"></span><span class="c">        fields = append(fields, sdui.Choice(fieldID(i), opts).</span></div>
+</div>
+</div>
+<div class="xc ask">
+<div class="xh"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/></svg><span class="wa-i b cap">Claude is asking</span><span class="badge">Point to the line</span><span style="flex: 1"></span><span class="cap faint">Fold ⌥Q</span></div>
+<div class="xq">Which line decides that a question allows several picks?</div>
+<div class="xp"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg><span class="ell t2">plugins/agents/elicit_view.go</span><span class="faint">40–53 · ce33cf7</span><span style="flex: 1"></span><button class="btn sm">Pick in nvim <span class="kbd">⌘O</span></button></div>
+<div class="xs">
+<div class="ln pick"><span class="g">48</span><span class="m ac-i">▸</span><span class="c">        opts := optionsOf(prop, multi)</span><span class="n ac-i">picked in nvim · Change</span></div>
+</div>
+<div class="xf"><span class="cap mut">How sure?</span><span class="chips"><span class="chip"><span class="kbd">1</span>Guess</span><span class="chip on"><span class="kbd">2</span>Think so</span><span class="chip"><span class="kbd">3</span>Sure</span></span><span style="flex: 1"></span><button class="btn gh sm">Skip</button><button class="btn pri sm">Send <span class="kbd">⌘↩</span></button></div>
+</div>
+</div>
+<div class="tpc"><div class="in cap">Other · say it in words…</div></div>
+</div>
+</section>
+</div>
+<p class="note"><b>All three:</b> the excerpt is the file at a fixed commit, so the line numbers do not move under the user. “Open in nvim ⌘O” is always there. Keys are proposals; <code>docs/shortcuts.md</code> decides (⌘O and j/k inside a focused card are to check against today’s transcript keys).</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2488,"height":1220}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

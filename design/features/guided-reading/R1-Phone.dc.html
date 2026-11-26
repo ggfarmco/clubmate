@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>R1 · Line pick and reveal · iPhone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/cd5295310c5e9c7200233f268a9b7bfe">
+<link rel="stylesheet" href="/_blob/f71a336b82436dbd14e5736a721ce641">
+<link rel="stylesheet" href="/_blob/185b3df60707c2be0aa85adc3e135ead">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 1400px; height: 1240px; box-sizing: border-box; padding: 56px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div class="eyebrow">Round 1 · 1–3 · iPhone dark / dark / light <span class="draft">DRAFT · not from the designer</span></div>
+<h2>Phone: tap a line, nudge it with ▲ ▼, confidence as a segmented control</h2>
+<p class="lead" style="max-width: 1200px">Code rows are 36 pt (13 pt mono): tappable, but a thumb covers ~2 rows, so the pick is a tap plus ▲ ▼ to correct it. The card is the docked question card (peek by default, its fold rules hold). There is no nvim on the phone: the link opens the file on the Mac.</p>
+</div>
+<div class="row3">
+
+<section class="dir" style="width: 393px">
+<h3>Pick (peek)</h3>
+<div class="cm comp th-cdark" style="width: 393px; height: 852px; border-radius: 44px; box-shadow: 0 0 0 1px #DAD8CF">
+<div class="edge"></div>
+<div class="top">
+<button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<div class="t"><span class="tt">Guide: question card</span><span class="ts"><span class="wa-i">Asking you</span> · step 3 of 7</span></div>
+<button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+<div style="position: absolute; left: 0; right: 0; top: 118px; bottom: 560px; overflow: hidden; display: grid; align-content: end; gap: 8px; padding: 0 16px 8px">
+<p class="w6">Step 3 of 7 · Schema to fields</p>
+<p class="sub"><span class="mono" style="font-size: 13px">elicitFields</span> walks the schema and makes one field for each question. Before I explain it, point to it.</p>
+</div>
+<div class="bar" style="gap: 10px">
+<section class="pc ask" aria-label="Question from Claude">
+<div style="display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px"><span class="cap wa-i w6">Claude is asking</span><span style="flex: 1"></span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M3.5 6 8 10.5 12.5 6"/></svg></div>
+<p class="w6" style="padding: 0 14px 8px">Which line decides that a question allows several picks?</p>
+<div class="foot mut" style="padding: 0 14px 4px">elicit_view.go · 40–53</div>
+<div style="background: var(--bg); padding: 4px 0">
+<div class="pln dim"><span class="g">45</span><span class="cx">        continue</span></div>
+<div class="pln dim"><span class="g">46</span><span class="cx">    }</span></div>
+<div class="pln"><span class="g">47</span><span class="cx">    multi := prop.Type == <span class="stx">"array"</span></span></div>
+<div class="pln pick"><span class="g">48</span><span class="cx">    opts := optionsOf(prop, multi)</span></div>
+<div class="pln"><span class="g">49</span><span class="cx">    fields = append(fields, sdui.Cho…</span></div>
+<div class="pln dim"><span class="g">50</span><span class="cx">        Multi(multi).Other(key+"_cu…</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 10px 14px 14px">
+<div class="stp"><span class="sub w6" style="flex: 1">Line 48</span><button class="gbtn" aria-label="Line up"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 10 8 5.5 12.5 10"/></svg></button><button class="gbtn" aria-label="Line down"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button></div>
+<div class="seg" role="radiogroup" aria-label="How sure"><button>Guess</button><button class="on">Think so</button><button>Sure</button></div>
+<button class="cb pri full">Send</button>
+</div>
+</section>
+</div>
+</div>
+</section>
+
+<section class="dir" style="width: 393px">
+<h3>Reveal in place</h3>
+<div class="cm comp th-cdark" style="width: 393px; height: 852px; border-radius: 44px; box-shadow: 0 0 0 1px #DAD8CF">
+<div class="edge"></div>
+<div class="top">
+<button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<div class="t"><span class="tt">Guide: question card</span><span class="ts"><span class="ac-i">Working</span> · step 3 of 7</span></div>
+<button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+<div style="position: absolute; left: 0; right: 0; top: 118px; bottom: 110px; overflow: hidden; display: grid; align-content: end; gap: 12px; padding: 0 16px 8px">
+<p class="sub mut">…Before I explain it, point to it.</p>
+<section class="pc">
+<div style="display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11v.1"/></svg><span class="w6 wa-i">Not quite</span><span style="flex: 1"></span><span class="cap mut">you: think so</span></div>
+<p class="sub mut" style="padding: 0 14px 8px">Which line decides that a question allows several picks?</p>
+<div style="background: var(--bg); padding: 4px 0">
+<div class="pln dim"><span class="g">46</span><span class="cx">    }</span></div>
+<div class="pln ok"><span class="g">47</span><span class="cx">    multi := prop.Type == <span class="stx">"array"</span></span></div>
+<div class="pln mine"><span class="g">48</span><span class="cx">    opts := optionsOf(prop, multi)</span></div>
+<div class="pln dim"><span class="g">49</span><span class="cx">    fields = append(fields, sdui.Cho…</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 10px 14px 14px">
+<p class="foot"><span class="ok-i w6">47 answer</span> · <span class="wa-i w6">48 you</span></p>
+<p class="sub"><span class="w6">Why:</span> the type check is the only test; 48 passes <span class="mono" style="font-size: 13px">multi</span> on.</p>
+<p class="cap ac-i">elicit_view.go:47 · Open on the Mac</p>
+</div>
+</section>
+<p class="sub">Close: 48 is where <span class="mono" style="font-size: 13px">multi</span> is used. The choice node gets it on line 50…</p>
+</div>
+<div class="bar"><div class="cmp"><label class="fld glass">Message Claude</label><button class="gbtn" aria-label="Send" style="background: var(--s2); color: var(--t3)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="stroke-width: 2"><path d="M8 13V3M4 7l4-4 4 4"/></svg></button></div></div>
+</div>
+</section>
+
+<section class="dir" style="width: 393px">
+<h3>Range pick · light</h3>
+<div class="cm comp th-clight" style="width: 393px; height: 852px; border-radius: 44px; box-shadow: 0 0 0 1px #DAD8CF">
+<div class="edge"></div>
+<div class="top">
+<button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<div class="t"><span class="tt">Guide: question card</span><span class="ts"><span class="wa-i">Asking you</span> · step 4 of 7</span></div>
+<button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+<div style="position: absolute; left: 0; right: 0; top: 118px; bottom: 560px; overflow: hidden; display: grid; align-content: end; gap: 8px; padding: 0 16px 8px">
+<p class="w6">Step 4 of 7 · The choice node</p>
+<p class="sub">Now the node itself. Mark the lines that build its Other field.</p>
+</div>
+<div class="bar" style="gap: 10px">
+<section class="pc ask" aria-label="Question from Claude">
+<div style="display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px"><span class="cap wa-i w6">Claude is asking · a range</span><span style="flex: 1"></span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M3.5 6 8 10.5 12.5 6"/></svg></div>
+<p class="w6" style="padding: 0 14px 8px">Which lines build the Other field?</p>
+<div class="foot mut" style="padding: 0 14px 4px">pkg/sdui/choice.go · 20–31</div>
+<div style="background: var(--bg); padding: 4px 0">
+<div class="pln dim"><span class="g">24</span><span class="cx">  c.Options = opts</span></div>
+<div class="pln pick"><span class="g">25</span><span class="cx">  <span class="kw">if</span> c.OtherKey != "" {</span></div>
+<div class="pln pick"><span class="g">26</span><span class="cx">    c.Other = TextField(c.OtherKey)</span></div>
+<div class="pln pick"><span class="g">27</span><span class="cx">  }</span></div>
+<div class="pln"><span class="g">28</span><span class="cx">  <span class="kw">return</span> c</span></div>
+<div class="pln dim"><span class="g">29</span><span class="cx">}</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 10px 14px 14px">
+<div class="stp"><span class="sub w6" style="flex: 1">Lines 25–27</span><button class="cb plain sm">Range</button><button class="gbtn" aria-label="Line up"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 10 8 5.5 12.5 10"/></svg></button><button class="gbtn" aria-label="Line down"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button></div>
+<div class="seg" role="radiogroup" aria-label="How sure"><button>Guess</button><button>Think so</button><button class="on">Sure</button></div>
+<button class="cb pri full">Send</button>
+</div>
+</section>
+</div>
+</div>
+</section>
+</div>
+<p class="note"><b>Range:</b> tap the first line, then “Range” and tap the last, or drag along the gutter; ▲ ▼ then move the end. A tap on a picked line clears it.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":1240}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

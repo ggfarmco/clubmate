@@ -1,0 +1,18 @@
+{
+  "title": "Guided reading · round 1 (DRAFT)",
+  "fit": 1200,
+  "css": ["gr.css"],
+  "intro": [
+    "DRAFT, 26 Nov: drawn by the agent, not by Claude Design. The Chrome extension was not connected, so the designer was not reached. The canvas “Clubmate · guided reading” is seeded (language boards, today's question card shot, these boards on page r1) and the brief is in prompt.md, ready for the real round.",
+    "Five new SDUI components for guided code reading (backlog #1294, #1295), in build order 1 → 2+3 → 4 → 5. They live in the Agents transcript of a graph node session, next to today's question card. Mac first; iPhone and iPad for 1–3.",
+    "1 · Line pick: A gutter pick in the card (drawer's pick), B lettered candidate lines, C pick in nvim. 2 · Reveal: A in place (pick), B separate verdict card. 3 · Confidence: chips + Send (pick), or C “the chip sends”. 4 + 5: A button row under the step + map strip under the header (pick), B Show me + More menu + map in the Context panel."
+  ],
+  "boards": [
+    {"file": "R1-Pick-Mac.dc.html", "w": 2488, "title": "1 · Line pick · Mac 1280 Mate · A gutter / B letters / C nvim", "caption": "A: free pick in the card, j/k and ↩, range with ⇧. B: one key per candidate line, gives part of the answer away. C: pick with the real cursor in nvim, ,q sends."},
+    {"file": "R1-Reveal-Mac.dc.html", "w": 2488, "title": "2 + 3 · Reveal and confidence · Mac 1280 Mate · A in place / B verdict card / C chip sends", "caption": "Amber = your pick, green = the key, red only for sure and wrong (marked to ask again). C drops Send: 1–3 sends."},
+    {"file": "R1-Steps-Map-Mac.dc.html", "w": 2488, "title": "4 + 5 · Step controls and concept map · Mac 1280 Mate · A row + strip / B More + Context panel", "caption": "States known / shaky / missed are decided in the plugin from the stored answers and sent as a field."},
+    {"file": "R1-Narrow-Light.dc.html", "w": 1440, "title": "1–3 · A + A at 640 Mate light · pick (peek) / reveal", "caption": "Code runs to the card edge with “…”; the card follows the question card fold rules."},
+    {"file": "R1-Phone.dc.html", "w": 1400, "title": "1–3 · iPhone · pick dark / reveal dark / range light", "caption": "36 pt rows, tap plus ▲ ▼, segmented Guess / Think so / Sure, Send; the link opens the file on the Mac."},
+    {"file": "R1-iPad.dc.html", "w": 1300, "title": "1–3 · iPad landscape dark", "caption": "Whole excerpt, ↑ ↓ line, ⇧ range, ⌥1–⌥3 confidence, ⌘↩ send."}
+  ]
+}

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>R1 · Reveal and confidence · Mac</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/cd5295310c5e9c7200233f268a9b7bfe">
+<link rel="stylesheet" href="/_blob/185b3df60707c2be0aa85adc3e135ead">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 2488px; height: 1220px; box-sizing: border-box; padding: 56px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div class="eyebrow">Round 1 · 2 + 3 · Answer and reveal card, confidence chips · Mac 1280 Mate <span class="draft">DRAFT · not from the designer</span></div>
+<h2>Your answer against the real one, one line of why, and how sure you were</h2>
+<p class="lead" style="max-width: 1600px">After Send. The user picked line 48 with “think so”; the key is line 47. The plugin grades a line pick itself, so the reveal shows at once, before the guide writes its next message. Confidence is stored with the answer and feeds the adapt rules (sure and wrong → the guide comes back to it).</p>
+</div>
+<div class="row3">
+
+<section class="dir" style="width: 760px">
+<h3><span class="tag a">A</span>Reveal in place</h3>
+<p class="pitch">The question card turns into the reveal where it stands in the transcript: your line amber, the answer green, a note at the end of each, one line of why with <code>path:line</code>. Nothing to press. Drawer’s pick.</p>
+<div class="cm th-mate tp" style="width: 760px; height: 760px">
+<div class="tph"><span class="b ell">Guide: how a question reaches the card</span><span class="mut cap">Claude · design/guided-reading</span><span style="flex: 1"></span><span class="badge ac">running</span></div>
+<div class="tpb">
+<div class="msg"><p class="b">Step 3 of 7 · Schema to fields</p><p><code>elicitFields</code> walks the schema and makes one field for each question. Before I explain it, point to it.</p></div>
+<div class="xc">
+<div class="xh"><span class="vd wa-i"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11v.1"/></svg>Not quite</span><span class="badge">you: think so</span><span style="flex: 1"></span><span class="cap faint">Point to the line · step 3</span></div>
+<div class="xq mut" style="font-weight: 500">Which line decides that a question allows several picks?</div>
+<div class="xp"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg><span class="ell t2">plugins/agents/elicit_view.go</span><span class="faint">40–53 · ce33cf7</span><span style="flex: 1"></span><button class="btn gh sm">Open in nvim <span class="kbd">⌘O</span></button></div>
+<div class="xs">
+<div class="ln dim"><span class="g">43</span><span class="m"></span><span class="c">        prop := schema.Properties[key]</span></div>
+<div class="ln dim"><span class="g">44</span><span class="m"></span><span class="c">        <span class="kw">if</span> strings.HasSuffix(key, <span class="st">"_custom"</span>) {</span></div>
+<div class="ln dim"><span class="g">45</span><span class="m"></span><span class="c">            <span class="kw">continue</span></span></div>
+<div class="ln dim"><span class="g">46</span><span class="m"></span><span class="c">        }</span></div>
+<div class="ln ok"><span class="g">47</span><span class="m">✓</span><span class="c">        multi := prop.Type == <span class="st">"array"</span></span><span class="n">answer</span></div>
+<div class="ln mine"><span class="g">48</span><span class="m">●</span><span class="c">        opts := optionsOf(prop, multi)</span><span class="n">your pick · uses it</span></div>
+<div class="ln dim"><span class="g">49</span><span class="m"></span><span class="c">        fields = append(fields, sdui.Choice(fieldID(i), opts).</span></div>
+<div class="ln dim"><span class="g">50</span><span class="m"></span><span class="c">            Multi(multi).Other(key+<span class="st">"_custom"</span>))</span></div>
+<div class="xh cap faint" style="padding: 2px 12px 0">40–42 and 51–53 folded · show all</div>
+</div>
+<div class="why"><p><span class="b">Why:</span> <code>prop.Type == "array"</code> is the only check; line 48 just passes <code>multi</code> on.</p><p class="cap"><span class="lnk">plugins/agents/elicit_view.go:47</span></p></div>
+</div>
+<div class="msg mut"><p>Close: 48 is where <code>multi</code> is used. The choice node gets it on line 50…</p></div>
+</div>
+<div class="tpc"><div class="in cap">Message Claude…</div></div>
+</div>
+</section>
+
+<section class="dir" style="width: 760px">
+<h3><span class="tag b">B</span>Verdict card under the question</h3>
+<p class="pitch">The answered question stays as it was, folded to the picked line; a separate verdict card follows with both lines and the why. Clear record of what you sent, but two cards per check and the answer line is out of its context.</p>
+<div class="cm th-mate tp" style="width: 760px; height: 760px">
+<div class="tph"><span class="b ell">Guide: how a question reaches the card</span><span class="mut cap">Claude · design/guided-reading</span><span style="flex: 1"></span><span class="badge ac">running</span></div>
+<div class="tpb">
+<div class="msg"><p class="b">Step 3 of 7 · Schema to fields</p><p><code>elicitFields</code> walks the schema and makes one field for each question. Before I explain it, point to it.</p></div>
+<div class="xc">
+<div class="xh"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/></svg><span class="cap mut">Claude asked</span><span class="b ell">Which line decides that a question allows several picks?</span></div>
+<div class="xs">
+<div class="ln pick"><span class="g">48</span><span class="m ac-i">▸</span><span class="c">        opts := optionsOf(prop, multi)</span><span class="n ac-i">sent · think so</span></div>
+</div>
+</div>
+<div class="xc" style="border-color: var(--wa-bd)">
+<div class="xh"><span class="vd wa-i"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11v.1"/></svg>Not quite</span><span class="cap mut">your L48 · answer L47</span><span style="flex: 1"></span><span class="badge">think so</span></div>
+<div class="xs">
+<div class="ln ok"><span class="g">47</span><span class="m">✓</span><span class="c">        multi := prop.Type == <span class="st">"array"</span></span><span class="n">answer</span></div>
+</div>
+<div class="why"><p><span class="b">Why:</span> <code>prop.Type == "array"</code> is the only check; line 48 just passes <code>multi</code> on.</p><p class="cap"><span class="lnk">plugins/agents/elicit_view.go:47</span> · <span class="mut">Open in nvim ⌘O</span></p></div>
+</div>
+<div class="msg mut"><p>Close: 48 is where <code>multi</code> is used. The choice node gets it on line 50…</p></div>
+</div>
+<div class="tpc"><div class="in cap">Message Claude…</div></div>
+</div>
+</section>
+
+<section class="dir" style="width: 760px">
+<h3><span class="tag c">C</span>Confidence is the send</h3>
+<p class="pitch">For 3: no Send button. After the pick the footer asks “How sure?” and 1 / 2 / 3 sends. One key less per check and no unrated answers; but no way back after a slip. Below: the reveal when you were sure and wrong.</p>
+<div class="cm th-mate tp" style="width: 760px; height: 760px">
+<div class="tph"><span class="wa-i">!</span><span class="b ell">Guide: how a question reaches the card</span><span class="mut cap">Claude · design/guided-reading</span><span style="flex: 1"></span><span class="badge wa">waiting for you</span></div>
+<div class="tpb">
+<div class="xc ask">
+<div class="xh"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/></svg><span class="wa-i b cap">Claude is asking</span><span class="badge">Point to the line</span><span style="flex: 1"></span><span class="cap faint">Fold ⌥Q</span></div>
+<div class="xq">Where does a pending question stop a plain prompt?</div>
+<div class="xp"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg><span class="ell t2">plugins/agents/send.go</span><span class="faint">112–118 · ce33cf7</span></div>
+<div class="xs">
+<div class="ln"><span class="g">112</span><span class="m"></span><span class="c"><span class="kw">func</span> (s *Sender) Send(p Prompt) <span class="kw">error</span> {</span></div>
+<div class="ln pick"><span class="g">113</span><span class="m ac-i">▸</span><span class="c">    <span class="kw">if</span> q := s.store.Pending(p.Session); q != <span class="kw">nil</span> {</span><span class="n ac-i">your pick</span></div>
+<div class="ln"><span class="g">114</span><span class="m"></span><span class="c">        <span class="kw">return</span> s.answerOther(q, p.Text)</span></div>
+<div class="ln"><span class="g">115</span><span class="m"></span><span class="c">    }</span></div>
+</div>
+<div class="xf" style="background: color-mix(in srgb, var(--ac) 6%, transparent)"><span class="b">How sure? Picking one sends.</span><span style="flex: 1"></span><span class="chips"><span class="chip"><span class="kbd">1</span>Guess</span><span class="chip"><span class="kbd">2</span>Think so</span><span class="chip"><span class="kbd">3</span>Sure</span></span></div>
+</div>
+<div class="xc" style="border-color: var(--er-bd)">
+<div class="xh"><span class="vd er-i"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m6 6 4 4M10 6l-4 4"/></svg>Wrong, and you were sure</span><span style="flex: 1"></span><span class="badge er">sure</span></div>
+<div class="xs">
+<div class="ln ok"><span class="g">114</span><span class="m">✓</span><span class="c">        <span class="kw">return</span> s.answerOther(q, p.Text)</span><span class="n">answer</span></div>
+<div class="ln mine"><span class="g">113</span><span class="m">●</span><span class="c">    <span class="kw">if</span> q := s.store.Pending(p.Session); …</span><span class="n">your pick · the check</span></div>
+</div>
+<div class="why"><p><span class="b">Why:</span> 113 only finds the question; 114 turns the prompt into its Other, so nothing goes past it.</p><p class="cap"><span class="lnk">plugins/agents/send.go:114</span> · <span class="wa-i">marked to ask again later</span></p></div>
+</div>
+</div>
+<div class="tpc"><div class="in cap">Message Claude…</div></div>
+</div>
+</section>
+</div>
+<p class="note"><b>Tones:</b> amber = your pick that was not the key (not a failure), green = the key, red only for sure-and-wrong, the case worth a second look. A range answer marks every line of both ranges; partly right (overlap) reads “Close”.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2488,"height":1220}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
