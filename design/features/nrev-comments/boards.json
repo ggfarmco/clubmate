@@ -1,0 +1,28 @@
+{
+  "title": "nrev comments · A · Band",
+  "fit": 1200,
+  "intro": [
+    "A · Band (designer's pick): each open comment line gets a background from the code's indent to the pane edge, below the line, no blank lines. Band = raised, or vt_warn for issues; the left rule ▌ in the type's tone. Costs no height.",
+    "Tones (A): issue amber (band, rule, title); suggestion and question blue; note neutral; praise teal. Only issues get a coloured band: vt_info equals DiffChange (1.0:1), so a blue band reads as a changed line in diffview. Header: icon + type bold, no author/time; the keys hint only on the comment under the cursor. Resolved: one grey italic line with the first words, no band. Drifted: band stays, rule ╏, ⚠ code changed, sign ⚠. Code line: sign ✎ and the line number in the type's tone, no line highlight. Blame: right-aligned, short, off in review tabs."
+  ],
+  "boards": [
+    {
+      "file": "R1-A-Band.dc.html",
+      "w": 1720,
+      "title": "A · Band · designer's pick",
+      "caption": "Clubmate and Clubmate Light: tinted band from the indent to the pane edge, ▌ rule in the type's tone, issues on vt_warn."
+    },
+    {
+      "file": "R1-A-Diff.dc.html",
+      "w": 1720,
+      "title": "A in diffview",
+      "caption": "Both sides; the other side's filler lines carry the same band, no rule, no text."
+    },
+    {
+      "file": "R1-Handoff.dc.html",
+      "w": 1720,
+      "title": "Recommendation and handoff",
+      "caption": "Answers 1–5, contrast checks, every Nrev* highlight group with its Mate role per theme, extmark and virt_lines changes."
+    }
+  ]
+}

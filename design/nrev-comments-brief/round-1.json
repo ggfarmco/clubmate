@@ -1,0 +1,18 @@
+{
+  "title": "nrev comments · round 1",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 26 Nov. nrev review comments in Clubmate's nvim, drawn on a real nvim grid (6 gutter + 94 text cells, JetBrains Mono) in the Create function from the screenshot. Each direction in Clubmate and Clubmate Light: a note with cursor and blame on the next line, a resolved suggestion, an open issue with a resolution line, then a suggestion, a question, a drifted issue and a praise.",
+    "A · Band (designer's pick): each open comment line gets a background from the code's indent to the pane edge, below the line, no blank lines. Band = raised, or vt_warn for issues; the left rule ▌ in the type's tone. Costs no height.",
+    "B · Box: a frame of box-drawing glyphs in lime (accent) for every type, header inside the top border. Two extra lines per comment; the lime competes with keywords and the cursor line number.",
+    "C · Above: the comment goes above its line under a ── rule, a colour per type; the code line gets the matching vt_* tint. Hides the comment above code not read yet; the tints collide with diff fills and diagnostic signs.",
+    "Tones (A): issue amber (band, rule, title); suggestion and question blue; note neutral; praise teal. Only issues get a coloured band: vt_info equals DiffChange (1.0:1), so a blue band reads as a changed line in diffview. Header: icon + type bold, no author/time; the keys hint only on the comment under the cursor. Resolved: one grey italic line with the first words, no band. Drifted: band stays, rule ╏, ⚠ code changed, sign ⚠. Code line: sign ✎ and the line number in the type's tone, no line highlight. Blame: right-aligned, short, off in review tabs."
+  ],
+  "boards": [
+    {"file": "R1-A-Band.dc.html", "w": 1720, "title": "A · Band · designer's pick", "caption": "Clubmate and Clubmate Light: tinted band from the indent to the pane edge, ▌ rule in the type's tone, issues on vt_warn."},
+    {"file": "R1-A-Diff.dc.html", "w": 1720, "title": "A in diffview", "caption": "Both sides; the other side's filler lines carry the same band, no rule, no text."},
+    {"file": "R1-B-Box.dc.html", "w": 1720, "title": "B · Box, one accent", "caption": "A lime box-drawing frame per comment, header in the top border."},
+    {"file": "R1-C-Above.dc.html", "w": 1720, "title": "C · Above, colour per type", "caption": "Comment above its line under a ── rule; the code line tinted with the type's vt_* colour."},
+    {"file": "R1-Handoff.dc.html", "w": 1720, "title": "Recommendation and handoff", "caption": "Answers 1–5, contrast checks, every Nrev* highlight group with its Mate role per theme, extmark and virt_lines changes."}
+  ]
+}
