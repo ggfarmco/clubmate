@@ -329,6 +329,37 @@ final class ComputerConnectionTests: XCTestCase {
         connection.stop()
     }
 
+    func testBannerWaitsOutTheGraceAndRestartsItOnStopAndAppOpen() async throws {
+        let up = Recorder<Bool>()
+        let transport = FakeTransport(reply: { request in
+            if FakeTransport.rpc(request) == "workspaces" { return (FakeTransport.result(workspacesJSON), 200) }
+            if up.values.isEmpty { throw URLError(.cannotConnectToHost) }
+            return (FakeTransport.result(helloJSON), 200)
+        }, stream: { _ in (200, AsyncThrowingStream { $0.yield(Data(": connected\n\n".utf8)) }) })
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in try await Task.sleep(for: .seconds(60)) }, bannerGrace: .seconds(1))
+        let down = ComputerConnection.State.offline(URLError(.cannotConnectToHost).localizedDescription)
+        for _ in 0..<2 {
+            connection.start()
+            try await waitUntil { connection.state == down }
+            XCTAssertFalse(connection.showsBanner)
+            try await waitUntil { connection.showsBanner }
+            connection.stop()
+            XCTAssertFalse(connection.showsBanner)
+        }
+
+        connection.start()
+        try await waitUntil { connection.showsBanner }
+        connection.restartBannerGrace()
+        XCTAssertFalse(connection.showsBanner)
+        try await waitUntil { connection.showsBanner }
+
+        up.add(true)
+        connection.networkReturned()
+        try await waitUntil { connection.state == .online }
+        XCTAssertFalse(connection.showsBanner)
+        connection.stop()
+    }
+
     func testNetworkReturningCutsTheBackoffShortButLeavesAStoppedConnectionAlone() async throws {
         let hellos = Recorder<Int>()
         let transport = FakeTransport(reply: { request in

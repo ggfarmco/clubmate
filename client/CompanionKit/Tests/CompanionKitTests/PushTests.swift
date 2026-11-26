@@ -44,6 +44,26 @@ final class PushTests: XCTestCase {
         XCTAssertEqual(DeliveredNotice.resolved(["resolved": ["computer": "mac1", "session": "s1", "requestKind": "gate", "request": "lg_1"]], from: delivered), ["s1"])
     }
 
+    func testOnlyAnOpenAfterBackgroundHidesAShownBannerAgain() async throws {
+        let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "computers.json")
+        let store = ComputerStore(file: file, vault: MemoryTokenVault())
+        try store.save(Computer(id: "mac1", name: "Mac", hosts: ["100.64.0.1"], port: 1), token: "t")
+        let transport = FakeTransport(reply: { _ in throw URLError(.cannotConnectToHost) }, stream: { _ in throw URLError(.cannotConnectToHost) })
+        let model = CompanionModel(store: store, transport: transport, device: DeviceIdentity(id: "d", name: "P", model: "iPhone"), sleep: { _ in try await Task.sleep(for: .seconds(60)) }, bannerGrace: .milliseconds(300))
+        let connection = try XCTUnwrap(model.connection("mac1"))
+        model.start()
+        try await waitUntil { connection.showsBanner }
+
+        model.reconnectAll()
+        XCTAssertTrue(connection.showsBanner)
+
+        model.enteredBackground()
+        model.reconnectAll()
+        XCTAssertFalse(connection.showsBanner)
+        try await waitUntil { connection.showsBanner }
+        model.disconnectAll()
+    }
+
     func testTokenGoesToEveryMacAfterHelloAndWhenItChangesAndAnOlderMacStaysOnlineAndIsClearedOnRemove() async throws {
         let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "computers.json")
         let store = ComputerStore(file: file, vault: MemoryTokenVault())

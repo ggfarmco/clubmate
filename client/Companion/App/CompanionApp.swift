@@ -90,6 +90,7 @@ struct CompanionApp: App {
                 notifier.endBackground()
                 model.reconnectAll()
             case .background:
+                model.enteredBackground()
                 voice.background(hold: BackgroundHold.begin)
                 notifier.enteredBackground()
                 Self.scheduleRefresh(model)

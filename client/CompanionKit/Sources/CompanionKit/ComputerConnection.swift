@@ -69,6 +69,7 @@ public final class ComputerConnection: CommandRunner {
     public static let usageTopic = "agents.usage"
     public static let backoff: [Duration] = [1, 2, 5, 10, 30].map { .seconds($0) }
     public static let pingInterval: Duration = .seconds(15)
+    public static let bannerGrace: Duration = .seconds(5)
     public nonisolated static let workspaceRefreshEvery: Duration = .milliseconds(2500)
 
     public private(set) var computer: Computer
@@ -84,6 +85,7 @@ public final class ComputerConnection: CommandRunner {
     public private(set) var events = EventLog()
     public private(set) var activePath: NetworkPath?
     public private(set) var revokedBy: RemoteError?
+    public private(set) var showsBanner = false
     @ObservationIgnored public internal(set) var background = false
     @ObservationIgnored public private(set) var streamID: String?
 
@@ -96,6 +98,8 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored let now: @Sendable () -> ContinuousClock.Instant
     @ObservationIgnored private var heardAt: ContinuousClock.Instant?
     @ObservationIgnored private var task: Task<Void, Never>?
+    @ObservationIgnored private var bannerTask: Task<Void, Never>?
+    @ObservationIgnored private let bannerGrace: Duration
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var refreshQueued = false
     @ObservationIgnored private var refreshRun = 0
@@ -115,8 +119,9 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored private var loggedState: String?
     @ObservationIgnored private var awakeSeq = 0
 
-    public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, relayTicket: String? = nil, lastEventID: Int? = nil, cache: ListCache = ListCache(dir: nil), device: DeviceIdentity? = nil, appVersion: String = ProblemReport.appVersion, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }) {
+    public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, relayTicket: String? = nil, lastEventID: Int? = nil, cache: ListCache = ListCache(dir: nil), device: DeviceIdentity? = nil, appVersion: String = ProblemReport.appVersion, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }, bannerGrace: Duration = ComputerConnection.bannerGrace) {
         self.computer = computer
+        self.bannerGrace = bannerGrace
         self.lastEventID = lastEventID
         lastSeen = computer.lastSeen
         self.cache = cache
@@ -138,6 +143,7 @@ public final class ComputerConnection: CommandRunner {
         loggedState = events.lines.last { $0.kind == .state }?.text
         if token == nil {
             state = .unauthorized
+            showsBanner = true
         } else if let saved = cache.load(savedKey, as: Saved.self) {
             hello = saved.hello
             workspaces = saved.workspaces
@@ -186,6 +192,7 @@ public final class ComputerConnection: CommandRunner {
 
     private func move(to new: State, error: (any Error)? = nil) {
         state = new
+        holdBanner()
         let line: String? = switch new {
         case .online: "online" + (activePath.map { " path=" + $0.rawValue } ?? "")
         case .unauthorized: "unauthorized"
@@ -279,8 +286,42 @@ public final class ComputerConnection: CommandRunner {
         refreshRun &+= 1
         streamID = nil
         leavePath()
-        if state != .unauthorized { move(to: .offline(nil)) }
+        if state != .unauthorized {
+            move(to: .offline(nil))
+            bannerTask?.cancel()
+            bannerTask = nil
+            showsBanner = false
+        }
         saveEvents()
+    }
+
+    private func holdBanner() {
+        switch state {
+        case .online:
+            bannerTask?.cancel()
+            bannerTask = nil
+            showsBanner = false
+        case .unauthorized:
+            bannerTask?.cancel()
+            bannerTask = nil
+            showsBanner = true
+        case .offline, .connecting:
+            guard !showsBanner, bannerTask == nil else { return }
+            bannerTask = Task { [weak self, bannerGrace] in
+                try? await Task.sleep(for: bannerGrace)
+                guard let self, !Task.isCancelled else { return }
+                bannerTask = nil
+                showsBanner = state != .online
+            }
+        }
+    }
+
+    public func restartBannerGrace() {
+        guard state != .online, state != .unauthorized else { return }
+        bannerTask?.cancel()
+        bannerTask = nil
+        showsBanner = false
+        holdBanner()
     }
 
     public func reconnectNow() {

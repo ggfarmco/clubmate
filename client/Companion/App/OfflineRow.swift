@@ -7,7 +7,7 @@ struct OfflineRow: View {
     @Environment(AppNavigation.self) private var navigation
 
     var body: some View {
-        if connection.state != .online {
+        if connection.showsBanner {
             Section {
                 HStack(spacing: 8) {
                     if connection.state == .unauthorized {

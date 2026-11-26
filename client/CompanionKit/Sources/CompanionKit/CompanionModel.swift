@@ -18,8 +18,10 @@ public final class CompanionModel {
     @ObservationIgnored public let policy: HostPolicy
     @ObservationIgnored private let store: ComputerStore
     @ObservationIgnored private let transport: any HTTPTransport
+    @ObservationIgnored private var wentBackground = false
     @ObservationIgnored private let cursors: UserDefaults?
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
+    @ObservationIgnored private let bannerGrace: Duration
     @ObservationIgnored private var agents: [String: AgentsStore] = [:]
     @ObservationIgnored private var backlogs: [String: BacklogStore] = [:]
     @ObservationIgnored private var docsLists: [String: DocsListStore] = [:]
@@ -30,7 +32,8 @@ public final class CompanionModel {
     @ObservationIgnored private var retrying: Set<String> = []
     @ObservationIgnored public private(set) var pushToken: PushToken?
 
-    public init(store: ComputerStore, transport: any HTTPTransport, device: DeviceIdentity, policy: HostPolicy = .tailnet, cursors: UserDefaults? = nil, queueFile: URL? = nil, reportsDir: URL? = nil, listsDir: URL? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(store: ComputerStore, transport: any HTTPTransport, device: DeviceIdentity, policy: HostPolicy = .tailnet, cursors: UserDefaults? = nil, queueFile: URL? = nil, reportsDir: URL? = nil, listsDir: URL? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, bannerGrace: Duration = ComputerConnection.bannerGrace) {
+        self.bannerGrace = bannerGrace
         queue = ActionQueue(file: queueFile, reports: reportsDir)
         lists = ListCache(dir: listsDir)
         transcripts = TranscriptCache(lists: lists)
@@ -60,9 +63,16 @@ public final class CompanionModel {
         }
     }
 
+    public func enteredBackground() {
+        wentBackground = true
+    }
+
     public func reconnectAll() {
+        let opened = wentBackground
+        wentBackground = false
         for connection in connections.values {
             connection.background = false
+            if opened { connection.restartBannerGrace() }
             connection.reconnectNow()
         }
     }
@@ -256,7 +266,7 @@ public final class CompanionModel {
     private func attach(_ computer: Computer) {
         let saved = cursors?.object(forKey: Self.cursorKey(computer.id)) as? Int
         lists.allow(computer: computer.id)
-        let connection = ComputerConnection(computer: computer, token: store.token(for: computer.id), transport: transport, policy: policy, relayTicket: store.relayTicket(for: computer.id), lastEventID: saved, cache: lists, device: device, sleep: sleep)
+        let connection = ComputerConnection(computer: computer, token: store.token(for: computer.id), transport: transport, policy: policy, relayTicket: store.relayTicket(for: computer.id), lastEventID: saved, cache: lists, device: device, sleep: sleep, bannerGrace: bannerGrace)
         connections[computer.id] = connection
         observers[computer.id] = connection.observe { [weak self] signal in
             self?.route(signal, from: computer.id)
