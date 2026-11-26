@@ -68,7 +68,7 @@ struct DocumentNodeView: View {
     }
 }
 
-private struct DocumentFindBar: View {
+struct DocumentFindBar: View {
     let find: DocumentFind
 
     @Environment(\.theme) private var theme

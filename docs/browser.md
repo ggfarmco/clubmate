@@ -74,7 +74,7 @@ The guard does not stop DNS rebinding: a name that resolves to a public address 
 
 1. Clubmate posts a `needs-input` notification "Browser needs you" with the reason.
 2. The Agent Browser window comes to the front, centred, 1280×900, showing that tab. The bar at the top shows the page's host (the full URL on hover; a warning and **Not secure** unless the page is https with only secure content), the reason as `Agent: <reason>` (it is the agent's text, not Clubmate's), the agent session's title (or its id) and **Done**. Check the host before typing a password. While it is shown the window is in the Window menu and in ⌘` cycling.
-3. The user solves the captcha or signs in, then clicks **Done**, presses ↩ (when the page itself does not have focus) or closes the window. The tool returns `done` and the window hides again.
+3. The user solves the captcha or signs in, then clicks **Done**, presses ↩ (when the page itself does not have focus and the find bar is closed) or closes the window. The tool returns `done` and the window hides again. ⌘F opens the docs viewer's find bar over the page ([docs-viewer.md](docs-viewer.md) § Find): `ClubmateDocument` `WebPageFinder` runs the same `find.js` in the page's `defaultClient` world (installed on the first search of each page, so the page's own scripts never see it), in fixed colours so the page's own `--warning` and `--bg` don't change them; after each page load (a sign-in redirect, a submitted form) it searches the new page again with the same query; the highlights are cleared and the bar closes when the handoff ends.
 4. If nobody does that within `timeout` seconds the tool returns `no-human` and the window hides.
 
 One handoff is shown at a time; others wait in order, each within its own timeout.

@@ -10,13 +10,13 @@ public final class DocumentFind {
     public private(set) var current = 0
     public private(set) var more = false
     public private(set) var focusRequest = 0
-    @ObservationIgnored weak var controller: DocumentController?
+    @ObservationIgnored weak var target: (any FindTarget)?
 
     public init() {}
 
     public func show() {
         #if os(iOS)
-        controller?.presentFindNavigator()
+        (target as? DocumentController)?.presentFindNavigator()
         #else
         visible = true
         focusRequest += 1
@@ -27,12 +27,13 @@ public final class DocumentFind {
         visible = false
         query = ""
         apply(.empty)
-        Task { await controller?.find(.clear) }
+        let target = target
+        Task { await target?.find(.clear) }
     }
 
     public func search(_ text: String) async {
         query = text
-        guard let result = await controller?.find(.find(text)) else { return }
+        guard let result = await target?.find(.find(text)) else { return }
         if result.query == query { apply(result) }
     }
 
@@ -45,13 +46,13 @@ public final class DocumentFind {
     }
 
     private func step(_ delta: Int) async {
-        guard visible, !query.isEmpty, let result = await controller?.find(.step(delta)), result.query == query else { return }
+        guard visible, !query.isEmpty, let result = await target?.find(.step(delta)), result.query == query else { return }
         apply(result)
     }
 
     func refresh() async {
         guard visible, !query.isEmpty else { return }
-        guard let result = await controller?.find(.refresh(query)), result.query == query else { return }
+        guard let result = await target?.find(.refresh(query)), result.query == query else { return }
         apply(result)
     }
 
@@ -60,6 +61,11 @@ public final class DocumentFind {
         current = result.current
         more = result.more
     }
+}
+
+@MainActor
+protocol FindTarget: AnyObject {
+    func find(_ command: FindCommand) async -> FindResult?
 }
 
 struct FindResult: Equatable {

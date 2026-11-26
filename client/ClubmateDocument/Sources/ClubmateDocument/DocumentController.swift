@@ -3,7 +3,7 @@ import SwiftUI
 import WebKit
 
 @MainActor
-final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
+final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate, FindTarget {
     private struct Request: Equatable {
         var content: DocumentContent
         var theme: DocumentTheme
@@ -21,7 +21,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         didSet { zoom?.controller = self }
     }
     var finder: DocumentFind? {
-        didSet { finder?.controller = self }
+        didSet { finder?.target = self }
     }
 
     private var wanted: Request?
@@ -30,7 +30,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     private var loading: CheckedContinuation<Void, Never>?
     private let artifact = ArtifactScheme()
     private static let markdownStore = WKWebsiteDataStore.nonPersistent()
-    private static let findScript = (try? String(contentsOf: DocumentPage.web.appendingPathComponent("find.js"), encoding: .utf8)) ?? ""
+    static let findScript = (try? String(contentsOf: DocumentPage.web.appendingPathComponent("find.js"), encoding: .utf8)) ?? ""
     private var artifactLoad: URL?
     private static var spare: DocumentController?
     private var warmed = false

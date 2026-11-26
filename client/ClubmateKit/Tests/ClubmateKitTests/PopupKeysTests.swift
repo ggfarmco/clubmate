@@ -55,4 +55,19 @@ final class PopupKeysTests: XCTestCase {
         XCTAssertFalse(SDUINode(type: "column", children: [card]).hasPageDocument)
         XCTAssertTrue(SDUINode(type: "column", children: [card, SDUINode(type: "document")]).hasPageDocument)
     }
+
+    func testBrowserWindowKeysLeaveThePageItsKeys() {
+        func browser(_ combo: String, finding: Bool = false, inPage: Bool = false) -> PopupKey? {
+            let combo = KeyCombo(combo)!
+            return PopupKeys.browserKey(keyCode: combo.keyCode, characters: combo.charactersIgnoringModifiers, command: combo.command, control: combo.control, option: combo.option, shift: combo.shift, finding: finding, inPage: inPage)
+        }
+        XCTAssertEqual(browser("return"), .close)
+        XCTAssertNil(browser("return", inPage: true))
+        XCTAssertNil(browser("return", finding: true))
+        XCTAssertEqual(browser("cmd+f", inPage: true), .find)
+        XCTAssertEqual(browser("cmd+shift+g", finding: true, inPage: true), .findPrevious)
+        XCTAssertNil(browser("shift+return", finding: true, inPage: true))
+        XCTAssertNil(browser("esc", finding: true, inPage: true))
+        XCTAssertEqual(browser("esc", finding: true), .closeFind)
+    }
 }

@@ -18,9 +18,11 @@
     if (document.getElementById(all)) return;
     const element = document.createElement('style');
     element.id = all;
+    const warning = window.clubmateFindFixed ? '#F2B84B' : 'var(--warning, #F2B84B)';
+    const ink = window.clubmateFindFixed ? '#000' : 'var(--bg, #000)';
     element.textContent =
-      `::highlight(${all}){background-color:color-mix(in srgb, var(--warning, #F2B84B) 30%, transparent);color:inherit}` +
-      `::highlight(${current}){background-color:var(--warning, #F2B84B);color:var(--bg, #000)}`;
+      `::highlight(${all}){background-color:color-mix(in srgb, ${warning} 30%, transparent);color:inherit}` +
+      `::highlight(${current}){background-color:${warning};color:${ink}}`;
     (document.head ?? document.documentElement).append(element);
   };
 

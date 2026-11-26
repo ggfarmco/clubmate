@@ -4,6 +4,7 @@ import Observation
 import SwiftUI
 import WebKit
 
+import ClubmateDocument
 import ClubmateKit
 
 @MainActor
@@ -19,6 +20,8 @@ final class BrowserWindowHost: NSObject, BrowserHost, NSWindowDelegate {
     private let theme: () -> Theme
     private let title: (String) async -> String?
     private var presented: WKWebView?
+    private var find: DocumentFind?
+    private var finder: WebPageFinder?
     private var observations: [NSKeyValueObservation] = []
     private var lookup: Task<Void, Never>?
 
@@ -87,9 +90,13 @@ final class BrowserWindowHost: NSObject, BrowserHost, NSWindowDelegate {
             self.bar.owner = name
         }
         let theme = theme()
-        let header = NSHostingView(rootView: BrowserHandoffBar(model: bar) { [weak self] in self?.done() }.environment(\.theme, theme))
+        let find = DocumentFind()
+        self.find = find
+        finder = WebPageFinder(webView: webView, find: find)
+        let header = NSHostingView(rootView: BrowserHandoffBar(model: bar, find: find, focusPage: { [weak webView] in webView?.window?.makeFirstResponder(webView) }) { [weak self] in self?.done() }.environment(\.theme, theme))
+        let findBar = NSHostingView(rootView: BrowserFindOverlay(find: find).environment(\.theme, theme))
         let content = NSView()
-        for view in [header, webView] {
+        for view in [header, webView, findBar] {
             view.removeFromSuperview()
             view.translatesAutoresizingMaskIntoConstraints = false
             content.addSubview(view)
@@ -102,6 +109,8 @@ final class BrowserWindowHost: NSObject, BrowserHost, NSWindowDelegate {
             webView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             webView.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             webView.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            findBar.topAnchor.constraint(equalTo: webView.topAnchor, constant: theme.spacing.s),
+            findBar.trailingAnchor.constraint(equalTo: webView.trailingAnchor, constant: -theme.gutter),
         ])
         window.contentView = content
         if let visible = NSScreen.main?.visibleFrame {
@@ -119,6 +128,9 @@ final class BrowserWindowHost: NSObject, BrowserHost, NSWindowDelegate {
 
     private func hide() {
         lookup?.cancel()
+        find?.hide()
+        find = nil
+        finder = nil
         restore()
         window.contentView = shelf
         window.orderOut(nil)
@@ -171,8 +183,20 @@ private final class BrowserHandoffBarModel {
     }
 }
 
+private struct BrowserFindOverlay: View {
+    let find: DocumentFind
+
+    var body: some View {
+        if find.visible {
+            DocumentFindBar(find: find)
+        }
+    }
+}
+
 private struct BrowserHandoffBar: View {
     let model: BrowserHandoffBarModel
+    let find: DocumentFind
+    let focusPage: () -> Void
     let done: () -> Void
 
     @Environment(\.theme) private var theme
@@ -228,14 +252,27 @@ private struct BrowserHandoffBar: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(theme.border).frame(height: 1)
         }
-        .keyMonitor(active: true) { event in
-            guard [36, 76].contains(event.keyCode),
-                  event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
-                  !Self.inPage(event.window?.firstResponder)
-            else { return false }
-            done()
-            return true
+        .keyMonitor(active: true, handle: handle)
+    }
+
+    private func handle(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags
+        let key = PopupKeys.browserKey(
+            keyCode: event.keyCode, characters: event.charactersIgnoringModifiers,
+            command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift),
+            finding: find.visible, inPage: Self.inPage(event.window?.firstResponder)
+        )
+        switch key {
+        case .find: find.show()
+        case .findNext: Task { await find.next() }
+        case .findPrevious: Task { await find.previous() }
+        case .closeFind:
+            find.hide()
+            focusPage()
+        case .close: done()
+        default: return false
         }
+        return true
     }
 
     private var reason: String {

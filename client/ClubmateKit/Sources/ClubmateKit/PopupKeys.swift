@@ -46,4 +46,16 @@ public enum PopupKeys {
         default: nil
         }
     }
+
+    public static func browserKey(keyCode: UInt16, characters: String?, command: Bool, control: Bool, option: Bool, shift: Bool, finding: Bool, inPage: Bool) -> PopupKey? {
+        switch pageFindKey(keyCode: keyCode, characters: characters, command: command, control: control, option: option, shift: shift, finding: finding) {
+        case .find: return .find
+        case .findNext: return .findNext
+        case .findPrevious where command || !inPage: return .findPrevious
+        case .closeFind where !inPage: return .closeFind
+        default: break
+        }
+        guard [returnKey, 76].contains(keyCode), !command, !control, !option, !shift, !inPage, !finding else { return nil }
+        return .close
+    }
 }

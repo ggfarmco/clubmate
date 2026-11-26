@@ -266,7 +266,9 @@ After g the status bar shows the which-key line ("g → f file · g first · 1�
 
 | Keys | Action | Where defined |
 |---|---|---|
-| ↩ | Done: hand the page back to the agent (only when the page does not have focus; closing the window does the same) | `BrowserWindow.swift` |
+| ↩ | Done: hand the page back to the agent (only when the page does not have focus and the find bar is closed; closing the window does the same) | `BrowserWindow.swift` (`ClubmateKit/PopupKeys.swift` `browserKey`) |
+| ⌘F | Open the find bar over the page (again: focus it and select the query); the same bar as in the docs viewer | `BrowserWindow.swift` (`ClubmateKit/PopupKeys.swift` `browserKey`), `ClubmateDocument/WebPageFinder.swift` |
+| ↩ / ⇧↩, ⌘G / ⇧⌘G, Esc | While the find bar is open: next / previous match, wrapping; Esc closes the bar and gives focus back to the page. ↩, ⇧↩ and Esc only in the bar's field, so the page keeps them | `BrowserWindow.swift` (`ClubmateKit/PopupKeys.swift` `browserKey`), `DocumentNodeView.swift` |
 
 ## Permission requests (Agents section or Code chat panel)
 

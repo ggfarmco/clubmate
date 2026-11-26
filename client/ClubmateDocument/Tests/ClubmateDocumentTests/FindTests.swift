@@ -48,4 +48,58 @@ final class FindTests: XCTestCase {
         XCTAssertEqual(finder.total, 2)
         XCTAssertEqual(finder.current, 1)
     }
+
+    func testWebPageFinderFollowsNavigationAndClearsAfterRelease() async throws {
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 400, height: 300))
+        let loaded = Loaded()
+        webView.navigationDelegate = loaded
+        func load(_ html: String) async {
+            await withCheckedContinuation { continuation in
+                loaded.done = continuation
+                webView.loadHTMLString(html, baseURL: nil)
+            }
+        }
+        await load("<p>one x</p><p>two x</p>")
+        let find = DocumentFind()
+        var finder: WebPageFinder? = WebPageFinder(webView: webView, find: find)
+        find.show()
+        await find.search("x")
+        XCTAssertEqual(find.total, 2)
+        await find.next()
+        XCTAssertEqual(find.current, 2)
+        let hidden = try await webView.callAsyncJavaScript("return typeof window.clubmateFind", contentWorld: .page) as? String
+        XCTAssertEqual(hidden, "undefined")
+
+        await load("<p>x</p><p>x</p><p>x</p>")
+        try await waitUntil { find.total == 3 }
+
+        find.hide()
+        finder = nil
+        try await waitUntil {
+            try await webView.callAsyncJavaScript("return CSS.highlights.has('clubmate-find')", contentWorld: .defaultClient) as? Bool == false
+        }
+        XCTAssertNil(finder)
+    }
+}
+
+private struct TimedOut: Error {}
+
+@MainActor
+private func waitUntil(_ condition: () async throws -> Bool) async throws {
+    let scale = Double(ProcessInfo.processInfo.environment["TEST_TIMEOUT_SCALE"] ?? "").flatMap { $0 > 0 ? $0 : nil } ?? 3
+    let deadline = ContinuousClock.now + .seconds(5 * scale)
+    while try await !condition() {
+        guard ContinuousClock.now < deadline else { throw TimedOut() }
+        try await Task.sleep(for: .milliseconds(20))
+    }
+}
+
+@MainActor
+private final class Loaded: NSObject, WKNavigationDelegate {
+    var done: CheckedContinuation<Void, Never>?
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        done?.resume()
+        done = nil
+    }
 }
