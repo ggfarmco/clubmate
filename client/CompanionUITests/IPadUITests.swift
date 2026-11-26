@@ -322,6 +322,23 @@ final class IPadUITests: XCTestCase {
         XCTAssertTrue(press(app, "1", .option, until: wait(timeout: 3) { !reject.exists }))
     }
 
+    func testSessionHeaderKeepsItsTitleOnTheLeftAndItsStatusLine() {
+        let app = launch(open: "agents/agt_0000000000000004", ["-longTranscript", "YES"])
+        XCTAssertTrue(app.textViews["composer"].waitForExistence(timeout: 15))
+        let sessions = ["agt_0000000000000004", "agt_0000000000000002", "agt_0000000000000001"]
+        for round in 0..<3 {
+            for id in sessions {
+                app.staticTexts["row." + id].tap()
+                XCTAssertTrue(wait(timeout: 10) { self.headerShown(app) }, "\(id) round \(round): no title on the left with its status line")
+            }
+            app.swipeDown()
+            XCTAssertTrue(wait(timeout: 10) { self.headerShown(app) }, "round \(round): header gone after a scroll")
+        }
+        toggle(app).tap()
+        XCTAssertTrue(listHidden(app))
+        XCTAssertTrue(wait(timeout: 10) { self.headerShown(app) && self.capsules(app).count == 1 }, "header or capsule gone with the list hidden")
+    }
+
     func testStepOutLadderAndPaneKeys() {
         let app = launch(open: "agents/agt_0000000000000004", ["-longTranscript", "YES"])
         let composer = app.textViews["composer"]
@@ -488,6 +505,14 @@ final class IPadUITests: XCTestCase {
 
     private func tab(_ app: XCUIApplication, _ title: String) -> XCUIElement {
         app.toolbars.buttons[title]
+    }
+
+    private func headerShown(_ app: XCUIApplication) -> Bool {
+        let head = app.navigationBars.descendants(matching: .any)["page.header"]
+        guard head.exists, head.label.contains(" · ") else { return false }
+        let frame = head.frame
+        let actions = app.navigationBars.buttons.allElementsBoundByIndex.filter { $0.frame.minX > frame.minX }
+        return frame.width > 150 && frame.minX < app.windows.firstMatch.frame.midX && actions.allSatisfy { $0.frame.minX >= frame.maxX }
     }
 
     private func toggle(_ app: XCUIApplication) -> XCUIElement {

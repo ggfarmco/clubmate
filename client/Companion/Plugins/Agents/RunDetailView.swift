@@ -89,15 +89,15 @@ struct RunDetailView: View {
             .padding(.bottom, navigation.floatingMic(context.model, listening: voice.active) && request != nil ? VoiceButton.floating + 8 : 0)
         }
         .navigationTitle(title(run, entry))
-        .toolbarTitleDisplayMode(wide ? .inlineLarge : .inline)
+        .toolbarTitleDisplayMode(.inline)
         .toolbar {
             if wide {
-                ToolbarItem(placement: .largeSubtitle) {
-                    subtitle(run, entry)
-                        .font(.subheadline)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                ToolbarItem(placement: .principal) {
+                    PadHeader(title: title(run, entry)) {
+                        subtitle(run, entry)
+                    }
                 }
+                .sharedBackgroundVisibility(.hidden)
             } else {
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 1) {

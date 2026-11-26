@@ -8,6 +8,7 @@ enum PadLayout {
     static let asideGap: CGFloat = 40
     static let wide: CGFloat = measure + asideGap + aside
     static let asideFrom: CGFloat = wide + 2 * margin
+    static let headerIdeal: CGFloat = 2000
 
     static func on(_ sizeClass: UserInterfaceSizeClass?) -> Bool {
         UIDevice.current.userInterfaceIdiom == .pad && sizeClass == .regular
@@ -44,5 +45,24 @@ struct PadProse: Layout {
         for subview in subviews {
             subview.place(at: origin, proposal: ProposedViewSize(width: PadLayout.prose(bounds.width), height: bounds.height))
         }
+    }
+}
+
+struct PadHeader<Subtitle: View>: View {
+    let title: String
+    @ViewBuilder let subtitle: Subtitle
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(.title3.weight(.semibold))
+                .lineLimit(1)
+            subtitle
+                .font(.subheadline)
+                .lineLimit(1)
+        }
+        .frame(minWidth: 0, idealWidth: PadLayout.headerIdeal, maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("page.header")
     }
 }

@@ -510,21 +510,21 @@ struct SessionDetailView: View {
         }
         .environment(\.asideEntry, asideEntry(session, blocked: blocked))
         .navigationTitle(session?.displayTitle ?? "Session")
-        .toolbarTitleDisplayMode(stopInHeader && mode == .plain ? .inlineLarge : .inline)
+        .toolbarTitleDisplayMode(.inline)
         .toolbar {
             if mode != .plain {
                 asideToolbar(session)
             } else {
             if let session {
                 if stopInHeader {
-                    ToolbarItem(placement: .largeSubtitle) {
-                        TimelineView(.periodic(from: .now, by: 30)) { timeline in
-                            SessionHeader.subtitle(session, mac: context.model.tag(context.connection.computer.id), mode: true, now: timeline.date)
-                                .font(.subheadline)
-                                .lineLimit(1)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                    ToolbarItem(placement: .principal) {
+                        PadHeader(title: session.displayTitle) {
+                            TimelineView(.periodic(from: .now, by: 30)) { timeline in
+                                SessionHeader.subtitle(session, mac: context.model.tag(context.connection.computer.id), mode: true, now: timeline.date)
+                            }
                         }
                     }
+                    .sharedBackgroundVisibility(.hidden)
                 } else {
                     ToolbarItem(placement: .principal) {
                         SessionHeader(session: session, mac: context.model.tag(context.connection.computer.id))
