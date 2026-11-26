@@ -309,6 +309,24 @@ A pending question (AskUserQuestion or an MCP form) is docked above the composer
 
 ⎋ stays Stop the running turn and answers nothing; Skip has no key. With 2+ questions the rows have no keys: click them, or Tab to a row and press Space. Defined by the `choice` option `shortcut` props and Send's `shortcut` in `plugins/agents/elicit_view.go`, ranked in `SDUI/KeyMonitor.swift` (`KeyClaim`).
 
+## Quiz questions (Agents section, guided code reading)
+
+A quiz question ([agents § Quiz questions](agents.md#quiz-questions)) is docked above the composer and takes the keys while it has focus (it takes focus when it comes, unless the composer has text). Same keys on the iPad with a keyboard.
+
+| Keys | Action |
+|---|---|
+| ↑ ↓ | Move the cursor line in the excerpt |
+| ⇧↑ ⇧↓ | Make the pick a range from the cursor (also a drag over the lines) |
+| ↩ | Pick the cursor line or range (also a click); a pick never sends |
+| 1 2 3 | Rate guess · think so · sure. On a line, range or choice question the rating sends after a 2 s hold; on a text or value question it only rates |
+| a b c d | Pick that option of a choice question |
+| ⌘Z | During the 2 s hold: take the answer back to the pick (the card's Undo) |
+| ⌘↩ | In the composer: send the typed words as the answer (needs a rating; with none the focus goes to the chips) |
+| ⌥G | Open in nvim: the excerpt's file at the cursor line. ⌘O stays Open Folder…, and gf needs the transcript's focus, while letters typed on the card go to the composer |
+| ⌥Q | Fold the card to its bar and back |
+
+Other letters typed while the card has focus go to the composer, which is the question's Other. Skip has no key. Defined by the `request.quiz` node in `plugins/agents/quiz_view.go`, handled in `SDUI/Agents/QuizCardView.swift` (iPad: `client/Companion/Plugins/Agents/QuizViews.swift`).
+
 ## Repos card (Agents section)
 
 Only while the card has focus (a click in it, its header pill), never in the composer.

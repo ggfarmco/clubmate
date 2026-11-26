@@ -334,6 +334,15 @@ var (
 			children:    noChildren,
 			interactive: true,
 		},
+		"request.quiz": {
+			required: []string{"request", "type", "state", "title", "question"},
+			props: map[string]propCheck{
+				"request": isString, "type": oneOf(quizTypes), "state": oneOf(quizStates), "title": isString, "question": isString, "step": isString, "hint": isString, "concept": isString,
+				"excerpt": quizExcerptCheck, "options": arrayOf(quizOptionCheck), "confidence": quizConfidenceCheck, "reveal": quizRevealCheck, "labels": quizLabelsCheck, "dock": isBool, "action": actionCheck,
+			},
+			children:    noChildren,
+			interactive: true,
+		},
 		"request.land": {
 			required: []string{"request", "title", "name", "options"},
 			props: map[string]propCheck{
@@ -906,6 +915,51 @@ func connectRepoCheck(c *validator, v any) error {
 	return objectCheck([]string{"key", "name"}, map[string]propCheck{
 		"key": isString, "name": isString, "path": isString, "remote": isString, "state": isString, "warn": isBool, "clone": isBool,
 		"reason": isString, "landsBy": isString, "source": isString, "brings": isString, "trust": isString, "folded": isBool,
+	})(c, v)
+}
+
+var (
+	quizTypes    = []string{"line", "range", "value", "text", "choice"}
+	quizStates   = []string{"asking", "sending", "checking", "answered", "skipped", "cancelled"}
+	quizPicks    = []string{"line", "range", "none"}
+	quizVerdicts = []string{"correct", "close", "wrong", "pending"}
+	lineNumber   = number(func(n float64) bool { return n >= 1 && n == math.Trunc(n) }, "a line number")
+)
+
+func quizExcerptCheck(c *validator, v any) error {
+	return objectCheck([]string{"file", "commit", "rows", "pick", "span"}, map[string]propCheck{
+		"file": isString, "span": isString, "commit": isString, "rows": arrayOf(quizRowCheck), "pick": oneOf(quizPicks), "picked": arrayOf(lineNumber), "cursor": lineNumber,
+		"open": objectCheck([]string{"label"}, map[string]propCheck{"label": isString, "shortcut": shortcutCheck}),
+	})(c, v)
+}
+
+func quizRowCheck(c *validator, v any) error {
+	if obj, ok := v.(map[string]any); ok && obj["fold"] != nil {
+		return objectCheck([]string{"fold"}, map[string]propCheck{"fold": isString})(c, v)
+	}
+	return objectCheck([]string{"n", "text"}, map[string]propCheck{"n": lineNumber, "text": isString, "tone": oneOf(badgeTones), "label": isString})(c, v)
+}
+
+func quizOptionCheck(c *validator, v any) error {
+	return objectCheck([]string{"value", "label", "key"}, map[string]propCheck{"value": isString, "label": isString, "key": isString, "on": isBool})(c, v)
+}
+
+func quizConfidenceCheck(c *validator, v any) error {
+	level := objectCheck([]string{"value", "label", "key"}, map[string]propCheck{"value": isString, "label": isString, "key": isString})
+	return objectCheck([]string{"label", "levels", "enabled", "sends", "holdMs"}, map[string]propCheck{
+		"label": isString, "levels": arrayOf(level), "value": isString, "enabled": isBool, "needsRating": isBool, "sends": isBool, "holdMs": nonNegative, "hint": isString,
+	})(c, v)
+}
+
+func quizRevealCheck(c *validator, v any) error {
+	return objectCheck([]string{"verdict", "label", "yours"}, map[string]propCheck{
+		"verdict": oneOf(quizVerdicts), "label": isString, "yours": isString, "confidence": isString, "answer": isString, "why": isString, "ref": isString, "flag": oneOf([]string{"sure_wrong"}), "note": isString,
+	})(c, v)
+}
+
+func quizLabelsCheck(c *validator, v any) error {
+	return objectCheck([]string{"skip", "undo", "sending", "fold", "answerHint", "you", "answer", "allLines", "secondsLeft", "sayIt", "openOnMac", "line", "range"}, map[string]propCheck{
+		"skip": isString, "undo": isString, "sending": isString, "fold": isString, "answerHint": isString, "you": isString, "answer": isString, "allLines": isString, "secondsLeft": isString, "sayIt": isString, "openOnMac": isString, "line": isString, "range": isString,
 	})(c, v)
 }
 

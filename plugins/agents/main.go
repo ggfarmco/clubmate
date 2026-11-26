@@ -166,6 +166,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.rechecks = recheckDelays(envDelay(recheckEnv, 0))
 	a.trustPoll = envDelay(trustPollEnv, trustPollDefault)
 	a.takeHold = envDelay(takeHoldEnv, 0)
+	quizHold = envDelay(quizHoldEnv, quizHold)
 	a.closeGate = os.Getenv(closeGateEnv)
 	a.roundAfter = envDelay(roundResetEnv, roundReset)
 	a.olderAfter = envDelay(olderAfterEnv, olderAfter)

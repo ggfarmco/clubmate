@@ -503,9 +503,13 @@ func composer(sc screen) sdui.Node {
 	if rec.isAside() {
 		modes = nil
 	}
+	placeholder, hint := composerPlaceholder(sc), composerHint
+	if w, ok := dockedQuiz(sc); ok {
+		placeholder, hint = w.Labels.SayIt, w.Labels.AnswerHint
+	}
 	return sdui.Composer(sc.Composer, sdui.ComposerProps{
-		Placeholder: composerPlaceholder(sc),
-		Hint:        composerHint,
+		Placeholder: placeholder,
+		Hint:        hint,
 		Agent:       agentLabel(rec.Agent),
 		Modes:       modes,
 		Mode:        rec.Mode,

@@ -459,7 +459,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     let raw: JSONValue
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, afk, from, compaction, elicitation, response, completed, stoppable, doc, hidden, docLinks, docCards, images, imageLinks, taskLinks, open, handoff, card, voice, items, overflow, later, toolSummary, gate, heldCalls, gateMessage
+        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, afk, from, compaction, elicitation, response, completed, stoppable, doc, hidden, docLinks, docCards, images, imageLinks, taskLinks, open, handoff, card, voice, items, overflow, later, toolSummary, gate, heldCalls, gateMessage, quiz
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -551,7 +551,8 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
                 id: entryID,
                 request: (try? c.decodeIfPresent(Elicitation.Request.self, forKey: .elicitation)) ?? Elicitation.Request(),
                 response: try? c.decodeIfPresent(Elicitation.Response.self, forKey: .response),
-                completed: (try? c.decodeIfPresent(Bool.self, forKey: .completed)) ?? false
+                completed: (try? c.decodeIfPresent(Bool.self, forKey: .completed)) ?? false,
+                quiz: try? c.decodeIfPresent(Quiz.self, forKey: .quiz)
             ))
         case .notice:
             let notice = (try? c.decodeIfPresent(JSONValue.self, forKey: .notice)) ?? .null
@@ -1043,6 +1044,7 @@ public struct Elicitation: Sendable, Equatable {
     public let request: Request
     public let response: Response?
     public let completed: Bool
+    public var quiz: Quiz?
 
     public var isURL: Bool { request.mode == "url" }
 

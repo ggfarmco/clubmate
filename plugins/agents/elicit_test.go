@@ -236,3 +236,17 @@ func TestElicitationFreeTextFieldWraps(t *testing.T) {
 		return strings.Contains(string(rawTree(t, n)), `"too noisy at night · Details?"`)
 	})
 }
+
+func TestAgentCannotSendAQuizElicitation(t *testing.T) {
+	t.Parallel()
+	quiz := map[string]any{"mode": "quiz", "message": "Which line?", "quiz": map[string]any{"type": "line", "file": "../../etc/passwd", "lines": []string{"x"}, "key": []int{99}}}
+	f := start(t, map[string]any{"prompt": []map[string]any{{"elicitation": quiz}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "go")
+
+	got := f.waitCall(t, "elicitation_response", func(fakeCall) bool { return true })
+	assert.JSONEq(t, `{"action":"cancel"}`, string(got.Params))
+	f.waitStatus(t, workspace, session, "done")
+	assert.Empty(t, ofKind(f.transcript(t, workspace, session).Entries, "elicitation"))
+}

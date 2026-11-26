@@ -26,12 +26,13 @@ public struct TranscriptFolds: Equatable, Sendable {
 }
 
 public enum TranscriptBlocks {
-    public static let cardTypes: Set<String> = ["permissionCard", "request.land", "request.connectRepo", "repos", "offer", "card"]
+    public static let cardTypes: Set<String> = ["permissionCard", "request.land", "request.connectRepo", "request.quiz", "repos", "offer", "card"]
     public static let openFile = "openLocation"
 
     public static func docked(in tree: SDUINode?) -> SDUINode? {
         guard let tree else { return nil }
         if ["permissionCard", "request.land", "request.connectRepo"].contains(tree.type) { return tree }
+        if tree.type == "request.quiz", tree.bool("dock") == true { return tree }
         if tree.type == "form", tree.id?.contains("/elicitation/") == true { return tree }
         if tree.type == "transcript" { return nil }
         return tree.children.lazy.compactMap(docked).first
@@ -83,8 +84,20 @@ public enum TranscriptBlocks {
         switch node.type {
         case "message": return node.string("text") ?? ""
         case "plan": return node.planEntries().map { "- [\($0.status == .completed ? "x" : " ")] \($0.content)" }.joined(separator: "\n")
+        case "request.quiz": return quiz(node)
         default: return card(node)
         }
+    }
+
+    private static func quiz(_ node: SDUINode) -> String {
+        guard let quiz = node.quiz() else { return card(node) }
+        var parts = ["**" + quiz.title + "**", quiz.question]
+        if let reveal = quiz.reveal {
+            let answer = reveal.answer.map { " · \(quiz.labels.answer) \($0)" } ?? ""
+            parts.append("**" + reveal.label + "** · \(quiz.labels.you) " + reveal.yours + answer)
+            if let why = reveal.why { parts.append(why) }
+        }
+        return parts.joined(separator: "\n\n")
     }
 
     private static func tool(_ node: SDUINode) -> String {

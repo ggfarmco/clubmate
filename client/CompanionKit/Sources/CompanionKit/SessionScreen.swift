@@ -157,6 +157,7 @@ public enum TranscriptRow: Sendable, Equatable, Identifiable {
 public enum SessionDock: Sendable, Equatable {
     case permission(PermissionRequest, more: Int)
     case elicitation(Elicitation)
+    case quiz(Quiz)
     case question(String)
     case onMac(String)
     case connect(ConnectCard)
@@ -167,6 +168,7 @@ public enum SessionDock: Sendable, Equatable {
 public struct SessionScreen: Sendable, Equatable {
     public let rows: [TranscriptRow]
     public let dock: SessionDock?
+    public let quizzes: Set<String>
 
     public init(entries: [TranscriptEntry], session: AgentSession?, request: RequestCard? = nil, repos: ReposCard? = nil) {
         let pending = Set(session?.pending ?? [])
@@ -178,6 +180,7 @@ public struct SessionScreen: Sendable, Equatable {
         var rows: [TranscriptRow] = []
         var waiting: [PermissionRequest] = []
         var questions: [Elicitation] = []
+        var quizzes: [Quiz] = []
         var opens: [OpenItems] = []
         let calls = Set(entries.compactMap { entry in entry.toolCall.flatMap { $0.hidden ? nil : entry.entryID } })
         var under: [String: [TranscriptEntry]] = [:]
@@ -227,7 +230,9 @@ public struct SessionScreen: Sendable, Equatable {
                     rows.append(.answered(request))
                 }
             case .elicitation(let question):
-                if pending.contains(question.id) {
+                if let quiz = question.quiz {
+                    if quiz.dock { quizzes.append(quiz) } else { rows.append(.asked(question)) }
+                } else if pending.contains(question.id) {
                     questions.append(question)
                 } else {
                     rows.append(.asked(question))
@@ -245,8 +250,11 @@ public struct SessionScreen: Sendable, Equatable {
             }
         }
         self.rows = rows
+        self.quizzes = Set(quizzes.map(\.request))
         if let first = waiting.first {
             dock = .permission(first, more: waiting.count - 1)
+        } else if let quiz = quizzes.first {
+            dock = .quiz(quiz)
         } else if let question = questions.first {
             dock = .elicitation(question)
         } else if case .connect(let card) = request {

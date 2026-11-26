@@ -3,10 +3,10 @@ import SwiftUI
 
 import ClubmateKit
 
-private let cardSettle = Duration.milliseconds(150)
+let cardSettle = Duration.milliseconds(150)
 
 @MainActor
-private func cardMayTakeKeys(_ drafts: ComposerDrafts?, node: SDUINode) -> Bool {
+func cardMayTakeKeys(_ drafts: ComposerDrafts?, node: SDUINode) -> Bool {
     guard let responder = NSApp.promptWindow?.firstResponder else { return false }
     if responder is TerminalSurfaceView || CodeWebView.owns(responder) { return false }
     return !(responder is NSText) || drafts?.focusedEmpty(session: ComposerDrafts.session(of: node.id ?? "")) == true
@@ -800,7 +800,7 @@ private struct EffectRow: View {
     }
 }
 
-private struct InlineCardText: View {
+struct InlineCardText: View {
     let text: String
     let color: Color
     var font: Font?

@@ -90,7 +90,7 @@ var (
 	errUserAction    = errors.New("only the user presses this")
 )
 
-var userActions = []string{actSend, actAsidePick, actAsideAsk, actAsideQuote, actAsideFull, actAsideBeside, actAsideParent, actAsideNext, actAsideKeep, actAsideClose, actSendBackOpen, actSendBackDraft, actSendBackFrom, actSendBackSend, actSendBackCancel, actSendBackKey, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph, actPhoneNotNow, actSetupFix, actJump, actLast, actNeeds}
+var userActions = []string{actSend, actAsidePick, actAsideAsk, actAsideQuote, actAsideFull, actAsideBeside, actAsideParent, actAsideNext, actAsideKeep, actAsideClose, actSendBackOpen, actSendBackDraft, actSendBackFrom, actSendBackSend, actSendBackCancel, actSendBackKey, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actQuizPick, actQuizRate, actQuizUndo, actQuizSkip, actQuizOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph, actPhoneNotNow, actSetupFix, actJump, actLast, actNeeds}
 
 type textValue struct {
 	Text string `json:"text"`
@@ -564,6 +564,12 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return a.landAct(ctx, ev.WorkspaceID, v)
 	case actElicitation, actElicitPick, actElicitDecline, actElicitOpen:
 		return a.elicitAct(ev, s, node)
+	case actQuizPick, actQuizRate, actQuizUndo, actQuizSkip, actQuizOpen:
+		act, err := quizUIAct(ev, s)
+		if err != nil {
+			return err
+		}
+		return a.actOnQuiz(ctx, ev.WorkspaceID, s, act)
 	case actAsideFull, actAsideBeside, actAsideParent, actAsideNext, actAsideKeep, actAsideClose, actAsideForked:
 		return a.asideAct(ctx, ev, s)
 	case actSendBackOpen, actSendBackDraft, actSendBackFrom, actSendBackSend, actSendBackCancel, actSendBackKey:
@@ -786,7 +792,11 @@ func (a *app) send(ctx context.Context, workspaceID string, s *session, st *sess
 	open := st.open.args(sid, items)
 	a.uiMu.Unlock()
 	var err error
-	if open.picked() > 0 {
+	if quiz := s.pendingQuiz(); quiz != "" && len(atts) > 0 {
+		return errQuizAttached
+	} else if quiz != "" {
+		err = s.quizAct(quizAct{Request: quiz, Action: quizSend, Text: text})
+	} else if open.picked() > 0 {
 		open.Note = text
 		_, err = a.answerOpen(ctx, s, workspaceID, open, atts)
 	} else {

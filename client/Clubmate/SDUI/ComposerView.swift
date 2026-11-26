@@ -470,6 +470,10 @@ struct ComposerNodeView: View {
     }
 
     private func send(_ text: String) {
+        if let id = node.id, drafts.quizNeedsRating(session: ComposerDrafts.session(of: id)), let focusSlot {
+            router?.request(focusSlot + AgentsKeys.cardSuffix)
+            return
+        }
         let session = ComposerFocus.session(of: node.id)
         let drafts = drafts
         let id = node.id ?? ""

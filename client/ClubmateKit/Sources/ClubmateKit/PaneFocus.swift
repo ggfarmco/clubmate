@@ -12,6 +12,7 @@ public enum FocusedPane: Equatable, Sendable {
     case transcript
     case openItems
     case connectCard
+    case quiz
     case keys(String)
     case field
     case terminal
@@ -29,6 +30,7 @@ public enum FocusedPane: Equatable, Sendable {
         case .transcript: "j/k block · h/l fold · G newest · i type · ? keys"
         case .openItems: "1–4 pick · L later · ⌘↩ send"
         case .connectCard: "⌥1 connect · space un-tick · ⌥3 don't"
+        case .quiz: "↑↓ line · ⇧↑↓ range · ↩ pick · 1–3 rate · ⌥Q fold"
         case .keys(let hints): hints
         case .field: "↩ submit"
         case .terminal: nil

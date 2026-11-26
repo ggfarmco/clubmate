@@ -1783,8 +1783,17 @@ struct AnswerOnMacRow: View {
 
 struct AskedRow: View {
     let question: Elicitation
+    @Environment(\.quizAction) private var quizAction
 
     var body: some View {
+        if let quiz = question.quiz {
+            QuizRecord(quiz: quiz, act: quizAction.map { act in { act(quiz.request, $0) } })
+        } else {
+            summary
+        }
+    }
+
+    private var summary: some View {
         Label {
             Text((question.answer ?? "No longer pending") + " · " + question.request.message)
                 .lineLimit(1)

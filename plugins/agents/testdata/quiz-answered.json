@@ -1,0 +1,87 @@
+{
+ "type": "request.quiz",
+ "id": "agt_1/elicitation/elicitation-7",
+ "props": {
+  "request": "elicitation-7",
+  "type": "line",
+  "state": "answered",
+  "title": "Answered",
+  "question": "Which line refills a workspace’s bucket?",
+  "step": "Step 4 of 8",
+  "concept": "Refill",
+  "excerpt": {
+   "file": "internal/notify/limiter.go",
+   "commit": "a41c9e2",
+   "rows": [
+    {
+     "fold": "lines 23–27"
+    },
+    {
+     "n": 28,
+     "text": ""
+    },
+    {
+     "n": 29,
+     "text": "    now := l.now()"
+    },
+    {
+     "n": 30,
+     "text": "    b.tokens += now.Sub(b.last).Seconds() * l.rate",
+     "tone": "success",
+     "label": "answer"
+    },
+    {
+     "n": 31,
+     "text": "    if b.tokens > l.burst {"
+    },
+    {
+     "n": 32,
+     "text": "        b.tokens = l.burst",
+     "tone": "danger",
+     "label": "you · think so"
+    },
+    {
+     "n": 33,
+     "text": "    }"
+    },
+    {
+     "n": 34,
+     "text": "    b.last = now"
+    },
+    {
+     "fold": "lines 35–40"
+    }
+   ],
+   "pick": "none",
+   "open": {
+    "label": "Open in nvim",
+    "shortcut": "opt+g"
+   },
+   "span": "lines 23–40"
+  },
+  "reveal": {
+   "verdict": "wrong",
+   "label": "Not this line",
+   "yours": "line 32",
+   "confidence": "think so",
+   "answer": "line 30",
+   "why": "32 only caps the bucket at `l.burst`; 30 is where it grows: seconds since the last call × `l.rate`.",
+   "ref": "internal/notify/limiter.go:30"
+  },
+  "labels": {
+   "skip": "Skip",
+   "undo": "Undo",
+   "sending": "Sending",
+   "fold": "Fold",
+   "answerHint": "Typing answers in words; the guide grades it",
+   "you": "You:",
+   "answer": "Answer:",
+   "allLines": "All {n} lines",
+   "secondsLeft": "{n} s left",
+   "sayIt": "Say it in words…",
+   "openOnMac": "Open on Mac",
+   "line": "Line",
+   "range": "Range"
+  }
+ }
+}

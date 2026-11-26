@@ -36,6 +36,9 @@ var (
 		"agents.answer":         withArgs((*app).answerCommand),
 		"agents.permission":     withArgs((*app).permissionCommand),
 		"agents.elicitation":    withArgs((*app).elicitationCommand),
+		"agents.quiz":           withArgs((*app).quizCommand),
+		"agents.quiz-grade":     withArgs((*app).quizGradeCommand),
+		"agents.quiz-answer":    withArgs((*app).quizAnswerCommand),
 		"agents.mode":           withArgs((*app).modeCommand),
 		"agents.config":         withArgs((*app).configCommand),
 		"agents.sessions":       withArgs((*app).sessionsCommand),
@@ -599,6 +602,7 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	}
 	v := s.viewSince(args.FromTurn, since, always)
 	v.Cursor = v.pos.format(key)
+	withQuizContent(&v, s.pendingIDs())
 	if !cmd.Agent {
 		withPermissionContent(v.Session, v.Entries, w.Name, a.firstRun.get().NeedsYou)
 		withCallContent(&v, s, lives)

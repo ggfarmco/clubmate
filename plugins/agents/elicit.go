@@ -54,6 +54,7 @@ type elicitation struct {
 	Fields        []elicitField `json:"fields,omitempty"`
 	NeedsAnswer   bool          `json:"needsAnswer,omitempty"`
 	Labels        *elicitLabels `json:"labels,omitempty"`
+	Quiz          *quizSpec     `json:"-"`
 }
 
 type elicitField struct {
@@ -126,7 +127,7 @@ type enumOption struct {
 
 func (p *agentProc) elicit(ctx context.Context, request string, params json.RawMessage) acp.ElicitationResponse {
 	var req acp.CreateElicitationRequest
-	if json.Unmarshal(params, &req) != nil || req.SessionID == "" {
+	if json.Unmarshal(params, &req) != nil || req.SessionID == "" || req.Mode == elicitQuiz {
 		return acp.ElicitationResponse{Action: acp.ElicitationCancel}
 	}
 	if _, err := parseElicitation(params); err != nil {
@@ -225,6 +226,9 @@ func (s *session) respond(id string, resp acp.ElicitationResponse) error {
 	i, found := s.index[key(entryElicitation, id)]
 	if !ok || perm.elicit == nil || !found {
 		return errNotAnElicitation
+	}
+	if el := s.entries[i].Elicitation; el != nil && el.Quiz != nil && resp.Action == acp.ElicitationAccept {
+		return errQuizAccept
 	}
 	out, err := checkResponse(s.entries[i].Elicitation, resp)
 	if err != nil {
@@ -336,6 +340,17 @@ func parseElicitation(params json.RawMessage) (*elicitation, error) {
 			return nil, errUnsafeURL
 		}
 		el.URL, el.ElicitationID = req.URL, req.ElicitationID
+		return el, nil
+	case elicitQuiz:
+		var q struct {
+			Quiz *quizSpec `json:"quiz"`
+		}
+		if err := json.Unmarshal(params, &q); err != nil || q.Quiz == nil {
+			return nil, fmt.Errorf("%w: quiz without a spec", errUnsupportedForm)
+		}
+		el.Quiz = q.Quiz
+		l := labelsFor(*el)
+		el.Labels = &l
 		return el, nil
 	case acp.ElicitationForm:
 		fields, err := schemaFields(req.RequestedSchema)

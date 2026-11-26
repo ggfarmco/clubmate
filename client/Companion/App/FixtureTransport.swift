@@ -189,6 +189,8 @@ actor FixtureServer {
     private lazy var olderRows: [[String: JSONValue]] = Self.olderRows(sessions.first)
     private var others: [[String: JSONValue]] = []
     private var transcripts: [String: [String: JSONValue]] = [:]
+    private var quizAnswered: JSONValue = .null
+    private var quizRev = 0
     private var tasks: [[String: JSONValue]] = []
     private var taskSeq = 1
     private var taskRevs: [JSONValue: Int] = [:]
@@ -312,6 +314,39 @@ actor FixtureServer {
                 Self.entry("agent", "agent-q1", text: "`reserve.go` holds stock with no end date. Before I add the expiry job I need two decisions from you."),
                 Self.questionEntry(),
             ])]
+        }
+        if let quizFixture = UserDefaults.standard.string(forKey: "quizFixture"), sessions.count > 3 {
+            var asking = decode(Self.quizSamples + "quiz-asking.json")["props"] ?? .null
+            quizAnswered = decode(Self.quizSamples + "quiz-answered.json")["props"] ?? .null
+            if quizFixture == "text", case .object(var props) = asking {
+                props["type"] = .string("text")
+                props["hint"] = .string("in your words")
+                props["question"] = .string("Why does the limiter cap the bucket at l.burst?")
+                props["excerpt"] = nil
+                props["confidence"] = .object(["label": .string("How sure?"), "levels": props["confidence"]?["levels"] ?? .null, "enabled": .bool(true), "needsRating": .bool(true), "sends": .bool(false), "holdMs": .number(2000), "hint": .string("chips only rate here; ⌘↩ sends")])
+                asking = .object(props)
+            }
+            sessions[3]["title"] = .string("guide · notify limiter")
+            var entries: [JSONValue] = [
+                Self.entry("user", "quiz-u1", text: "Walk me through how notify limits a workspace"),
+                Self.entry("agent", "quiz-a1", text: "Step 4 · Refill\n\nEvery Allow adds tokens for the seconds since the last call, at `l.rate` per second, and never more than `l.burst`."),
+            ]
+            if quizFixture == "answered" {
+                entries.append(Self.quizEntry(quizAnswered))
+                entries.append(Self.entry("agent", "quiz-a2", text: "Refill is marked missed; I'll ask it again after this step."))
+                sessions[3]["status"] = .string("done")
+                sessions[3]["activity"] = nil
+            } else {
+                entries.append(Self.quizEntry(asking))
+                sessions[3]["status"] = .string("waiting")
+                sessions[3]["activity"] = nil
+                sessions[3]["pending"] = .array([.string("elicitation-7")])
+                sessions[3]["pendingSummary"] = .object(["kind": .string("question"), "text": asking["question"] ?? .null, "at": Self.stamp(ago: 60)])
+                sessions[3]["needsYou"] = .bool(true)
+                sessions[3]["needsYouSince"] = Self.stamp(ago: 60)
+            }
+            Self.regroup(&sessions[3])
+            transcripts["agt_0000000000000004"] = ["entries": .array(entries)]
         }
         if let asideFixture, sessions.count > 3 {
             sessions[3]["canAside"] = .bool(true)
@@ -532,7 +567,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", AgentCommand.sessionsOlder, "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.close", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", AgentCommand.toolCall, "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string) + (WikiFixture.on ? [.string("wiki.locate")] : [])
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", QuizCommand.answer, "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", AgentCommand.sessionsOlder, "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.close", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", AgentCommand.toolCall, "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string) + (WikiFixture.on ? [.string("wiki.locate")] : [])
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed"), .string("awake.changed"), .string("agents.usage")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge")), "reports": .bool(true)])]))
         case "report":
             return (200, Self.json(["result": .object(["id": .string("r-fixture")])]))
@@ -719,6 +754,9 @@ actor FixtureServer {
             return .object(["removed": .bool(true)])
         case "agents.permission":
             answer(session, request: args["request"]?.stringValue ?? "", option: args["option"]?.stringValue ?? "")
+            return .null
+        case QuizCommand.answer:
+            quizAnswer(session, args)
             return .null
         case "agents.elicitation":
             respond(session, request: args["request"]?.stringValue ?? "", action: args["action"]?.stringValue ?? "", answers: args["answers"]?.arrayValue ?? [])
@@ -1151,6 +1189,94 @@ actor FixtureServer {
             append(session, Self.entry("agent", "agent-9", text: "Tests pass. `cartTotal` is extracted and covered by `TestCartTotal`."))
             update(session) { $0["status"] = .string("done") }
         }
+    }
+
+    private static let quizSamples = "../../../../../plugins/agents/testdata/"
+
+    private static func quizEntry(_ props: JSONValue) -> JSONValue {
+        .object(["kind": .string("elicitation"), "id": props["request"] ?? .null, "turn": .number(1), "elicitation": .object(["mode": .string("quiz")]), "quiz": props])
+    }
+
+    private func editQuiz(_ session: String, _ change: (inout [String: JSONValue]) -> Void) {
+        guard case .array(var entries) = transcripts[session]?["entries"] else { return }
+        for index in entries.indices {
+            guard case .object(var entry) = entries[index], case .object(var quiz) = entry["quiz"] ?? .null else { continue }
+            change(&quiz)
+            entry["quiz"] = .object(quiz)
+            entries[index] = .object(entry)
+        }
+        transcripts[session]?["entries"] = .array(entries)
+    }
+
+    private static func set(_ object: inout [String: JSONValue], _ key: String, _ change: (inout [String: JSONValue]) -> Void) {
+        guard case .object(var inner) = object[key] ?? .null else { return }
+        change(&inner)
+        object[key] = .object(inner)
+    }
+
+    private func quizAnswer(_ session: String, _ args: JSONValue) {
+        quizRev += 1
+        let rev = quizRev
+        switch args["action"]?.stringValue {
+        case "pick":
+            editQuiz(session) { quiz in
+                if let option = args["option"] {
+                    quiz["options"] = .array((quiz["options"]?.arrayValue ?? []).map { value in
+                        guard case .object(var fields) = value else { return value }
+                        fields["on"] = fields["value"] == option ? .bool(true) : nil
+                        return .object(fields)
+                    })
+                }
+                if let from = args["from"]?.numberValue {
+                    let to = args["to"]?.numberValue ?? from
+                    Self.set(&quiz, "excerpt") { $0["picked"] = .array([.number(from), .number(to)]); $0["cursor"] = .number(to) }
+                    let label = from == to ? "Line \(Int(from))" : "Lines \(Int(from))–\(Int(to))"
+                    Self.set(&quiz, "confidence") { $0["enabled"] = .bool(true); $0["hint"] = .string(label + " · a chip sends") }
+                }
+            }
+            update(session) { _ in }
+        case "rate":
+            let sends = transcripts[session]?["entries"]?.arrayValue?.contains { $0["quiz"]?["confidence"]?["sends"] == .bool(true) } == true
+            editQuiz(session) { quiz in
+                if sends { quiz["state"] = .string("sending") }
+                Self.set(&quiz, "confidence") { $0["value"] = args["confidence"] ?? .null; $0["needsRating"] = .bool(sends) }
+            }
+            update(session) { _ in }
+            guard sends else { return }
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                await self.settleQuiz(session, rev: rev)
+            }
+        case "undo":
+            editQuiz(session) { quiz in
+                quiz["state"] = .string("asking")
+                Self.set(&quiz, "confidence") { $0["value"] = nil; $0["needsRating"] = .bool(true) }
+            }
+            update(session) { _ in }
+        case "skip", "send":
+            let skip = args["action"]?.stringValue == "skip"
+            editQuiz(session) { quiz in
+                quiz["state"] = .string(skip ? "skipped" : "checking")
+                quiz["title"] = .string(skip ? "Skipped" : "Checking")
+                quiz["dock"] = nil
+                Self.set(&quiz, "excerpt") { $0["pick"] = .string("none") }
+                if !skip {
+                    quiz["reveal"] = .object(["verdict": .string("pending"), "label": .string("Checking"), "yours": args["text"] ?? .null, "confidence": args["confidence"] ?? .null])
+                }
+            }
+            update(session) { $0["status"] = .string("running"); $0["pending"] = nil }
+        default:
+            break
+        }
+    }
+
+    private func settleQuiz(_ session: String, rev: Int) {
+        guard rev == quizRev else { return }
+        editQuiz(session) { quiz in
+            if case .object(let answered) = quizAnswered { quiz = answered }
+        }
+        append(session, Self.entry("agent", "quiz-a2", text: "Refill is marked missed; I'll ask it again after this step."))
+        update(session) { $0["status"] = .string("done"); $0["pending"] = nil }
     }
 
     private func respond(_ session: String, request: String, action: String, answers: [JSONValue]) {

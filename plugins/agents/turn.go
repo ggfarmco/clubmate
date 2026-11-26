@@ -41,6 +41,7 @@ type runState struct {
 	prior           string
 	started         time.Time
 	perms           map[string]*pendingPermission
+	quizzes         map[string]*quizRun
 	calls           []*heldCall
 	refusals        []callRefusal
 	owed            []owedFindings
@@ -403,6 +404,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		s.recordLocked(actorClubmate, kindCommits, commitsPayload{Turn: turn, Commits: commits})
 	}
 	s.running = false
+	s.cancelQuizzesLocked()
 	s.followedUpLocked()
 	edited := s.edited
 	var next promptArgs

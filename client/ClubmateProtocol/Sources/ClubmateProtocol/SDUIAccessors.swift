@@ -283,6 +283,190 @@ public struct SDUIReposRow: Sendable, Equatable, Identifiable {
     }
 }
 
+public struct SDUIQuizRow: Sendable, Equatable, Identifiable {
+    public let n: Int?
+    public let text: String
+    public let tone: String?
+    public let label: String?
+    public let fold: String?
+
+    public var id: String { n.map(String.init) ?? "fold-" + (fold ?? "") }
+
+    public init?(_ json: JSONValue) {
+        guard let fields = json.objectValue else { return nil }
+        if let fold = fields["fold"]?.stringValue {
+            (n, text, tone, label, self.fold) = (nil, "", nil, nil, fold)
+            return
+        }
+        guard let n = fields["n"]?.numberValue.flatMap({ Int(exactly: $0) }), let text = fields["text"]?.stringValue else { return nil }
+        self.n = n
+        self.text = text
+        tone = fields["tone"]?.stringValue
+        label = fields["label"]?.stringValue
+        fold = nil
+    }
+}
+
+public struct SDUIQuizOpen: Sendable, Equatable {
+    public let label: String
+    public let shortcut: String?
+
+    init?(_ json: JSONValue?) {
+        guard let fields = json?.objectValue, let label = fields["label"]?.stringValue else { return nil }
+        self.label = label
+        shortcut = fields["shortcut"]?.stringValue
+    }
+}
+
+public struct SDUIQuizExcerpt: Sendable, Equatable {
+    public let file: String
+    public let commit: String
+    public let span: String
+    public let rows: [SDUIQuizRow]
+    public let pick: String
+    public let picked: ClosedRange<Int>?
+    public let cursor: Int?
+    public let open: SDUIQuizOpen?
+
+    init?(_ json: JSONValue?) {
+        guard let fields = json?.objectValue, let file = fields["file"]?.stringValue, let commit = fields["commit"]?.stringValue else { return nil }
+        self.file = file
+        self.commit = commit
+        span = fields["span"]?.stringValue ?? ""
+        rows = fields["rows"]?.arrayValue?.compactMap(SDUIQuizRow.init) ?? []
+        pick = fields["pick"]?.stringValue ?? "none"
+        let span = fields["picked"]?.arrayValue?.compactMap { $0.numberValue.flatMap { Int(exactly: $0) } }
+        picked = span.flatMap { $0.count == 2 && $0[0] <= $0[1] ? $0[0]...$0[1] : nil }
+        cursor = fields["cursor"]?.numberValue.flatMap { Int(exactly: $0) }
+        open = SDUIQuizOpen(fields["open"])
+    }
+
+    public var lines: [SDUIQuizRow] { rows.filter { $0.n != nil } }
+}
+
+public struct SDUIQuizLevel: Sendable, Equatable, Identifiable {
+    public let value: String
+    public let label: String
+    public let key: String
+
+    public var id: String { value }
+
+    init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let value = fields["value"]?.stringValue, let label = fields["label"]?.stringValue, let key = fields["key"]?.stringValue else { return nil }
+        (self.value, self.label, self.key) = (value, label, key)
+    }
+}
+
+public struct SDUIQuizOption: Sendable, Equatable, Identifiable {
+    public let value: String
+    public let label: String
+    public let key: String
+    public let on: Bool
+
+    public var id: String { value }
+
+    init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let value = fields["value"]?.stringValue, let label = fields["label"]?.stringValue, let key = fields["key"]?.stringValue else { return nil }
+        (self.value, self.label, self.key) = (value, label, key)
+        on = fields["on"]?.boolValue ?? false
+    }
+}
+
+public struct SDUIQuizConfidence: Sendable, Equatable {
+    public let label: String
+    public let levels: [SDUIQuizLevel]
+    public let value: String?
+    public let enabled: Bool
+    public let needsRating: Bool
+    public let sends: Bool
+    public let holdMs: Int
+    public let hint: String?
+
+    init?(_ json: JSONValue?) {
+        guard let fields = json?.objectValue, let label = fields["label"]?.stringValue else { return nil }
+        self.label = label
+        levels = fields["levels"]?.arrayValue?.compactMap(SDUIQuizLevel.init) ?? []
+        value = fields["value"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
+        enabled = fields["enabled"]?.boolValue ?? false
+        needsRating = fields["needsRating"]?.boolValue ?? false
+        sends = fields["sends"]?.boolValue ?? false
+        holdMs = fields["holdMs"]?.numberValue.flatMap { Int(exactly: $0) } ?? 2000
+        hint = fields["hint"]?.stringValue
+    }
+}
+
+public struct SDUIQuizReveal: Sendable, Equatable {
+    public let verdict: String
+    public let label: String
+    public let yours: String
+    public let confidence: String?
+    public let answer: String?
+    public let why: String?
+    public let ref: String?
+    public let flag: String?
+    public let note: String?
+
+    init?(_ json: JSONValue?) {
+        guard let fields = json?.objectValue, let verdict = fields["verdict"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
+        let text = { (key: String) in fields[key]?.stringValue.flatMap { $0.isEmpty ? nil : $0 } }
+        self.verdict = verdict
+        self.label = label
+        yours = fields["yours"]?.stringValue ?? ""
+        confidence = text("confidence")
+        answer = text("answer")
+        why = text("why")
+        ref = text("ref")
+        flag = text("flag")
+        note = text("note")
+    }
+}
+
+public struct SDUIQuizLabels: Sendable, Equatable {
+    public let skip: String
+    public let undo: String
+    public let sending: String
+    public let fold: String
+    public let answerHint: String
+    public let you: String
+    public let answer: String
+    public let allLines: String
+    public let secondsLeft: String
+
+    init(_ json: JSONValue?) {
+        let fields = json?.objectValue ?? [:]
+        skip = fields["skip"]?.stringValue ?? "Skip"
+        undo = fields["undo"]?.stringValue ?? "Undo"
+        sending = fields["sending"]?.stringValue ?? "Sending"
+        fold = fields["fold"]?.stringValue ?? "Fold"
+        answerHint = fields["answerHint"]?.stringValue ?? ""
+        you = fields["you"]?.stringValue ?? "You:"
+        answer = fields["answer"]?.stringValue ?? "Answer:"
+        allLines = fields["allLines"]?.stringValue ?? "All {n} lines"
+        secondsLeft = fields["secondsLeft"]?.stringValue ?? "{n} s left"
+    }
+}
+
+public struct SDUIQuiz: Sendable, Equatable {
+    public let request: String
+    public let type: String
+    public let state: String
+    public let title: String
+    public let question: String
+    public let step: String?
+    public let hint: String?
+    public let concept: String?
+    public let dock: Bool
+    public let excerpt: SDUIQuizExcerpt?
+    public let options: [SDUIQuizOption]
+    public let confidence: SDUIQuizConfidence?
+    public let reveal: SDUIQuizReveal?
+    public let labels: SDUIQuizLabels
+
+    public var asking: Bool { state == "asking" || state == "sending" }
+    public var sending: Bool { state == "sending" }
+    public var composerNeedsRating: Bool { asking && confidence?.needsRating == true }
+}
+
 public struct SDUIOption: Sendable, Equatable, Identifiable {
     public let value: String
     public let label: String
@@ -657,6 +841,20 @@ extension SDUINode {
 
     public func options() -> [SDUIOption] {
         props["options"]?.arrayValue?.compactMap(SDUIOption.init) ?? []
+    }
+
+    public func quiz() -> SDUIQuiz? {
+        guard let request = string("request"), let type = string("type"), let state = string("state"), let title = string("title"), let question = string("question") else { return nil }
+        let text = { (key: String) in self.string(key).flatMap { $0.isEmpty ? nil : $0 } }
+        return SDUIQuiz(
+            request: request, type: type, state: state, title: title, question: question,
+            step: text("step"), hint: text("hint"), concept: text("concept"), dock: bool("dock") == true,
+            excerpt: SDUIQuizExcerpt(props["excerpt"]),
+            options: props["options"]?.arrayValue?.compactMap(SDUIQuizOption.init) ?? [],
+            confidence: SDUIQuizConfidence(props["confidence"]),
+            reveal: SDUIQuizReveal(props["reveal"]),
+            labels: SDUIQuizLabels(props["labels"])
+        )
     }
 
     public func choiceOptions() -> [SDUIChoiceOption] {

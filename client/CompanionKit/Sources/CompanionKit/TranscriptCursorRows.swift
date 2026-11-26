@@ -78,7 +78,7 @@ public enum TranscriptCursorRows {
             case .answered(let request) where row.id == id:
                 return request.subject
             case .asked(let question) where row.id == id:
-                return question.request.message
+                return question.quiz?.question ?? question.request.message
             default:
                 continue
             }
@@ -119,7 +119,7 @@ public enum TranscriptCursorRows {
         case .tool(let call): tool(call)
         case .plan(let items): items.map { "- [\($0.status == .completed ? "x" : " ")] \($0.content)" }.joined(separator: "\n")
         case .permission(let request): request.subject
-        case .elicitation(let question): question.request.message
+        case .elicitation(let question): question.quiz?.question ?? question.request.message
         default: nil
         }
     }

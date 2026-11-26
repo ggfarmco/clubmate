@@ -11,11 +11,13 @@ struct SessionDetailView: View {
     @Environment(AppNavigation.self) private var navigation
     @Environment(VoiceSession.self) private var voice
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.ownerTab) private var ownerTab
     @State private var draft = ""
     @State private var attachments: [ComposerAttachment] = []
     @State private var sending = false
     @State private var sent = 0
+    @State private var rateFirst = 0
     @State private var failure: String?
     @State private var answeredElsewhere = 0
     @State private var position = ScrollPosition(edge: .bottom)
@@ -179,7 +181,7 @@ struct SessionDetailView: View {
         let keyStop = stopKey(session)
         let keyPanes = paneKeys(session, hasMessages: !entries.isEmpty, cardTyping: cardTyping)
         let answerDocked = switch screen.dock {
-        case .permission, .elicitation, .connect, .land: true
+        case .permission, .elicitation, .quiz, .connect, .land: true
         case .open(let card): !closing && (!folded(card) || store.openDraft(sessionID).unfolded)
         default: false
         }
@@ -436,6 +438,16 @@ struct SessionDetailView: View {
                                 try await store.respond(sessionID, request: question.id, action: action, answers: answers)
                             }
                             .id(question.id)
+                        case .quiz(let quiz):
+                            QuizCard(quiz: quiz, draft: Binding(get: { store.quizDraft(quiz.request) }, set: { store.setQuizDraft($0, request: quiz.request) }), wide: horizontalSizeClass == .regular, blocked: blocked, composerEmpty: draft.isEmpty) { action in
+                                try await store.quiz(sessionID, request: quiz.request, action)
+                            } words: {
+                                composerFocused = true
+                            } type: { typed in
+                                draft += typed
+                                composerFocused = true
+                            }
+                            .id(quiz.request)
                         case .question(let question):
                             QuestionCard(question: question, agentName: session.agentName, subagent: session.parentSession != nil)
                         case .onMac(let text):
@@ -500,15 +512,27 @@ struct SessionDetailView: View {
                         keepAside()
                     }
                 }
+                if case .quiz(let quiz) = screen.dock, let confidence = quiz.confidence, !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    QuizRating(label: confidence.label, levels: confidence.levels, value: confidence.sends ? store.quizDraft(quiz.request).rating : confidence.value ?? store.quizDraft(quiz.request).rating, nudge: rateFirst) { value in
+                        var quizDraft = store.quizDraft(quiz.request)
+                        quizDraft.rating = value
+                        store.setQuizDraft(quizDraft, request: quiz.request)
+                        if !confidence.sends { perform { try await store.quiz(sessionID, request: quiz.request, .rate(value)) } }
+                    }
+                }
                 if let session {
                     composer(session, screen: screen, blocked: blocked, answerDocked: answerDocked, hidden: cardTyping, escape: keyPanes?.escape, go: keyPanes?.go)
                 }
             }
             .animation(.snappy, value: screen.dock)
             .animation(.snappy, value: store.openedDocs[sessionID])
+            .onChange(of: screen.quizzes) { before, now in
+                for left in before.subtracting(now) { store.setQuizDraft(QuizDraft(), request: left) }
+            }
             .voiceDock()
         }
         .environment(\.asideEntry, asideEntry(session, blocked: blocked))
+        .environment(\.quizAction, blocked == nil ? { request, action in perform { try await store.quiz(sessionID, request: request, action) } } : nil)
         .navigationTitle(session?.displayTitle ?? "Session")
         .toolbarTitleDisplayMode(.inline)
         .toolbar {
@@ -937,7 +961,7 @@ struct SessionDetailView: View {
             blocked: answerDocked || !failureButtons.isEmpty || reviewable ? nil : context.connection.queueNote ?? blocked,
             sending: sending,
             wide: stopInHeader,
-            hint: answersGoWith(screen) ? "Your answers go with it" : nil,
+            hint: answersGoWith(screen) ? "Your answers go with it" : quizPlaceholder(screen),
             trailing: session.isAside ? "Plan" : nil,
             reopen: { action in
                 perform {
@@ -1198,12 +1222,37 @@ struct SessionDetailView: View {
         }
     }
 
+    private func quizPlaceholder(_ screen: SessionScreen) -> String? {
+        if case .quiz(let quiz) = screen.dock { quiz.labels.sayIt } else { nil }
+    }
+
     private func send() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let attached = attachments
         guard !text.isEmpty || !attached.isEmpty else { return }
         let typed = draft
         let screen = SessionScreen(entries: store.entries(sessionID), session: store.session(sessionID), request: store.request(sessionID), repos: store.repos(sessionID))
+        if case .quiz(let quiz) = screen.dock, attached.isEmpty {
+            let local = store.quizDraft(quiz.request).rating
+            guard quiz.confidence?.needsRating != true || local != nil else {
+                rateFirst += 1
+                return
+            }
+            let rating = local ?? quiz.confidence?.value
+            sending = true
+            draft = ""
+            Task {
+                do {
+                    try await store.quiz(sessionID, request: quiz.request, .send(text: text, confidence: rating))
+                    sent += 1
+                } catch {
+                    if draft.isEmpty { draft = typed }
+                    failure = Self.message(error)
+                }
+                sending = false
+            }
+            return
+        }
         var answering: [OpenItem]?
         if answersGoWith(screen), case .open(let card) = screen.dock { answering = card.items }
         sending = true

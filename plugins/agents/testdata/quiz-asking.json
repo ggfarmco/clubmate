@@ -1,0 +1,144 @@
+{
+ "type": "request.quiz",
+ "id": "agt_1/elicitation/elicitation-7",
+ "props": {
+  "request": "elicitation-7",
+  "type": "line",
+  "state": "asking",
+  "title": "Claude is asking",
+  "question": "Which line refills a workspace’s bucket?",
+  "step": "Step 4 of 8",
+  "hint": "point to the code",
+  "concept": "Refill",
+  "dock": true,
+  "excerpt": {
+   "file": "internal/notify/limiter.go",
+   "commit": "a41c9e2",
+   "rows": [
+    {
+     "n": 23,
+     "text": "    b, ok := l.buckets[ws]"
+    },
+    {
+     "n": 24,
+     "text": "    if !ok {"
+    },
+    {
+     "n": 25,
+     "text": "        b = &bucket{tokens: l.burst, last: l.now()}"
+    },
+    {
+     "n": 26,
+     "text": "        l.buckets[ws] = b"
+    },
+    {
+     "n": 27,
+     "text": "    }"
+    },
+    {
+     "n": 28,
+     "text": ""
+    },
+    {
+     "n": 29,
+     "text": "    now := l.now()"
+    },
+    {
+     "n": 30,
+     "text": "    b.tokens += now.Sub(b.last).Seconds() * l.rate"
+    },
+    {
+     "n": 31,
+     "text": "    if b.tokens > l.burst {"
+    },
+    {
+     "n": 32,
+     "text": "        b.tokens = l.burst"
+    },
+    {
+     "n": 33,
+     "text": "    }"
+    },
+    {
+     "n": 34,
+     "text": "    b.last = now"
+    },
+    {
+     "n": 35,
+     "text": ""
+    },
+    {
+     "n": 36,
+     "text": "    if b.tokens < 1 {"
+    },
+    {
+     "n": 37,
+     "text": "        return false"
+    },
+    {
+     "n": 38,
+     "text": "    }"
+    },
+    {
+     "n": 39,
+     "text": "    b.tokens--"
+    },
+    {
+     "n": 40,
+     "text": "    return true"
+    }
+   ],
+   "pick": "line",
+   "picked": [
+    32,
+    32
+   ],
+   "cursor": 32,
+   "open": {
+    "label": "Open in nvim",
+    "shortcut": "opt+g"
+   },
+   "span": "lines 23–40"
+  },
+  "confidence": {
+   "label": "How sure?",
+   "levels": [
+    {
+     "value": "guess",
+     "label": "guess",
+     "key": "1"
+    },
+    {
+     "value": "think",
+     "label": "think so",
+     "key": "2"
+    },
+    {
+     "value": "sure",
+     "label": "sure",
+     "key": "3"
+    }
+   ],
+   "enabled": true,
+   "sends": true,
+   "holdMs": 2000,
+   "hint": "Line 32 · a chip sends",
+   "needsRating": true
+  },
+  "labels": {
+   "skip": "Skip",
+   "undo": "Undo",
+   "sending": "Sending",
+   "fold": "Fold",
+   "answerHint": "Typing answers in words; the guide grades it",
+   "you": "You:",
+   "answer": "Answer:",
+   "allLines": "All {n} lines",
+   "secondsLeft": "{n} s left",
+   "sayIt": "Say it in words…",
+   "openOnMac": "Open on Mac",
+   "line": "Line",
+   "range": "Range"
+  }
+ }
+}

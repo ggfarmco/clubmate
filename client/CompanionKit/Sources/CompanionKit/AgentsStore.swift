@@ -72,6 +72,7 @@ public final class AgentsStore {
     private var outgoing: [String: [Outgoing]] = [:]
     private var elicitationDrafts: [String: [String: ElicitationDraft]] = [:]
     private var openDrafts: [String: OpenDraft] = [:]
+    private var quizDrafts: [String: QuizDraft] = [:]
     private var connectDrafts: [String: ConnectDraft] = [:]
     private var reposFolds: [String: ReposFold] = [:]
     public private(set) var archivePlans: [String: ArchivePlan] = [:]
@@ -873,6 +874,20 @@ public final class AgentsStore {
         try await submit("agents.elicitation", args, target: "request/" + request, title: "Answer the question", text: answers.map(\.value).joined(separator: "\n").nilIfEmpty)
         setElicitationDraft(ElicitationDraft(), session: session, request: request)
         await refreshSession(session)
+    }
+
+    public func quiz(_ session: String, request: String, _ action: QuizAction) async throws {
+        try await submit(QuizCommand.answer, action.args(session: session, request: request), target: "request/" + request, title: "Answer the question", keeps: false)
+        if case .send = action { setQuizDraft(QuizDraft(), request: request) }
+        await refreshSession(session)
+    }
+
+    public func quizDraft(_ request: String) -> QuizDraft {
+        quizDrafts[request] ?? QuizDraft()
+    }
+
+    public func setQuizDraft(_ draft: QuizDraft, request: String) {
+        quizDrafts[request] = draft == QuizDraft() ? nil : draft
     }
 
     public func request(_ session: String) -> RequestCard? {

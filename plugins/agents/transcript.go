@@ -147,6 +147,9 @@ type entry struct {
 	AFK       *afkCard                   `json:"afk,omitempty"`
 
 	Elicitation *elicitation             `json:"elicitation,omitempty"`
+	QuizState   *quizState               `json:"-"`
+	Grade       *quizGrade               `json:"-"`
+	Quiz        *sdui.QuizProps          `json:"quiz,omitempty"`
 	Response    *acp.ElicitationResponse `json:"response,omitempty"`
 	Completed   bool                     `json:"completed,omitempty"`
 	At          time.Time                `json:"at,omitzero"`
@@ -653,6 +656,10 @@ func (s *session) apply(e envelope) {
 		s.applyElicitationAnswer(e)
 	case kindElicitationComplete:
 		s.applyElicitationComplete(e)
+	case kindQuizState:
+		s.applyQuizState(e)
+	case kindQuizGrade:
+		s.applyQuizGrade(e)
 	case kindOpenItems:
 		s.applyOpenItems(e)
 	case kindOpenChanged:

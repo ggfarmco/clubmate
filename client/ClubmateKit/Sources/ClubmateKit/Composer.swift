@@ -197,6 +197,8 @@ public final class ComposerDrafts {
     private var models: [String: ComposerModel] = [:]
     private var forms: [String: FormState] = [:]
     private var connectCards: [String: ConnectCardModel] = [:]
+    private var quizCards: [String: QuizCardModel] = [:]
+    private var unrated: Set<String> = []
     public private(set) var focused: String?
 
     public init() {}
@@ -236,6 +238,29 @@ public final class ComposerDrafts {
         let model = ConnectCardModel()
         connectCards[id] = model
         return model
+    }
+
+    public func quizCard(for id: String) -> QuizCardModel {
+        if let model = quizCards[id] { return model }
+        let model = QuizCardModel()
+        quizCards[id] = model
+        return model
+    }
+
+    public func quiz(session: String, needsRating: Bool) {
+        if needsRating { unrated.insert(session) } else { unrated.remove(session) }
+    }
+
+    public func quizNeedsRating(session: String) -> Bool {
+        unrated.contains(session)
+    }
+
+    public func type(_ text: String, session: String) -> Bool {
+        guard let id = echoes.composer(of: session) else { return false }
+        let model = model(for: id)
+        model.text.append(text)
+        model.caret = model.text.count
+        return true
     }
 
     public func form(for id: String) -> FormState {

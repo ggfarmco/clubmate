@@ -30,6 +30,9 @@ func elicitationCard(sc screen, en *entry) sdui.Node {
 	if el == nil {
 		return sdui.Node{}
 	}
+	if el.Quiz != nil {
+		return quizCardNode(sc, en)
+	}
 	if en.Response != nil || !sc.Pending[en.ID] {
 		return sdui.MutedText(elicitationOutcome(en) + " · " + firstLine(el.Message))
 	}
