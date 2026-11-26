@@ -348,8 +348,8 @@ func heldRoundRow(sid string, round int, text, reviewer string) sdui.Node {
 }
 
 func (s *session) working() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.workingLocked()
 }
 

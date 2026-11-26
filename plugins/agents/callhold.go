@@ -487,8 +487,8 @@ func (a *app) takeCall(ctx context.Context, s *session, c *heldCall) {
 }
 
 func (s *session) hitsOf(c *heldCall) []toolgate.Hit {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return c.hits
 }
 
@@ -1478,8 +1478,8 @@ func (a *app) releaseCall(s *session, c *heldCall) {
 }
 
 func (s *session) holdsCall(c *heldCall) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return slices.Contains(s.calls, c)
 }
 
@@ -1855,8 +1855,8 @@ func (a *app) logRefusals(s *session) {
 }
 
 func (s *session) attachedTo(p *agentProc) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return p != nil && s.proc == p
 }
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"iter"
-	"maps"
 	"slices"
 
 	"clubmate/plugins/agents/api"
@@ -18,29 +17,13 @@ type lineage struct {
 }
 
 func (a *app) children(id string) []*session {
-	a.mu.Lock()
-	all := slices.Collect(maps.Values(a.sessions))
-	a.mu.Unlock()
-	var out []*session
-	for _, s := range all {
-		if rec := s.snapshot(); rec.ParentSession == id && !rec.isAside() {
-			out = append(out, s)
-		}
-	}
+	out := a.roster.sessions(a, func(rec *record) bool { return rec.ParentSession == id && !rec.isAside() })
 	slices.SortFunc(out, func(x, y *session) int { return x.snapshot().CreatedAt.Compare(y.snapshot().CreatedAt) })
 	return out
 }
 
 func (a *app) asides(id string) []*session {
-	a.mu.Lock()
-	all := slices.Collect(maps.Values(a.sessions))
-	a.mu.Unlock()
-	var out []*session
-	for _, s := range all {
-		if rec := s.snapshot(); rec.ParentSession == id && rec.isAside() {
-			out = append(out, s)
-		}
-	}
+	out := a.roster.sessions(a, func(rec *record) bool { return rec.ParentSession == id && rec.isAside() })
 	slices.SortFunc(out, func(x, y *session) int { return y.snapshot().CreatedAt.Compare(x.snapshot().CreatedAt) })
 	return out
 }

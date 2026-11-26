@@ -91,16 +91,16 @@ func (s *session) userOnlyPermission(id string) bool {
 }
 
 func (s *session) pending() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	ids := slices.Collect(maps.Keys(s.perms))
 	slices.Sort(ids)
 	return ids
 }
 
 func (s *session) onlyQuestions() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.onlyQuestionsLocked()
 }
 
@@ -118,8 +118,8 @@ func (s *session) onlyQuestionsLocked() bool {
 }
 
 func (s *session) permissionSummary() *pendingSummary {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, en := range s.entries {
 		if summary := s.summaryLocked(en); summary != nil {
 			return summary
@@ -159,8 +159,8 @@ func (s *session) summaryLocked(en *entry) *pendingSummary {
 }
 
 func (s *session) pendingIDs() map[string]bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	out := make(map[string]bool, len(s.perms))
 	for id := range s.perms {
 		out[id] = true

@@ -274,11 +274,7 @@ func (a *app) gateState(rec record) string {
 
 func (a *app) gateLandings(workspaceID, gateID string) []gateLanding {
 	var out []gateLanding
-	for _, s := range a.workspaceSessions(workspaceID) {
-		rec := s.snapshot()
-		if rec.closed() {
-			continue
-		}
+	for _, rec := range a.openRecordsIn(workspaceID) {
 		asks := a.gateAsks(rec)
 		for _, st := range rec.LandReviews {
 			if st.Gate != gateID {

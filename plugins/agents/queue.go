@@ -77,8 +77,8 @@ func (s *session) restoreQueue(queue []queuedPrompt) {
 }
 
 func (s *session) queued() []queuedPrompt {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return slices.Clone(s.queue)
 }
 

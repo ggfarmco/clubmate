@@ -313,14 +313,14 @@ func (a *app) runIdle(s *session, args promptArgs, add func(*session, promptArgs
 }
 
 func (s *session) heldIdle() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.rec.Held != nil && !s.busyLocked() && len(s.perms) == 0
 }
 
 func (s *session) progress() (record, int, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.rec, s.turn, s.running
 }
 

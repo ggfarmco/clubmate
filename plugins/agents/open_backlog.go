@@ -92,8 +92,8 @@ func (a *app) fileDue(ctx context.Context, s *session, now time.Time, after time
 }
 
 func (s *session) gone() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.deleted
 }
 

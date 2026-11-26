@@ -172,8 +172,8 @@ func (s *session) takeUserPrompts() *waitMessage {
 }
 
 func (s *session) asks() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.asksLocked()
 }
 

@@ -735,8 +735,8 @@ func (a *app) unheldRuns() map[string]string {
 }
 
 func (s *session) settling() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.busyLocked() || len(s.perms) > 0
 }
 

@@ -62,6 +62,7 @@ type app struct {
 	thumbs       thumbCache
 	watchdog     watchdog
 	overlapCache overlapCache
+	roster       roster
 	reviews      *reviewBoard
 	self         *selfStore
 
@@ -465,6 +466,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		}()
 	}
 	s.ran = func(c endedCall) { a.judgeCall(s, c) }
+	s.moved = func() { a.overlapCache.move(s.snapshot().Worktree) }
 	s.toolGated = func() bool {
 		last := a.lastGates.Load()
 		return last == nil || len(toolGatedRepos(*last)) > 0
@@ -483,6 +485,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 	a.mu.Lock()
 	a.sessions[rec.ID] = s
 	a.mu.Unlock()
+	recordsRev.Add(1)
 	return s
 }
 
@@ -502,37 +505,43 @@ func (a *app) lookup(workspaceID, id string) (*session, error) {
 	return s, nil
 }
 
-func (a *app) presented(s *session, rec record) record {
-	rec.AsksParent = a.asksParent(s, rec)
-	return a.reminders.present(rec)
+func (a *app) presentRecord(rec *record) {
+	rec.AsksParent = false
+	if rec.Status == statusWaiting && rec.ParentSession != "" {
+		if s := a.session(rec.ID); s != nil {
+			rec.AsksParent = a.asksParent(s, *rec)
+		}
+	}
+	if rec.Status == statusDone {
+		*rec = a.reminders.present(*rec)
+	}
 }
 
 func (a *app) list(workspaceID string) []record {
-	out := []record{}
-	for _, s := range a.allSessions() {
-		if rec := s.snapshot(); rec.Workspace == workspaceID {
-			out = append(out, a.presented(s, rec))
-		}
+	out := a.roster.records(a, workspaceID, nil)
+	for i := range out {
+		a.presentRecord(&out[i])
 	}
-	slices.SortFunc(out, startedFirst)
 	return out
 }
 
 func (a *app) listByWorkspace() map[string][]record {
+	workspaces := map[string]bool{}
+	a.roster.each(a, func(rec *record) { workspaces[rec.Workspace] = true })
 	out := map[string][]record{}
-	for _, s := range a.allSessions() {
-		if rec := s.snapshot(); rec.Workspace != "" {
-			out[rec.Workspace] = append(out[rec.Workspace], a.presented(s, rec))
+	for id := range workspaces {
+		if id != "" {
+			out[id] = a.list(id)
 		}
-	}
-	for _, recs := range out {
-		slices.SortFunc(recs, startedFirst)
 	}
 	return out
 }
 
 func (a *app) infos(workspaceID string) []sessionInfo {
-	recs := a.list(workspaceID)
+	return a.infosOf(workspaceID, a.list(workspaceID))
+}
+
+func (a *app) infosOf(workspaceID string, recs []record) []sessionInfo {
 	children := childStatuses(recs, a.gateRunOpen)
 	kids := kidsOf(recs)
 	nest := reviewNests(recs)
@@ -621,18 +630,23 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		}
 		out = append(out, info)
 	}
-	out = append(out, a.runRows(workspaceID, recs, func(info *sessionInfo, lander record) {
+	out = append(out, a.needRows(workspaceID, recs)...)
+	setGroups(out)
+	a.inbox.apply(workspaceID, out)
+	return out
+}
+
+func (a *app) needRows(workspaceID string, recs []record) []sessionInfo {
+	out := a.runRows(workspaceID, recs, func(info *sessionInfo, lander record) {
 		if l := a.landing(lander); l != nil {
 			info.GateRound = &gateRound{Round: l.Round, Label: fmt.Sprintf(reviewRoundLabel, l.Round), Verdict: gateStateReview}
 			info.Title = info.GateRound.Label
 		}
-	})...)
-	for _, n := range a.trustWaiting(workspaceID) {
+	})
+	for _, n := range trustNeedsOf(recs) {
 		n.Name, n.Point = a.trustGate(n.Gate)
 		out = append(out, trustInfo(workspaceID, n))
 	}
-	setGroups(out)
-	a.inbox.apply(workspaceID, out)
 	return out
 }
 

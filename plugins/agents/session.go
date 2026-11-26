@@ -14,7 +14,7 @@ import (
 )
 
 type session struct {
-	mu           sync.Mutex
+	mu           recLock
 	attachMu     sync.Mutex
 	changesMu    sync.Mutex
 	openMu       sync.Mutex
@@ -31,6 +31,7 @@ type session struct {
 	deleted      bool
 	changed      func(kind string, save bool)
 	turned       func(api.Turn)
+	moved        func()
 	idled        func()
 	resolved     func(kind, request string)
 	requested    func(kind, request string)
@@ -61,6 +62,7 @@ type setup struct {
 }
 
 func newSession(rec record, log *eventLog, loaded bool, changed func(kind string, save bool)) *session {
+	recordsRev.Add(1)
 	return &session{
 		rec:             rec,
 		log:             log,
@@ -72,8 +74,8 @@ func newSession(rec record, log *eventLog, loaded bool, changed func(kind string
 }
 
 func (s *session) snapshot() record {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.rec
 }
 
@@ -206,20 +208,20 @@ func (s *session) settings() (string, map[string]string) {
 }
 
 func (s *session) askedInTurn() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.asked
 }
 
 func (s *session) detached() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.proc == nil
 }
 
 func (s *session) turnStart() time.Time {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.started
 }
 
@@ -267,8 +269,8 @@ func (u *setup) pending() bool {
 }
 
 func (s *session) settingUp() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.setup.pending()
 }
 

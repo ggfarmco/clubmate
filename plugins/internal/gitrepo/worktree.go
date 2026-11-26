@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -120,6 +121,24 @@ func Worktrees(ctx context.Context, top string) ([]Worktree, error) {
 		}
 	}
 	return trees, nil
+}
+
+func IndexStamp(top string) string {
+	dir := filepath.Join(top, ".git")
+	if raw, err := os.ReadFile(dir); err == nil {
+		link, ok := strings.CutPrefix(strings.TrimSpace(string(raw)), "gitdir:")
+		if !ok {
+			return ""
+		}
+		if dir = strings.TrimSpace(link); !filepath.IsAbs(dir) {
+			dir = filepath.Join(top, dir)
+		}
+	}
+	info, err := os.Stat(filepath.Join(dir, "index"))
+	if err != nil {
+		return ""
+	}
+	return strconv.FormatInt(info.ModTime().UnixNano(), 36) + "." + strconv.FormatInt(info.Size(), 36)
 }
 
 func Longest(trees []Worktree, path string) *Worktree {

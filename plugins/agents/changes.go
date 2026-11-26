@@ -61,8 +61,8 @@ func (s *session) invalidateChanges() {
 }
 
 func (s *session) hasChanges() (bool, []string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.changes, s.reviewBases
 }
 

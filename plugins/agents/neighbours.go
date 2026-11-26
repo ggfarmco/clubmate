@@ -16,8 +16,10 @@ import (
 )
 
 const (
-	touchedAge      = 10 * time.Second
+	touchedAge      = 2 * time.Minute
 	touchedAgeEnv   = "CLUBMATE_AGENTS_TOUCHED_AGE"
+	overlapsAge     = 10 * time.Second
+	repoViewAge     = 2 * time.Second
 	listRefreshAge  = time.Second
 	neighboursShown = 4
 	touchedWorkers  = 8
@@ -38,11 +40,34 @@ const (
 	moreWhoFormat        = "and %d more"
 )
 
-var touchedMaxAge = envDelay(touchedAgeEnv, touchedAge)
+var (
+	touchedMaxAge  = envDelay(touchedAgeEnv, touchedAge)
+	overlapsMaxAge = min(touchedMaxAge, overlapsAge)
+	repoViewMaxAge = min(touchedMaxAge, repoViewAge)
+)
+
+type touchedKey struct {
+	head    string
+	branch  string
+	base    string
+	baseTip string
+	index   string
+	moves   uint64
+}
+
+type treeState struct {
+	ok      bool
+	primary string
+	real    string
+	path    string
+	def     string
+	key     touchedKey
+}
 
 type touched struct {
 	at        time.Time
 	ok        bool
+	key       touchedKey
 	primary   string
 	real      string
 	branch    string
@@ -86,8 +111,35 @@ type overlapCache struct {
 	flight      map[string]*touchedFlight
 	overlaps    map[string]overlapsAt
 	busy        map[string]bool
+	passed      map[string]time.Time
 	landing     map[string]landTold
+	views       map[string]*repoView
+	moved       map[string]treeMove
+	viewAge     time.Duration
 	landedCheck func(ctx context.Context, repo, tip, base string) bool
+	treesOf     func(ctx context.Context, top string) ([]gitrepo.Worktree, error)
+	touchedOf   func(ctx context.Context, worktree, base string) (gitrepo.Touched, error)
+}
+
+type treeMove struct {
+	count uint64
+	at    time.Time
+}
+
+type repoView struct {
+	at    time.Time
+	top   string
+	built sync.Once
+	bad   bool
+	trees []gitrepo.Worktree
+	def   string
+	tipMu sync.Mutex
+	tips  map[string]string
+}
+
+type overlapSet struct {
+	recs    []record
+	touched []touched
 }
 
 type touchedFlight struct {
@@ -103,14 +155,132 @@ type landTold struct {
 	keys    []string
 }
 
-func (a *app) touchedFiles(ctx context.Context, rec record) touched {
-	return a.overlapCache.shared(ctx, rec.ID, func() touched { return a.computeTouched(ctx, rec) })
+func treeKey(worktree string) string {
+	if worktree == "" {
+		return ""
+	}
+	top, _ := gitrepo.RepoRoot(gitrepo.Canonical(worktree))
+	return top
 }
 
-func (c *overlapCache) shared(ctx context.Context, id string, compute func() touched) touched {
+func (c *overlapCache) move(worktree string) {
+	worktree = treeKey(worktree)
+	if worktree == "" {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.moved == nil {
+		c.moved = map[string]treeMove{}
+	}
+	c.moved[worktree] = treeMove{count: c.moved[worktree].count + 1, at: time.Now()}
+}
+
+func (c *overlapCache) view(ctx context.Context, top, worktree string, exact bool) (*repoView, uint64) {
+	c.mu.Lock()
+	m := c.moved[worktree]
+	v := c.views[top]
+	if v == nil || v.bad || time.Since(v.at) >= cmp.Or(c.viewAge, repoViewMaxAge) || exact && !v.at.After(m.at) {
+		v = &repoView{at: time.Now(), top: top}
+		if c.views == nil {
+			c.views = map[string]*repoView{}
+		}
+		c.views[top] = v
+	}
+	list := c.treesOf
+	c.mu.Unlock()
+	if list == nil {
+		list = gitrepo.Worktrees
+	}
+	v.built.Do(func() {
+		trees, err := list(ctx, top)
+		def := ""
+		if err == nil && len(trees) > 0 {
+			def, _ = gitrepo.DefaultBranch(ctx, top)
+		}
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		v.trees, v.def, v.bad = trees, def, err != nil || len(trees) == 0
+		if v.bad {
+			return
+		}
+		for _, t := range trees {
+			if cur := c.views[t.Real]; t.Real != top && (cur == nil || cur.at.Before(v.at)) {
+				c.views[t.Real] = v
+			}
+		}
+	})
+	return v, m.count
+}
+
+func (v *repoView) tip(ctx context.Context, base string) string {
+	v.tipMu.Lock()
+	defer v.tipMu.Unlock()
+	if tip, ok := v.tips[base]; ok {
+		return tip
+	}
+	tip, _ := gitrepo.ResolveCommit(ctx, v.top, base)
+	if ctx.Err() != nil {
+		return tip
+	}
+	if v.tips == nil {
+		v.tips = map[string]string{}
+	}
+	v.tips[base] = tip
+	return tip
+}
+
+func (k touchedKey) git() touchedKey {
+	k.moves = 0
+	return k
+}
+
+func (t touched) fresh(key touchedKey, exact bool) bool {
+	age := time.Since(t.at)
+	return age < touchedMaxAge && (t.key == key || !exact && age < overlapsMaxAge && t.key.git() == key.git())
+}
+
+func (a *app) treeState(ctx context.Context, rec record, exact bool) treeState {
+	if rec.closed() || rec.Worktree == "" {
+		return treeState{}
+	}
+	if _, err := os.Stat(rec.Worktree); err != nil {
+		return treeState{}
+	}
+	real := gitrepo.Canonical(rec.Worktree)
+	top, ok := gitrepo.RepoRoot(real)
+	if !ok {
+		return treeState{}
+	}
+	v, moves := a.overlapCache.view(ctx, cmp.Or(sessionRepo(ctx, rec.Worktree), top), top, exact)
+	if len(v.trees) == 0 {
+		return treeState{}
+	}
+	tree := gitrepo.Longest(v.trees, real)
+	if tree == nil || (&gitrepo.Folder{Trees: v.trees}).GateTree(*tree) {
+		return treeState{}
+	}
+	base := cmp.Or(a.baseOf(ctx, rec), v.def)
+	if base == "" {
+		return treeState{}
+	}
+	return treeState{ok: true, primary: v.trees[0].Real, real: tree.Real, path: tree.Path, def: v.def, key: touchedKey{
+		head: tree.Head, branch: tree.Branch, base: base, baseTip: v.tip(ctx, base), index: gitrepo.IndexStamp(tree.Path), moves: moves,
+	}}
+}
+
+func (a *app) touchedFiles(ctx context.Context, rec record, exact bool) touched {
+	st := a.treeState(ctx, rec, exact)
+	if !st.ok {
+		return touched{at: time.Now()}
+	}
+	return a.overlapCache.shared(ctx, rec.ID, st.key, exact, func() touched { return a.overlapCache.compute(ctx, st) })
+}
+
+func (c *overlapCache) shared(ctx context.Context, id string, key touchedKey, exact bool, compute func() touched) touched {
 	for {
 		c.mu.Lock()
-		if t, ok := c.touched[id]; ok && time.Since(t.at) < touchedMaxAge {
+		if t, ok := c.touched[id]; ok && t.fresh(key, exact) {
 			c.mu.Unlock()
 			return t
 		}
@@ -127,7 +297,7 @@ func (c *overlapCache) shared(ctx context.Context, id string, compute func() tou
 		c.mu.Unlock()
 		select {
 		case <-f.done:
-			if f.ok {
+			if f.ok && f.t.fresh(key, exact) {
 				return f.t
 			}
 		case <-ctx.Done():
@@ -163,6 +333,12 @@ func (a *app) landedOf(ctx context.Context, id string, t touched) bool {
 		return t.landed
 	}
 	c := &a.overlapCache
+	c.mu.Lock()
+	kept, known := c.touched[id]
+	c.mu.Unlock()
+	if known && kept.landedKey == key {
+		return kept.landed
+	}
 	check := c.landedCheck
 	if check == nil {
 		check = gitrepo.LandedIn
@@ -180,32 +356,19 @@ func (a *app) landedOf(ctx context.Context, id string, t touched) bool {
 	return landed
 }
 
-func (a *app) computeTouched(ctx context.Context, rec record) touched {
-	t := touched{at: time.Now()}
-	if rec.closed() || rec.Worktree == "" {
-		return t
+func (c *overlapCache) compute(ctx context.Context, st treeState) touched {
+	t := touched{at: time.Now(), key: st.key, primary: st.primary, real: st.real, branch: st.key.branch, def: st.def, base: st.key.base}
+	run := c.touchedOf
+	if run == nil {
+		run = gitrepo.TouchedFiles
 	}
-	if _, err := os.Stat(rec.Worktree); err != nil {
-		return t
-	}
-	f, err := gitrepo.OpenFolder(ctx, rec.Worktree)
-	if err != nil || f.GateTree(f.Checkout) {
-		return t
-	}
-	t.primary, t.real, t.branch = f.Trees[0].Real, f.Checkout.Real, f.Checkout.Branch
-	t.def = f.DefaultName(ctx)
-	t.base = cmp.Or(a.baseOf(ctx, rec), t.def)
-	if t.base == "" {
-		return t
-	}
-	got, err := gitrepo.TouchedFiles(ctx, f.Checkout.Path, t.base)
+	got, err := run(ctx, st.path, st.key.base)
 	if err != nil {
 		return t
 	}
 	t.mergeBase, t.files, t.untracked = got.MergeBase, got.Files, got.Untracked
-	if t.branch != "" && f.Checkout.Head != got.MergeBase {
-		t.head = f.Checkout.Head
-		t.baseTip, _ = gitrepo.ResolveCommit(ctx, t.primary, t.base)
+	if t.branch != "" && st.key.head != got.MergeBase {
+		t.head, t.baseTip = st.key.head, st.key.baseTip
 	}
 	t.ok = true
 	return t
@@ -219,7 +382,7 @@ func (a *app) neighbours(ctx context.Context, rec record) []neighbour {
 	if !a.neighbourCandidate(rec) {
 		return nil
 	}
-	t := a.touchedFiles(ctx, rec)
+	t := a.touchedFiles(ctx, rec, true)
 	if !t.ok || len(t.files) == 0 {
 		return nil
 	}
@@ -227,27 +390,44 @@ func (a *app) neighbours(ctx context.Context, rec record) []neighbour {
 }
 
 func (a *app) neighboursOf(ctx context.Context, id string, self touched, files []string) []neighbour {
-	var cands []record
-	for _, s := range a.allSessions() {
-		n := s.snapshot()
-		if n.ID == id || !a.neighbourCandidate(n) || id != "" && (a.descendantOf(n.ID, id) || a.descendantOf(id, n.ID)) {
+	return a.neighboursIn(ctx, a.overlapSet(ctx, gitrepo.Canonical(self.primary)), id, self, files)
+}
+
+func (a *app) overlapSet(ctx context.Context, repo string) overlapSet {
+	var set overlapSet
+	for _, n := range a.openRecords() {
+		if !a.neighbourCandidate(n) {
 			continue
 		}
-		if repo := sessionRepo(ctx, n.Worktree); repo != "" && repo != gitrepo.Canonical(self.primary) {
+		if own := sessionRepo(ctx, n.Worktree); repo != "" && own != "" && own != repo {
 			continue
 		}
-		cands = append(cands, n)
+		set.recs = append(set.recs, n)
 	}
-	got := a.touchedAll(ctx, cands)
+	set.touched = make([]touched, len(set.recs))
+	limited(len(set.recs), func(i int) { set.touched[i] = a.touchedFiles(ctx, set.recs[i], false) })
+	return set
+}
+
+func (set overlapSet) of(id string) (touched, bool) {
+	for i, n := range set.recs {
+		if n.ID == id {
+			return set.touched[i], true
+		}
+	}
+	return touched{}, false
+}
+
+func (a *app) neighboursIn(ctx context.Context, set overlapSet, id string, self touched, files []string) []neighbour {
 	var out []neighbour
 	var outTouched []touched
-	for i, n := range cands {
-		nt := got[i]
-		if !nt.ok || nt.primary != self.primary || nt.real == self.real || nt.branch == "" || nt.branch == nt.def || nt.branch == self.base || self.branch != "" && self.branch == nt.base {
+	for i, n := range set.recs {
+		nt := set.touched[i]
+		if n.ID == id || !nt.ok || nt.primary != self.primary || nt.real == self.real || nt.branch == "" || nt.branch == nt.def || nt.branch == self.base || self.branch != "" && self.branch == nt.base {
 			continue
 		}
 		shared := common(files, nt.files)
-		if len(shared) == 0 {
+		if len(shared) == 0 || id != "" && (a.descendantOf(n.ID, id) || a.descendantOf(id, n.ID)) {
 			continue
 		}
 		out = append(out, neighbour{id: n.ID, title: childName(n), branch: nt.branch, worktree: n.Worktree, mergeBase: nt.mergeBase, created: n.CreatedAt, files: shared, untracked: common(shared, nt.untracked)})
@@ -263,12 +443,6 @@ func (a *app) neighboursOf(ctx context.Context, id string, self touched, files [
 	}
 	out = kept
 	slices.SortFunc(out, func(x, y neighbour) int { return cmp.Or(x.created.Compare(y.created), strings.Compare(x.id, y.id)) })
-	return out
-}
-
-func (a *app) touchedAll(ctx context.Context, recs []record) []touched {
-	out := make([]touched, len(recs))
-	limited(len(recs), func(i int) { out[i] = a.touchedFiles(ctx, recs[i]) })
 	return out
 }
 
@@ -579,14 +753,15 @@ func overlapEntries(ns []neighbour, clip bool) []overlapEntry {
 
 func (a *app) setOverlaps(workspaceID string, infos []sessionInfo) {
 	c := &a.overlapCache
-	stale := false
 	c.mu.Lock()
+	stale := time.Since(c.passed[workspaceID]) >= max(overlapsMaxAge, listRefreshAge)
 	for i := range infos {
+		if infos[i].closed() || infos[i].Kind != "" {
+			continue
+		}
 		e, ok := c.overlaps[infos[i].ID]
 		infos[i].Overlaps = e.list
-		if !infos[i].closed() && (!ok || time.Since(e.at) >= max(touchedMaxAge, listRefreshAge)) {
-			stale = true
-		}
+		stale = stale || !ok
 	}
 	start := stale && !c.busy[workspaceID]
 	if start {
@@ -603,26 +778,34 @@ func (a *app) setOverlaps(workspaceID string, infos []sessionInfo) {
 
 func (a *app) refreshOverlaps(workspaceID string) {
 	c := &a.overlapCache
+	started := time.Now()
 	defer func() {
 		c.mu.Lock()
 		delete(c.busy, workspaceID)
+		if c.passed == nil {
+			c.passed = map[string]time.Time{}
+		}
+		c.passed[workspaceID] = started
 		c.mu.Unlock()
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), cleanupLimit)
 	defer cancel()
 	changed := false
-	for _, s := range a.workspaceSessions(workspaceID) {
-		rec := s.snapshot()
-		list := overlapEntries(a.neighbours(ctx, rec), true)
+	set := a.overlapSet(ctx, "")
+	for _, rec := range a.openRecords() {
+		if rec.Workspace != workspaceID {
+			continue
+		}
+		var list []overlapEntry
+		if t, ok := set.of(rec.ID); ok && t.ok && len(t.files) > 0 {
+			list = overlapEntries(a.neighboursIn(ctx, set, rec.ID, t, t.files), true)
+		}
 		c.mu.Lock()
 		if c.overlaps == nil {
 			c.overlaps = map[string]overlapsAt{}
 		}
 		old := c.overlaps[rec.ID].list
 		c.overlaps[rec.ID] = overlapsAt{at: time.Now(), list: list}
-		if rec.closed() {
-			delete(c.touched, rec.ID)
-		}
 		c.mu.Unlock()
 		changed = changed || !slices.EqualFunc(old, list, func(x, y overlapEntry) bool {
 			return x.Session == y.Session && x.Branch == y.Branch && x.More == y.More && slices.Equal(x.Files, y.Files)
@@ -635,14 +818,25 @@ func (a *app) refreshOverlaps(workspaceID string) {
 }
 
 func (a *app) pruneOverlaps() {
-	live := map[string]bool{}
-	for _, s := range a.allSessions() {
-		live[s.snapshot().ID] = true
+	open, trees := map[string]bool{}, map[string]bool{}
+	for _, rec := range a.openRecords() {
+		open[rec.ID], trees[treeKey(rec.Worktree)] = true, true
 	}
 	c := &a.overlapCache
 	c.mu.Lock()
+	gone := map[string]bool{}
+	for _, lt := range c.landing {
+		gone[lt.lander] = false
+	}
+	c.mu.Unlock()
+	for id := range gone {
+		gone[id] = a.session(id) == nil
+	}
+	c.mu.Lock()
 	defer c.mu.Unlock()
-	maps.DeleteFunc(c.overlaps, func(id string, _ overlapsAt) bool { return !live[id] })
-	maps.DeleteFunc(c.touched, func(id string, _ touched) bool { return !live[id] })
-	maps.DeleteFunc(c.landing, func(_ string, lt landTold) bool { return !live[lt.lander] })
+	maps.DeleteFunc(c.overlaps, func(id string, _ overlapsAt) bool { return !open[id] })
+	maps.DeleteFunc(c.touched, func(id string, _ touched) bool { return !open[id] })
+	maps.DeleteFunc(c.moved, func(tree string, _ treeMove) bool { return !trees[tree] })
+	maps.DeleteFunc(c.views, func(_ string, v *repoView) bool { return time.Since(v.at) >= max(repoViewMaxAge, overlapsAge) })
+	maps.DeleteFunc(c.landing, func(_ string, lt landTold) bool { return gone[lt.lander] })
 }

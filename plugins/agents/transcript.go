@@ -523,6 +523,9 @@ func (s *session) update(params json.RawMessage) {
 	if ran != nil && s.ran != nil {
 		go s.ran(*ran)
 	}
+	if s.moved != nil && (head.SessionUpdate == acp.UpdateToolCall || head.SessionUpdate == acp.UpdateToolCallUpdate) {
+		s.moved()
+	}
 }
 
 func (s *session) notice(title, description string) {

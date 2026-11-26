@@ -51,12 +51,19 @@ func (a *app) startGraphs(ctx context.Context, after int64) {
 }
 
 func (a *app) graphSessions(_ context.Context, workspace string) ([]api.Session, error) {
-	raw, err := json.Marshal(a.infos(workspace))
-	if err != nil {
-		return nil, err
+	recs := a.list(workspace)
+	out := make([]api.Session, 0, len(recs))
+	for i := range recs {
+		out = append(out, graphSession(&recs[i]))
 	}
-	var out []api.Session
-	return out, json.Unmarshal(raw, &out)
+	for _, info := range a.needRows(workspace, recs) {
+		out = append(out, graphSession(&info.record))
+	}
+	return out, nil
+}
+
+func graphSession(rec *record) api.Session {
+	return api.Session{ID: rec.ID, Workspace: rec.Workspace, Worktree: rec.Worktree, Title: rec.Title, ParentSession: rec.ParentSession, HandoffFrom: rec.HandoffFrom, Status: rec.Status, Reminding: rec.Reminding, Mode: rec.Mode, CronJob: rec.CronJob, Trigger: rec.Trigger}
 }
 
 func graphCommand(id string) bool {

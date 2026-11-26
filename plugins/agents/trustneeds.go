@@ -111,7 +111,7 @@ func (n *trustNeeds) swap(workspace string, now map[string]bool) map[string]bool
 }
 
 func (a *app) trustWaiting(workspace string) []trustNeed {
-	return trustNeedsOf(a.list(workspace))
+	return trustNeedsOf(a.openRecordsIn(workspace))
 }
 
 func trustNeedsOf(recs []record) []trustNeed {

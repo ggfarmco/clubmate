@@ -638,8 +638,8 @@ func (a *app) stopping() bool {
 }
 
 func (s *session) current(epoch int) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.epoch == epoch
 }
 

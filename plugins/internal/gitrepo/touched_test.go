@@ -35,3 +35,22 @@ func TestTouchedFiles(t *testing.T) {
 	assert.Equal(t, []string{"new.go"}, got.Untracked)
 	assert.NotEmpty(t, got.MergeBase)
 }
+
+func TestIndexStampChangesWhenAWorktreeStages(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	write(t, filepath.Join(repo, "a.go"), "a\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "init")
+	tree := filepath.Join(repo, ".worktrees", "feat")
+	git(t, repo, "worktree", "add", "-q", "-b", "feat", tree)
+	main, feat := gitrepo.IndexStamp(repo), gitrepo.IndexStamp(tree)
+	require.NotEmpty(t, main)
+	require.NotEmpty(t, feat)
+
+	write(t, filepath.Join(tree, "new.go"), "n\n")
+	git(t, tree, "add", ".")
+
+	assert.Equal(t, main, gitrepo.IndexStamp(repo))
+	assert.NotEqual(t, feat, gitrepo.IndexStamp(tree))
+}

@@ -143,8 +143,8 @@ func (a *app) canAside(rec record) bool {
 }
 
 func (s *session) forkable() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return !s.rec.Unprompted
 }
 

@@ -249,7 +249,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	children := childStatuses(recs, a.gateRunOpen)
 	kids := kidsOf(recs)
 	groups := groupKeys(recs, home)
-	infos := a.infos(workspaceID)
+	infos := a.infosOf(workspaceID, recs)
 	runs := a.graphs.Runs(workspaceID)
 	a.setOlderIn(infos, workspaceID, runs)
 	older := map[string]bool{}

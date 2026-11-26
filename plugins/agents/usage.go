@@ -157,6 +157,10 @@ func spendTreeOf(recs []record) spendTree {
 			kids[p] = append(kids[p], rec.ID)
 		}
 	}
+	return spendTreeFrom(kids)
+}
+
+func spendTreeFrom(kids map[string][]string) spendTree {
 	out := spendTree{}
 	for id := range kids {
 		ids, seen := []string{id}, map[string]bool{id: true}
@@ -174,14 +178,7 @@ func spendTreeOf(recs []record) spendTree {
 }
 
 func (a *app) spendTree() spendTree {
-	a.mu.Lock()
-	all := slices.Collect(maps.Values(a.sessions))
-	a.mu.Unlock()
-	recs := make([]record, 0, len(all))
-	for _, s := range all {
-		recs = append(recs, s.snapshot())
-	}
-	return spendTreeOf(recs)
+	return a.roster.spendTree(a)
 }
 
 func (u *usageTracker) lineage() spendTree {

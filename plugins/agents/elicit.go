@@ -259,8 +259,8 @@ func (s *session) completeElicitation(elicitationID string) bool {
 }
 
 func (s *session) asking() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, perm := range s.perms {
 		if perm.elicit != nil {
 			return true

@@ -358,8 +358,8 @@ func (s *session) hookLocked(dir string) {
 }
 
 func (s *session) hookView() (record, bool, string, string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.rec, s.proc != nil && s.proc.alive(), s.hookDir, s.hookWhy
 }
 
@@ -434,8 +434,8 @@ func (a *app) rehookSession(s *session) {
 }
 
 func (s *session) owesHook() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.hookOwed
 }
 
@@ -530,8 +530,8 @@ func (a *app) setHookWhy(s *session, why string) {
 }
 
 func (s *session) canResume() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.proc == nil || !s.prompted || s.proc.caps.SessionCapabilities.Resume != nil
 }
 
