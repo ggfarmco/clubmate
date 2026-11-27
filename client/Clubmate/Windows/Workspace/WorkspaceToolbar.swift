@@ -53,6 +53,7 @@ extension WorkspaceWindow {
                 }
             }
             .buttonStyle(.plain)
+            .padding(.trailing, fullScreen ? theme.spacing.s : 0)
             .help("Workspaces (⌃⌘W)")
             .accessibilityLabel(otherUnread > 0 ? "Workspaces, \(workspaceCount), \(otherUnread) unread" : "Workspaces, \(workspaceCount)")
             .disabled(windowID == nil)

@@ -5,6 +5,7 @@ struct WindowObserver: NSViewRepresentable {
     let onKey: @MainActor () -> Void
     let onAttach: @MainActor (NSWindow) -> Void
     let onClose: @MainActor () -> Void
+    var onMoved: (@MainActor (NSWindow) -> Void)?
 
     func makeNSView(context: Context) -> WindowObserverView {
         let view = WindowObserverView()
@@ -16,6 +17,7 @@ struct WindowObserver: NSViewRepresentable {
         view.onKey = onKey
         view.onAttach = onAttach
         view.onClose = onClose
+        view.onMoved = onMoved
         if let window = view.window { onAttach(window) }
         if view.window?.isKeyWindow == true { onKey() }
     }
@@ -25,6 +27,7 @@ final class WindowObserverView: NSView {
     var onKey: (@MainActor () -> Void)?
     var onAttach: (@MainActor (NSWindow) -> Void)?
     var onClose: (@MainActor () -> Void)?
+    var onMoved: (@MainActor (NSWindow) -> Void)?
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         super.viewWillMove(toWindow: newWindow)
@@ -42,6 +45,9 @@ final class WindowObserverView: NSView {
         super.viewDidMoveToWindow()
         if let window { onAttach?(window) }
         if window?.isKeyWindow == true { onKey?() }
+        if let window, let onMoved {
+            DispatchQueue.main.async { onMoved(window) }
+        }
     }
 
     @objc private func windowDidBecomeKey(_ notification: Notification) {

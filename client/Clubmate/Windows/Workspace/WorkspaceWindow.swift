@@ -10,6 +10,7 @@ struct WorkspaceWindow: View {
     @Environment(WindowRouter.self) var windows
     @Environment(\.theme) var theme
     @Environment(\.openWindow) private var openWindow
+    @State var fullScreen = false
 
     var body: some View {
         WindowMinimum(size: CGSize(width: 800, height: 500)) { content }
@@ -34,7 +35,15 @@ struct WorkspaceWindow: View {
                 if let windowID { windows.windowAttached(windowID, window) }
             } onClose: { [app, windowID] in
                 if let windowID { windows.windowClosed(windowID) }
+            } onMoved: { window in
+                fullScreen = window.styleMask.contains(.fullScreen)
             })
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in
+                if note.object as? NSWindow === windowID.flatMap(windows.host) { fullScreen = true }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.willExitFullScreenNotification)) { note in
+                if note.object as? NSWindow === windowID.flatMap(windows.host) { fullScreen = false }
+            }
             .onAppear {
                 if let windowID, windows.window(windowID) != nil {
                     windows.windowShown(windowID)
