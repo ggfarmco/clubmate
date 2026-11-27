@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -244,4 +245,115 @@ func TestGateCaptionCountsRoundsInWords(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "The review asked for changes once", gateCaption(landReview{Rounds: 1}))
 	assert.Equal(t, "The review asked for changes 2 times", gateCaption(landReview{Rounds: 2}))
+}
+
+func TestQueueRowsInTreeOrder(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	open := func(id, wt string) sessionRow {
+		return sessionRow{Rec: record{ID: id, Worktree: wt, Agent: agentClaude, Title: "T " + id, Status: statusIdle, UpdatedAt: now}}
+	}
+	rows := []sessionRow{open("own", "/r/int"), open("a", "/r/a"), open("b", "/r/b"), open("c", "/r/c")}
+	rows[2].Rec.ParentSession = "own"
+	q := queueRow{ID: "q1", Into: "feat/x", Owner: "own", Entries: []queueEntryRow{
+		{ID: "e1", Session: "b", Title: "T b", State: queueHead, Mode: queueModeBranch, Place: 1, Files: []string{"x.go"}},
+		{ID: "e2", Session: "a", State: queueReady, Mode: queueModeBranch, Place: 2, Files: []string{"x.go"}, Overlaps: []string{"e1"}},
+		{ID: "e3", Session: "c", State: queueWaiting, Mode: queueModeBranch, Place: 3},
+	}}
+	dressQueue(&q, nil)
+	view := sidebarView(rows, "", nil, now, "/r/int", nil, false, "", sidebarSearch{}, 0, sidebarPlus{queues: []queueRow{q}}, nil)
+	require.NoError(t, internalsdui.Validate(view))
+	items, ok := nodesOf(view, "tree")[0].Props["items"].([]sdui.TreeItem)
+	require.True(t, ok)
+	owner := findItem(items, "own")
+	require.NotNil(t, owner)
+	require.NotEmpty(t, owner.Children)
+	group := owner.Children[0]
+	assert.Equal(t, "Landing into feat/x", group.Label)
+	assert.Equal(t, "3 in line", group.Detail)
+	var ids, words []string
+	for _, kid := range group.Children {
+		ids, words = append(ids, kid.ID), append(words, kid.Detail)
+	}
+	assert.Equal(t, []string{"b", "a", "c"}, ids)
+	assert.Equal(t, []string{"landing", "ready", "waits"}, words)
+	assert.Equal(t, "2nd of 3 in line · ready", group.Children[1].Menu[0].Label)
+	var shown int
+	var walk func([]sdui.TreeItem)
+	walk = func(items []sdui.TreeItem) {
+		for _, it := range items {
+			if it.ID == "a" || it.ID == "b" || it.ID == "c" {
+				shown++
+			}
+			walk(it.Children)
+		}
+	}
+	walk(items)
+	assert.Equal(t, 3, shown)
+	up := func(e queueEntryRow) bool { return e.Actions[0].Enabled }
+	assert.False(t, up(q.Entries[0]))
+	assert.True(t, up(q.Entries[1]))
+	assert.Equal(t, "Shares 1 file with T b", q.Entries[1].FileGroups[0].Title)
+}
+
+func TestQueueRowNeedsYouOnAsks(t *testing.T) {
+	t.Parallel()
+	kept := landReview{Into: "main", Source: "fix/d", Tree: "t1", Last: gateApproved, Carried: "o0"}
+	a := &app{registry: registry{sessions: map[string]*session{"agt_d": {rec: record{ID: "agt_d", LandReviews: []landReview{kept}}}}}}
+	q := landQueue{ID: "q1", Into: "main", Entries: []queueEntry{
+		{ID: "e1", Session: "agt_a", Source: "fix/a", Mode: queueModeBranch, State: queueAsks},
+		{ID: "e2", Mode: queueModeDirty, State: queueBlocked, Files: []string{"store.go"}},
+		{ID: "e3", Session: "agt_c", Mode: queueModeDirty, State: queueBlocked, Files: []string{"a.go"}},
+		{ID: "e4", Session: "agt_d", Source: "fix/d", Mode: queueModeBranch, State: queueReady, Tree: "t1"},
+	}}
+	row := a.queueRowOf(q, time.Now())
+	look := func(e queueEntryRow) []any { return []any{e.Word, e.Glyph, e.Tone, e.NeedsYou} }
+	assert.Equal(t, []any{"asking", "exclamationmark.circle", "warning", true}, look(row.Entries[0]))
+	assert.Equal(t, []any{"blocked", "minus.circle", "warning", true}, look(row.Entries[1]))
+	assert.Equal(t, []any{"blocked", "minus.circle", "", false}, look(row.Entries[2]))
+	assert.Equal(t, []any{"ready", "circle.inset.filled", "", false}, look(row.Entries[3]))
+	assert.Equal(t, []queueMark{{ID: "carried", Label: "Review kept", Help: "Review kept: main moved in other files only"}}, row.Entries[3].Marks)
+	assert.Empty(t, row.Entries[0].Marks)
+	assert.Equal(t, "2 need you", row.Detail)
+	assert.Equal(t, "warning", row.DetailTone)
+	assert.True(t, row.NeedsYou)
+}
+
+func TestOwnerWithDirtyEntryStaysOwner(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	open := func(id, wt string) sessionRow {
+		return sessionRow{Rec: record{ID: id, Worktree: wt, Agent: agentClaude, Title: "T " + id, Status: statusIdle, UpdatedAt: now}}
+	}
+	rows := []sessionRow{open("own", "/r/int"), open("b", "/r/b"), open("c", "/r/c")}
+	q := landQueue{ID: "q1", Into: "feat/x", Repo: "/r", Target: "/r/int", Entries: []queueEntry{
+		{ID: "e0", Session: "own", Mode: queueModeDirty, State: queueBlocked, Files: []string{"x.go"}},
+		{ID: "e1", Session: "b", Mode: queueModeBranch, State: queueBlocked, Files: []string{"x.go"}},
+		{ID: "e2", Session: "c", Mode: queueModeBranch, State: queueReady},
+	}}
+	a := &app{}
+	recs := []record{rows[0].Rec, rows[1].Rec, rows[2].Rec}
+	require.Equal(t, "own", a.queueOwner(q, recs))
+	row := a.queueRowOf(q, now)
+	row.Owner = "own"
+	view := sidebarView(rows, "", nil, now, "/r/int", nil, false, "", sidebarSearch{}, 0, sidebarPlus{queues: []queueRow{row}}, nil)
+	items, ok := nodesOf(view, "tree")[0].Props["items"].([]sdui.TreeItem)
+	require.True(t, ok)
+	i := slices.IndexFunc(items, func(it sdui.TreeItem) bool { return it.ID == "own" })
+	require.GreaterOrEqual(t, i, 0)
+	group := items[i].Children[0]
+	assert.Equal(t, []string{"lq:q1:e0", "b", "c"}, []string{group.Children[0].ID, group.Children[1].ID, group.Children[2].ID})
+}
+
+func TestQueueFileRowsMarkSharedFilesNotTheirGroup(t *testing.T) {
+	t.Parallel()
+	e := queueEntryRow{ID: "e2", Session: "a", Why: "w", Files: []string{"x.go", "y.go"}, FileGroups: []queueFileGroup{
+		{Title: "Shares 1 file with T b", Shared: true, Files: []string{"x.go"}},
+		{Title: queueAlso, Files: []string{"y.go"}},
+	}}
+	var icons []string
+	for _, it := range entryFileItems(e) {
+		icons = append(icons, it.Label+"="+it.Icon)
+	}
+	assert.Equal(t, []string{"w=" + queueWhyIcon, "Shares 1 file with T b=", "x.go=" + queueShareIcon, queueAlso + "=", "y.go=" + queueFileIcon}, icons)
 }

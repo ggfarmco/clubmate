@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	runsKey = "#runs"
-	dockKey = "#dock"
+	runsKey   = "#runs"
+	dockKey   = "#dock"
+	queuesKey = "#queues"
 )
 
 type sessionsPage struct {
@@ -19,6 +20,7 @@ type sessionsPage struct {
 	Delta      bool          `json:"delta,omitempty"`
 	Runs       []api.RunRow  `json:"runs,omitzero"`
 	Dock       []api.DockRow `json:"dock,omitzero"`
+	LandQueues []queueRow    `json:"landQueues,omitzero"`
 	OlderCount int           `json:"olderCount,omitempty"`
 }
 
@@ -27,10 +29,10 @@ func (a *app) sessionsPage(ctx context.Context, workspaceID string, infos []sess
 	for _, info := range infos {
 		items[info.ID] = info
 	}
-	items[runsKey], items[dockKey] = st.runs, st.dock
+	items[runsKey], items[dockKey], items[queuesKey] = st.runs, st.dock, st.queues
 	v, err := a.sessionRevs.Observe(ctx, sessionsTracker(workspaceID), items, since)
 	logError("sessions delta", err)
-	out := sessionsPage{Sessions: infos, Removed: []string{}, Cursor: v.Cursor, Runs: st.runs, Dock: st.dock}
+	out := sessionsPage{Sessions: infos, Removed: []string{}, Cursor: v.Cursor, Runs: st.runs, Dock: st.dock, LandQueues: st.queues}
 	if v.Full {
 		if !all {
 			out.Sessions = slices.DeleteFunc(infos, func(info sessionInfo) bool { return info.Older })
@@ -55,6 +57,9 @@ func (a *app) sessionsPage(ctx context.Context, workspaceID string, infos []sess
 	}
 	if _, found := slices.BinarySearch(v.Changed, dockKey); !found {
 		out.Dock = nil
+	}
+	if _, found := slices.BinarySearch(v.Changed, queuesKey); !found {
+		out.LandQueues = nil
 	}
 	return out
 }

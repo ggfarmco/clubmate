@@ -222,12 +222,14 @@ private struct ItemMenu: ViewModifier {
         } else {
             content
                 .contextMenu {
-                    ForEach(entries) { entry in
+                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                        if entry.divider, index > 0 { Divider() }
                         Button(entry.label, role: entry.confirm == nil ? nil : .destructive) { choose(entry) }
+                            .disabled(entry.disabled)
                     }
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    ForEach(entries.filter { $0.confirm == nil }.prefix(2)) { entry in
+                    ForEach(entries.filter { $0.confirm == nil && !$0.disabled }.prefix(2)) { entry in
                         Button(entry.label) { choose(entry) }
                             .tint(Color.gray)
                     }

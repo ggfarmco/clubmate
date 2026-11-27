@@ -31,4 +31,12 @@ final class RowFitTests: XCTestCase {
         XCTAssertNil(fit.detail)
         XCTAssertEqual(widths(80, label: 60, detail: nil).label, 60)
     }
+
+    func testBadgesFoldBeforeTheDetailIsCut() {
+        XCTAssertTrue(RowFit.badgesFit(available: 500, label: 300, badges: 80, detail: 90, gap: 8, keptLabel: 120, keptDetail: 72))
+        XCTAssertFalse(RowFit.badgesFit(available: 260, label: 300, badges: 80, detail: 90, gap: 8, keptLabel: 120, keptDetail: 72))
+        XCTAssertTrue(RowFit.badgesFit(available: 100, label: 300, badges: 80, detail: nil, gap: 8, keptLabel: 120, keptDetail: 72))
+        XCTAssertTrue(RowFit.badgesFit(available: 267.6, label: 300, badges: 80, detail: 90, gap: 8, keptLabel: 120, keptDetail: 72))
+        XCTAssertFalse(RowFit.badgesFit(available: 266.6, label: 300, badges: 80, detail: 90, gap: 8, keptLabel: 120, keptDetail: 72))
+    }
 }

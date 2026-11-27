@@ -255,63 +255,76 @@ struct SessionListView: View {
             .padding(.top, 4)
             .listRowInsets(EdgeInsets())
         }
-        ForEach(store.shownSections) { shown in
-            let section = shown.section
-            if section.folds {
-                let open = store.unfoldedSections.contains(section.id)
-                Section(isExpanded: Binding(get: { open }, set: { _ in })) {
-                    rows(shown.rows)
-                    if section.kind == .older {
-                        OlderPageRow(loading: store.olderLoading, error: store.olderError, more: store.olderMore, left: store.olderLeft) {
-                            Task { await store.loadOlder() }
-                        }
+        let shown = store.shownSections
+        ForEach(shown.filter { $0.section.kind == .needsYou }) { listSection($0) }
+        queueSections
+        ForEach(shown.filter { $0.section.kind != .needsYou }) { listSection($0) }
+    }
+
+    @ViewBuilder
+    private func listSection(_ shown: CompanionKit.ShownSection) -> some View {
+        let section = shown.section
+        if section.folds {
+            let open = store.unfoldedSections.contains(section.id)
+            Section(isExpanded: Binding(get: { open }, set: { _ in })) {
+                rows(shown.rows)
+                if section.kind == .older {
+                    OlderPageRow(loading: store.olderLoading, error: store.olderError, more: store.olderMore, left: store.olderLeft) {
+                        Task { await store.loadOlder() }
                     }
-                } header: {
-                    Button {
-                        Motion.disclose {
-                            if store.unfoldedSections.remove(section.id) == nil { store.unfoldedSections.insert(section.id) }
-                        }
-                        if section.kind == .older, !open { Task { await store.openOlder() } }
-                    } label: {
-                        HStack {
-                            Text("\(section.title(now: .now) ?? "") · \(section.count)")
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .rotationEffect(.degrees(open ? 90 : 0))
-                        }
-                        .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
                 }
-            } else if let title = section.title(now: .now) {
-                Section {
-                    rows(shown.rows)
-                } header: {
-                    HStack(spacing: 10) {
-                        Text(title)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+            } header: {
+                Button {
+                    Motion.disclose {
+                        if store.unfoldedSections.remove(section.id) == nil { store.unfoldedSections.insert(section.id) }
+                    }
+                    if section.kind == .older, !open { Task { await store.openOlder() } }
+                } label: {
+                    HStack {
+                        Text("\(section.title(now: .now) ?? "") · \(section.count)")
                         Spacer()
-                        if section.kind == .open, context.connection.supports(OpenCommand.queue) {
-                            Button("Answer all", action: answerAll)
-                                .buttonStyle(.borderless)
-                                .tint(.accentColor)
-                                .fontWeight(.semibold)
-                                .contentShape(.rect.inset(by: -12))
-                        }
-                        Text("\(section.kind == .open ? section.nodes.reduce(0) { $0 + $1.openInTree } : section.nodes.count)")
+                        Image(systemName: "chevron.right")
+                            .rotationEffect(.degrees(open ? 90 : 0))
                     }
+                    .contentShape(.rect)
                 }
-            } else {
-                Section {
-                    rows(shown.rows)
+                .buttonStyle(.plain)
+            }
+        } else if let title = section.title(now: .now) {
+            Section {
+                rows(shown.rows)
+            } header: {
+                HStack(spacing: 10) {
+                    Text(title)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                    if section.kind == .open, context.connection.supports(OpenCommand.queue) {
+                        Button("Answer all", action: answerAll)
+                            .buttonStyle(.borderless)
+                            .tint(.accentColor)
+                            .fontWeight(.semibold)
+                            .contentShape(.rect.inset(by: -12))
+                    }
+                    Text("\(section.kind == .open ? section.nodes.reduce(0) { $0 + $1.openInTree } : section.nodes.count)")
                 }
             }
+        } else {
+            Section {
+                rows(shown.rows)
+            }
+        }
+    }
+
+    private var queueSections: some View {
+        ForEach(store.shownQueues) { queue in
+            LandQueueSection(queue: queue, store: store) { context.navigation.select($0, tab: .agents) }
         }
     }
 
     @ViewBuilder
     private var stateSections: some View {
+        queueSections
         ForEach(store.groups) { group in
             let items = group.sessions.flatMap { $0.rows(expanded: store.expanded, folded: store.foldedTasks) }.map { ListRow(section: group.id, item: $0, place: nil) }
             let count = group.sessions.count

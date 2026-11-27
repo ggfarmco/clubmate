@@ -39,6 +39,9 @@ public final class AgentsStore {
     @ObservationIgnored public var visibleRows: Set<String> = []
     @ObservationIgnored public var listOnScreen = false
     public private(set) var dock: [AgentDockRow] = []
+    public private(set) var landQueues: [LandQueue] = [] {
+        didSet { if landQueues.inLine != oldValue.inLine { offerList() } }
+    }
     public private(set) var olderCount = 0
     public private(set) var older: [AgentSession] = []
     public private(set) var olderNext: String?
@@ -177,6 +180,7 @@ public final class AgentsStore {
         let list: AgentSessionList
         let runs: [AgentRunRow]?
         let dock: [AgentDockRow]?
+        let queues: [LandQueue]?
         let listed: [AgentSession]
     }
 
@@ -184,14 +188,16 @@ public final class AgentsStore {
         var list = list
         var runs = runs
         var dock: [AgentDockRow]?
+        var queues: [LandQueue]?
         if reply.arrayValue == nil {
             if let rows = reply["runs"] { runs = try rows == .null ? nil : rows.decode([AgentRunRow].self) }
             if let rows = reply["dock"] { dock = try rows == .null ? [] : rows.decode([AgentDockRow].self) }
+            if let rows = reply["landQueues"] { queues = try rows == .null ? [] : rows.decode([LandQueue].self) }
         } else {
             runs = nil
         }
         if let rows = reply.arrayValue { try list.replace(rows) } else { try list.apply(reply) }
-        return Listing(list: list, runs: runs, dock: dock, listed: runs == nil ? list.items : RunRows.sessions(list.rows, runs: runs))
+        return Listing(list: list, runs: runs, dock: dock, queues: queues, listed: runs == nil ? list.items : RunRows.sessions(list.rows, runs: runs))
     }
 
     public func ageLine(now: Date = .now) -> String? {
@@ -223,7 +229,15 @@ public final class AgentsStore {
     }
 
     public var groups: [SessionSection] {
-        AgentSession.grouped(sessions)
+        let inLine = landQueues.inLine
+        let all = AgentSession.grouped(sessions)
+        guard !inLine.isEmpty else { return all }
+        let inbox: Set<SessionGroup> = [.needsInput, .open]
+        let rest = AgentSession.grouped(sessions.filter { !inLine.contains($0.id) }).filter { !inbox.contains($0.group) }
+        let order = SessionGroup.allCases
+        return (all.filter { inbox.contains($0.group) } + rest).enumerated().sorted {
+            (order.firstIndex(of: $0.element.group) ?? 0, $0.offset) < (order.firstIndex(of: $1.element.group) ?? 0, $1.offset)
+        }.map(\.element)
     }
 
     public var needsInputCount: Int {
@@ -479,6 +493,7 @@ public final class AgentsStore {
             list = next.list
             runRows = next.runs
             if let rows = next.dock { dock = rows }
+            if let rows = next.queues { landQueues = rows }
             listed = next.listed
             listRev += 1
             let ids = Set(list.items.map(\.id))
@@ -1294,6 +1309,14 @@ public final class AgentsStore {
     public func setNotify(_ session: String, policy: NotificationPolicy) async throws {
         try await submit("agents.notify", ["session": .string(session), "policy": .string(policy.rawValue)], target: QueuedAction.sessionTarget + session, title: "Change notifications")
         await refreshSession(session)
+    }
+
+    public func queueAct(_ queue: LandQueue, _ entry: LandQueueEntry, _ action: LandQueueAction) async throws {
+        guard action.enabled, let command = action.command else { return }
+        var args: [String: JSONValue] = ["queue": .string(queue.id), "entry": .string(entry.id)]
+        if command == "agents.land-queue-move", let to = action.to { args["to"] = .number(Double(to)) }
+        try await submit(command, args, target: "landQueue/" + entry.id, title: action.label)
+        await refresh()
     }
 
     public func close(_ session: String) async throws {

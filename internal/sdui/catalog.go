@@ -896,7 +896,7 @@ func choiceOtherCheck(c *validator, v any) error {
 }
 
 func menuEntryCheck(c *validator, v any) error {
-	return objectCheck([]string{"action", "label"}, map[string]propCheck{"action": actionCheck, "label": isString, "confirm": isString, "key": menuKeyCheck})(c, v)
+	return objectCheck([]string{"action", "label"}, map[string]propCheck{"action": actionCheck, "label": isString, "confirm": isString, "key": menuKeyCheck, "disabled": isBool, "divider": isBool})(c, v)
 }
 
 func menuKeyCheck(_ *validator, v any) error {

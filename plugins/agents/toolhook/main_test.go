@@ -115,6 +115,21 @@ func TestBatchHookPrintsFindingsOnce(t *testing.T) {
 	assert.FileExists(t, filepath.Join(dir, "findings", "toolu_3"))
 }
 
+func TestBatchHookPrintsTheQueueNoteBesideTheGateFindings(t *testing.T) {
+	t.Parallel()
+	dir := hookDir(t, "")
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "findings"), 0o700))
+	for id, text := range map[string]string{"toolu_1": "fix x", "toolu_1.queue": "queued y"} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "findings", id), []byte(text), 0o600))
+	}
+	var out bytes.Buffer
+
+	run([]string{"batch", dir}, strings.NewReader(`{"tool_calls":[{"tool_use_id":"toolu_1"}]}`), &out)
+
+	assert.JSONEq(t, `{"hookSpecificOutput":{"hookEventName":"PostToolBatch","additionalContext":"fix x\n\nqueued y"}}`, out.String())
+	assert.FileExists(t, filepath.Join(dir, "told", "toolu_1.queue"))
+}
+
 type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("closed pipe") }

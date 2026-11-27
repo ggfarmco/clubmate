@@ -215,6 +215,7 @@ func (a *app) renderSettings(ctx context.Context) error {
 	rows := []sdui.Node{
 		sdui.SettingRow("When a task is done", finishHint, sdui.WithAction(sdui.Select(finishID, options, a.finishDefault(ctx)), finishID)),
 		sdui.SettingRow("Plain language", plainHint, sdui.WithAction(sdui.Toggle(plainID, a.plainEnabled(ctx)), plainID)),
+		sdui.SettingRow("Review the next landing ahead", aheadHint, sdui.WithAction(sdui.Toggle(aheadID, a.aheadEnabled(ctx)), aheadID)),
 		sdui.SettingRow("Self-improvement", selfHint, sdui.WithAction(sdui.Toggle(selfEnabledID, a.selfEnabled(ctx)), selfEnabledID)),
 	}
 	if a.self.prompt() != "" || len(a.self.skills()) > 0 {
@@ -244,6 +245,12 @@ func (a *app) settingsEvent(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return fmt.Errorf("%s: %w", plainID, err)
 		}
 		return a.setPlainEnabled(ctx, on)
+	case aheadID:
+		var on bool
+		if err := json.Unmarshal(ev.Value, &on); err != nil {
+			return fmt.Errorf("%s: %w", aheadID, err)
+		}
+		return a.setAheadEnabled(ctx, on)
 	case selfResetID:
 		return a.resetSelf(ctx)
 	}

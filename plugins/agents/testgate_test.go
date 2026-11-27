@@ -22,7 +22,7 @@ func startTestGate(t *testing.T, graph, test string, rounds int) gateSetup {
 	workspace := f.workspace(t, repo)
 	var added gateListed
 	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo, "graph": graph, "test": test, "rounds": rounds}, &added))
-	g := gateSetup{f: f, repo: repo, workspace: workspace, lander: f.newSession(t, workspace), worktree: filepath.Join(repo, ".worktrees", "feat"), gate: added.ID}
+	g := gateSetup{f: f, repo: repo, workspace: workspace, lander: f.newLander(t, workspace), worktree: filepath.Join(repo, ".worktrees", "feat"), gate: added.ID}
 	git(t, repo, "worktree", "add", "-q", "-b", "feat", g.worktree)
 	g.commit(t, "b.go", "two\n")
 	return g
@@ -97,7 +97,30 @@ func TestTestGateOpensTheCardAfterItsRoundsOfFails(t *testing.T) {
 	assert.True(t, g.f.session(t, g.workspace, g.lander).NeedsYou)
 }
 
-func TestTestGatePassOnTheSameTreeIsCachedAcrossARestart(t *testing.T) {
+func TestDisjointMoveWithTestStepRunsTestOnly(t *testing.T) {
+	t.Parallel()
+	marker := filepath.Join(t.TempDir(), "marker")
+	g := startTestGate(t, "test-gate", "echo ran >> "+marker, 0)
+	require.ErrorContains(t, g.land(t), "review pending")
+	g.waitLanderTold(t, "approved by test-gate/tests")
+	old := git(t, g.repo, "rev-parse", "main")
+	write(t, filepath.Join(g.repo, "c.go"), "three\n")
+	git(t, g.repo, "add", "c.go")
+	git(t, g.repo, "commit", "-qm", "c")
+
+	require.ErrorContains(t, g.land(t), "review pending")
+
+	testutil.Eventually(t, func() bool {
+		v := g.verdicts(t)
+		return len(v) == 2 && v[0].By == "carried" && v[0].CarriedFrom == old
+	}, wait)
+	data, err := os.ReadFile(marker)
+	require.NoError(t, err)
+	assert.Equal(t, "ran\nran\n", string(data))
+	require.NoError(t, g.land(t))
+}
+
+func TestTestGateRevertPairOnTheBaseCarriesAcrossARestart(t *testing.T) {
 	t.Parallel()
 	marker := filepath.Join(t.TempDir(), "marker")
 	g := startTestGate(t, "test-gate", "echo ran >> "+marker, 0)
@@ -109,10 +132,11 @@ func TestTestGatePassOnTheSameTreeIsCachedAcrossARestart(t *testing.T) {
 	git(t, g.repo, "revert", "--no-edit", "HEAD")
 	g.f.restartAgents(t, g.workspace)
 
-	require.ErrorContains(t, g.land(t), "review pending: the gate")
+	require.NoError(t, g.land(t))
 
-	testutil.Eventually(t, func() bool { return len(g.verdicts(t)) == 2 }, wait)
-	assert.Equal(t, []string{"approved", "approved"}, []string{g.verdicts(t)[0].Outcome, g.verdicts(t)[1].Outcome})
+	v := g.verdicts(t)
+	require.Len(t, v, 2)
+	assert.Equal(t, []string{"approved", "carried"}, []string{v[0].Outcome, v[0].By})
 	ran, err := os.ReadFile(marker)
 	require.NoError(t, err)
 	assert.Equal(t, 1, strings.Count(string(ran), "ran"))

@@ -10,4 +10,10 @@ public enum RowFit {
         let shown = min(detail, available - gap - labelMin)
         return (available - gap - shown, shown)
     }
+
+    public static func badgesFit(available: CGFloat, label: CGFloat, badges: CGFloat, detail: CGFloat?, gap: CGFloat, keptLabel: CGFloat, keptDetail: CGFloat) -> Bool {
+        guard let detail else { return true }
+        let fit = widths(available: available - badges, label: label, detail: detail, gap: gap, keptLabel: keptLabel, keptDetail: keptDetail)
+        return (fit.detail ?? 0) + 0.5 >= detail
+    }
 }

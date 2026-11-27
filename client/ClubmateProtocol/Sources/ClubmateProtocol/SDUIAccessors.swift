@@ -59,6 +59,8 @@ public struct SDUIMenuEntry: Sendable, Equatable, Identifiable {
     public let label: String
     public let confirm: String?
     public let key: String?
+    public let disabled: Bool
+    public let divider: Bool
 
     public var id: String { action }
 
@@ -68,6 +70,8 @@ public struct SDUIMenuEntry: Sendable, Equatable, Identifiable {
         self.label = label
         confirm = fields["confirm"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
         key = fields["key"]?.stringValue.flatMap { $0.count == 1 || $0 == "cmd+delete" ? $0 : nil }
+        disabled = fields["disabled"]?.boolValue ?? false
+        divider = fields["divider"]?.boolValue ?? false
     }
 }
 

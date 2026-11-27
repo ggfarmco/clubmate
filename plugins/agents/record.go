@@ -118,10 +118,12 @@ type record struct {
 	Task            *taskRecord      `json:"task,omitempty"`
 	ConnectRequests []connectRequest `json:"connectRequests,omitempty"`
 	LandReviews     []landReview     `json:"landReviews,omitempty"`
+	QueueAsks       []queueAsk       `json:"queueAsks,omitempty"`
 	AfkConnected    []string         `json:"afkConnected,omitempty"`
 	Queue           []queuedPrompt   `json:"queue,omitempty"`
 	QueueSpilled    bool             `json:"queueSpilled,omitempty"`
 	NeighboursTold  []string         `json:"neighboursTold,omitempty"`
+	QueueTold       []string         `json:"queueTold,omitempty"`
 	LandOverlap     []overlapEntry   `json:"landOverlap,omitempty"`
 }
 
@@ -164,6 +166,7 @@ type sessionInfo struct {
 	Hidden          bool               `json:"hidden,omitempty"`
 	RowUnder        string             `json:"rowUnder,omitempty"`
 	Landing         *landingView       `json:"landing,omitempty"`
+	LandQueue       *queuePlace        `json:"landQueue,omitempty"`
 	TurnHeld        bool               `json:"turnHeld,omitempty"`
 	CallHeld        bool               `json:"callHeld,omitempty"`
 	Calls           []callView         `json:"calls,omitempty"`

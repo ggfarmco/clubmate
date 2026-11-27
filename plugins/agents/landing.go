@@ -203,6 +203,9 @@ func (a *app) answerLand(ctx context.Context, workspaceID string, args landAnswe
 	if strings.HasPrefix(args.Request, gateRequestPrefix+"_") {
 		return landReviewResult{}, a.answerGate(ctx, workspaceID, args)
 	}
+	if strings.HasPrefix(args.Request, queueEntryPrefix+"_") {
+		return landReviewResult{}, a.answerQueueAsk(ctx, workspaceID, args)
+	}
 	a.landMu.Lock()
 	defer a.landMu.Unlock()
 	owner, task, i, ok := a.findLand(workspaceID, args.Request)

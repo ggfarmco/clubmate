@@ -99,6 +99,7 @@ const (
 	gateWaitsWidth     = 230
 	gateCheckWidth     = 156
 	gateByCheck        = " · by check"
+	gateByCarried      = " · carried"
 	gateCheckRunning   = "Running %s"
 	gateCheckQueued    = "Waiting: another landing's tests run"
 	gateCheckTailLines = 6
@@ -355,6 +356,8 @@ func verdictLook(v gateVerdict, point string) gateVerdictLook {
 		return gateVerdictLook{Word: gateChanges + gateByCheck, Tone: "warning", Cell: "warn", Icon: "exclamationmark.triangle"}
 	case v.By == landgate.ByCheck:
 		return gateVerdictLook{Word: gateApproved + gateByCheck, Tone: "success", Cell: "ok", Icon: "checkmark"}
+	case v.By == landgate.ByCarried:
+		return gateVerdictLook{Word: gateApproved + gateByCarried, Tone: "success", Cell: "ok", Icon: "checkmark"}
 	case v.Outcome == gateChanges:
 		return gateVerdictLook{Word: "changes", Tone: "warning", Cell: "warn", Icon: "exclamationmark.triangle"}
 	}
@@ -599,7 +602,7 @@ func weekLine(history []gateVerdict, now time.Time, point string) string {
 		if now.Sub(v.At) > gateWeek {
 			break
 		}
-		counts[strings.TrimSuffix(verdictLook(v, point).Word, gateByCheck)]++
+		counts[strings.TrimSuffix(strings.TrimSuffix(verdictLook(v, point).Word, gateByCheck), gateByCarried)]++
 		total++
 	}
 	if total == 0 {
@@ -675,7 +678,7 @@ func gateTableRows(sc gateScreen) ([]sdui.TableRow, string) {
 			landing = roundFirst(round, landingWords(v.Title, v.Source, 0, len(v.Findings)))
 		}
 		add(gateRowID(v.At, v.Reviewer), []sdui.Cell{{Text: when(v.At)}, {Text: look.Word, Tone: look.Cell}, sessionLink(sc, landing, v.Reviewer, "Open review", false), {Text: v.Into}})
-		if v.Summary != "" && v.Outcome == gateApproved && v.By == landgate.ByReviewer {
+		if v.Summary != "" && v.Outcome == gateApproved && (v.By == landgate.ByReviewer || v.By == landgate.ByCarried) {
 			id := gateRowID(v.At, gateSummaryRow)
 			ids[id] = true
 			cells := []sdui.Cell{{}, {}, {Text: gateSummaryWord + v.Summary}, {}}

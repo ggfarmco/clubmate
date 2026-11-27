@@ -1,0 +1,17 @@
+{
+  "title": "Landing queue in the Agents tree · round 1",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 26 Nov 2026. The landing queue under an integration session, for the default branch, in the 640 drawer, on iPhone and iPad. Rules: rules.md.",
+    "Pick: the group row \"Landing into ‹branch›\" under the integration session, a root row \"Landing into main\" above Closed (not docked), one row per entry with a state word, ••• menu with Move up, Move down, Skip once, Remove from line.",
+    "Open: ⌥↑ ⌥↓ clash with the task repo crumb; the Land card on the boards is a stand-in; a failed state the plugin does not send yet."
+  ],
+  "boards": [
+    {"file": "r1-Mac-1280-Queue.dc.html", "w": 1280, "title": "Queue under the integration session · 1280 Mate dark", "caption": "Head testing, ready with the files expanded, waiting with Reviewed ahead, one with Review kept, one blocked; the row menu open."},
+    {"file": "r1-Mac-1280-Main-branch.dc.html", "w": 1280, "title": "Landing into main · (a) root row picked · (b) docked · 1280", "caption": "A root row above Closed; the queue appears from 2 entries; a lone entry shows only on its own row."},
+    {"file": "r1-Mac-640-Drawer.dc.html", "w": 640, "title": "Queue in the drawer · 640 Mate light", "caption": "An asking entry with its Land card inline; the files popover from \"9 files · 3 shared\"."},
+    {"file": "r1-iPhone.dc.html", "w": 393, "title": "iPhone · dark and light", "caption": "A section Landing into ‹branch› with its entries, swipe for Skip once and Remove, long press for the menu."},
+    {"file": "r1-iPad.dc.html", "w": 1194, "title": "iPad · split view dark", "caption": "The session column follows the Mac tree; the asking entry opens with the Land card."},
+    {"file": "r1-Rules.dc.html", "w": 1480, "title": "Rules · states, group row, marks, folding, needs you", "caption": "Word, glyph, tone and example why per state."}
+  ]
+}

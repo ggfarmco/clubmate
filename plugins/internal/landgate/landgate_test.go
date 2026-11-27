@@ -43,11 +43,21 @@ func (g gitEnv) agent(common string) []string {
 }
 
 func (g gitEnv) agentGlob(common string, glob []string) []string {
+	return g.session(common, []string{"refs/heads/main"}, glob)
+}
+
+func (g gitEnv) session(common string, protect, glob []string) []string {
 	env := baseEnv()
-	for k, v := range landgate.SessionEnv(env, g.hooks, common, []string{"refs/heads/main"}, glob, g.marks) {
+	for k, v := range landgate.SessionEnv(env, g.hooks, common, protect, glob, g.marks, landgate.QueueDir(g.hooks, common)) {
 		env = append(env, k+"="+v)
 	}
 	return env
+}
+
+func (g gitEnv) hold(common, branch string) {
+	mark := filepath.Join(landgate.QueueDir(g.hooks, common), "refs", "heads", branch)
+	require.NoError(g.t, os.MkdirAll(filepath.Dir(mark), 0o755))
+	require.NoError(g.t, os.WriteFile(mark, []byte("agt_head\n"), 0o644))
 }
 
 func (g gitEnv) repo() string {
@@ -101,7 +111,57 @@ func TestUserCommitPasses(t *testing.T) {
 	g := newGitEnv(t)
 	repo := g.repo()
 	g.run(repo, baseEnv(), "commit", "-q", "--allow-empty", "-m", "user")
-	assert.Empty(t, landgate.SessionEnv(baseEnv(), g.hooks, "", nil, nil, g.marks))
+	assert.Empty(t, landgate.SessionEnv(baseEnv(), g.hooks, "", nil, nil, g.marks, ""))
+}
+
+func TestHookRefusesCommitIntoQueuedBranch(t *testing.T) {
+	g := newGitEnv(t)
+	repo := g.repo()
+	common := filepath.Join(repo, ".git")
+	g.hold(common, "main")
+	env := g.session(common, nil, nil)
+	before := g.run(repo, env, "rev-parse", "main")
+
+	out, err := g.git(repo, env, "commit", "--allow-empty", "-m", "sneak")
+
+	require.Error(t, err)
+	assert.Contains(t, out, "the branch main has a landing queue; stage your change and call git_land with mode index to take a place")
+	assert.Equal(t, before, g.run(repo, env, "rev-parse", "main"))
+	g.run(repo, env, "switch", "-qc", "work")
+	g.run(repo, env, "commit", "-q", "--allow-empty", "-m", "own branch")
+}
+
+func TestHookPassesWhenQueueEmpty(t *testing.T) {
+	g := newGitEnv(t)
+	repo := g.repo()
+	env := g.session(filepath.Join(repo, ".git"), nil, nil)
+
+	g.run(repo, env, "commit", "-q", "--allow-empty", "-m", "agent")
+}
+
+func TestUserCommitPassesQueuedBranch(t *testing.T) {
+	g := newGitEnv(t)
+	repo := g.repo()
+	g.hold(filepath.Join(repo, ".git"), "main")
+
+	g.run(repo, baseEnv(), "commit", "-q", "--allow-empty", "-m", "user")
+}
+
+func TestApprovedNeedsParentOld(t *testing.T) {
+	g := newGitEnv(t)
+	repo := g.repo()
+	env := g.agent(filepath.Join(repo, ".git"))
+	old := g.run(repo, env, "rev-parse", "main")
+	tree := g.run(repo, env, "rev-parse", "main^{tree}")
+	require.NoError(t, landgate.Write(g.marks, landgate.Verdict{Old: old, Tree: tree, Outcome: landgate.Approved, By: landgate.ByReviewer, At: time.Now()}))
+	side := g.run(repo, env, "commit-tree", "-p", old, "-m", "side", tree)
+	stranger := g.run(repo, env, "commit-tree", "-p", side, "-m", "stranger", tree)
+
+	_, err := g.git(repo, env, "update-ref", "refs/heads/main", stranger)
+
+	require.Error(t, err)
+	assert.Equal(t, old, g.run(repo, env, "rev-parse", "main"))
+	g.run(repo, env, "update-ref", "refs/heads/main", g.run(repo, env, "commit-tree", "-p", old, "-m", "reviewed", tree))
 }
 
 func TestAbortAfterRefusedRebasePasses(t *testing.T) {
@@ -342,4 +402,20 @@ func TestOwnBranchWorkPassesWithoutPatterns(t *testing.T) {
 	g.run(repo, env, "branch", "-m", "work2")
 	g.run(repo, env, "worktree", "add", "-q", "-b", "sub", filepath.Join(t.TempDir(), "sub"))
 	g.run(repo, env, "branch", "-D", "tmp")
+}
+
+func TestQueueMarkIsWrittenAndRemoved(t *testing.T) {
+	dir := landgate.QueueDir(t.TempDir(), "/repo/.git")
+	mark := filepath.Join(dir, "refs", "heads", "feat", "land")
+
+	require.NoError(t, landgate.WriteQueueMark(dir, "feat/land", true))
+	data, err := os.ReadFile(mark)
+	require.NoError(t, err)
+	assert.NotEmpty(t, data)
+
+	require.NoError(t, landgate.WriteQueueMark(dir, "feat/land", false))
+	require.NoError(t, landgate.WriteQueueMark(dir, "feat/land", false))
+	_, err = os.Stat(mark)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+	assert.Len(t, filepath.Base(dir), 16)
 }

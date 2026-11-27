@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"clubmate/pkg/pluginsdk"
@@ -93,13 +94,49 @@ type landPlan struct {
 	keep   bool
 }
 
-func landCommand(ctx context.Context, a *app, c call) (any, error) {
-	a.landMu.Lock()
-	defer a.landMu.Unlock()
+type landLocks struct {
+	mu    sync.Mutex
+	locks map[string]*sync.Mutex
+}
+
+func (l *landLocks) of(key string) *sync.Mutex {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.locks == nil {
+		l.locks = map[string]*sync.Mutex{}
+	}
+	m, ok := l.locks[key]
+	if !ok {
+		m = &sync.Mutex{}
+		l.locks[key] = m
+	}
+	return m
+}
+
+func (p *landPlan) lockKey() string {
+	return p.target.Real + "\x00" + p.into
+}
+
+func lockedPlan(ctx context.Context, a *app, c call) (*landPlan, func(), error) {
 	p, err := planLand(ctx, a, c)
+	for err == nil {
+		key := p.lockKey()
+		lock := a.lands.of(key)
+		lock.Lock()
+		if p, err = planLand(ctx, a, c); err == nil && p.lockKey() == key {
+			return p, lock.Unlock, nil
+		}
+		lock.Unlock()
+	}
+	return nil, nil, err
+}
+
+func landCommand(ctx context.Context, a *app, c call) (any, error) {
+	p, unlock, err := lockedPlan(ctx, a, c)
 	if err != nil {
 		return nil, err
 	}
+	defer unlock()
 	if p.tree == "" {
 		return p.cleanup(ctx, a, c.h, c.workspaceID, landResult{Into: p.into, Source: p.source, Note: fmt.Sprintf(nothingToLand, p.source, p.into)}), nil
 	}

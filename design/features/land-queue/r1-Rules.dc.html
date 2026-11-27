@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · 6 · Landing queue rules</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/e47caed58a9c79220ef8db928dba9269">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.doc .w{font-family:'JetBrains Mono',monospace;font-size:13px;white-space:nowrap}
+.doc svg.g{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
+.doc .ac{color:#357A27}.doc .wa{color:#8A5810}.doc .er{color:#B23A33}.doc .ok{color:#1A6E61}.doc .no{color:#5B5F5C}
+.doc .grid2{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+.doc section{display:flex;flex-direction:column;gap:14px}
+.doc ol{margin:0;padding-left:20px}
+.doc ol li{margin:0 0 4px}
+.doc .sample{border-radius:10px;overflow:hidden;border:1px solid #DAD8CF}
+</style>
+</helmet>
+<div class="doc" style="width: 1280px; height: 1640px; padding: 56px 64px; display: flex; flex-direction: column; gap: 36px">
+
+<header style="display: flex; flex-direction: column; gap: 10px">
+<span class="eyebrow">Clubmate · landing queue · r1 rules</span>
+<h1>Landing queue in the Agents tree</h1>
+<p class="lead">One queue per repo and target branch. The plugin decides every field; the UI maps state + needsYou to a word, a glyph and a tone, and never works one out.</p>
+</header>
+
+<section>
+<h2>Entry states</h2>
+<table>
+<thead><tr><th>Plugin says</th><th>Word</th><th>Glyph</th><th>Tone</th><th>Needs you</th><th>Example why</th></tr></thead>
+<tbody>
+<tr><td>head · reviewing</td><td class="w ac">reviewing</td><td class="ac"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg> play.circle</td><td>accent</td><td>no</td><td>review runs on the branch as it is now</td></tr>
+<tr><td>head · testing</td><td class="w ac">testing</td><td class="ac"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg> play.circle</td><td>accent</td><td>no</td><td>go test before it commits</td></tr>
+<tr><td>head · committing</td><td class="w ac">landing</td><td class="ac"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg> play.circle</td><td>accent</td><td>no</td><td>every action is off until it's in</td></tr>
+<tr><td>head · its review or tests failed</td><td class="w er">failed</td><td class="er"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m6 6 4 4M10 6l-4 4"/></svg> xmark.circle</td><td>danger</td><td>as the plugin says</td><td>tests failed in notify_test.go</td></tr>
+<tr><td>asks</td><td class="w wa">asking</td><td class="wa"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg> exclamationmark.circle</td><td>warning</td><td>yes</td><td>waits for your yes</td></tr>
+<tr><td>blocked · your own edits, or a conflict nobody can fix</td><td class="w wa">blocked</td><td class="wa"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M5.5 8h5"/></svg> minus.circle</td><td>warning</td><td>yes</td><td>waits for your edits in store.go</td></tr>
+<tr><td>blocked · a session's edits</td><td class="w no">blocked</td><td class="no"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M5.5 8h5"/></svg> minus.circle</td><td>none</td><td>no</td><td>waits for edits in a.go</td></tr>
+<tr><td>ready</td><td class="w no">ready</td><td class="no"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="1.8" style="fill: currentColor; stroke: none"/></svg> circle.inset.filled</td><td>none</td><td>no</td><td>waits for the head to land</td></tr>
+<tr><td>waiting</td><td class="w no">waits</td><td class="no"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg> circle</td><td>none</td><td>no</td><td>conflicts in b.go, rebase before your turn</td></tr>
+<tr><td>landed (out of line, on its session row)</td><td class="w ok">merged</td><td class="ok"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.3-3.6"/></svg> checkmark.circle</td><td>success</td><td>no</td><td>—</td></tr>
+</tbody>
+</table>
+<p class="muted">Waiting shows <code>waits</code>, not its place: a bare number on the right of a tree row is a count everywhere else (Closed 144). The place lives in the row menu header, the popover and the session header (“2nd of 5”). Words stay at 9 characters or fewer and never truncate.</p>
+</section>
+
+<div class="grid2">
+<section>
+<h2>Group row and where it sits</h2>
+<table>
+<tbody>
+<tr><td class="n" style="width: 130px">
+Text</td><td><code>Landing into ‹branch›</code> · glyph <svg class="g no" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v6.5M5.3 5.5 8 8.2l2.7-2.7"/><path d="M2.5 10.5h11M2.5 13.5h11"/></svg> arrow onto the branch</td></tr>
+<tr><td class="n" style="width: 130px">
+Detail</td><td><span class="w no">5 in line</span> none · <span class="w wa">1 needs you</span> / <span class="w wa">2 need you</span> warning when any entry needs you. Counts every entry, head included.</td></tr>
+<tr><td class="n" style="width: 130px">
+Integration</td><td>First child of the integration session, then one row per entry in queue order.</td></tr>
+<tr><td class="n" style="width: 130px">
+Default branch</td><td>Root row <code>Landing into main</code> above Closed. Picked over the dock: it sits where its sessions are, doesn't shift Service, Land gates and Graphs as it comes and goes, and its needs-you rows aren't hidden behind a folded dock.</td></tr>
+<tr><td class="n" style="width: 130px">
+One entry</td><td>No group, any branch, main too. The session row shows the head's word; tooltip <code>Landing into ‹branch› · alone in line</code>.</td></tr>
+<tr><td class="n" style="width: 130px">
+Once</td><td>A session in line shows once, as its entry row. It goes back to its usual place when it lands or is removed.</td></tr>
+<tr><td class="n" style="width: 130px">
+Held</td><td>In the head's transcript: <code>Agent commits into ‹branch› are held while the line moves</code>.</td></tr>
+</tbody>
+</table>
+</section>
+
+<section>
+<h2>Marks</h2>
+<table>
+<thead><tr><th>Mark</th><th>Tooltip</th><th>When</th></tr></thead>
+<tbody>
+<tr><td class="no" style="white-space: nowrap"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z" style="stroke-dasharray: 2 1.7"/><circle cx="8" cy="8" r="1.7"/></svg> Reviewed ahead</td><td><code>Reviewed ahead, on ‹branch› as it will be after “‹head›” lands</code></td><td>Entry 2 only, with the setting <b>Review ahead in line</b> on (off by default)</td></tr>
+<tr><td class="no" style="white-space: nowrap"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 8.6 2.4 2.4 4.3-4.6"/><path d="M9.8 11h4.4M12.2 9l2 2-2 2"/></svg> Review kept</td><td><code>Review kept: ‹branch› moved in other files only</code></td><td>Its approved review survived a base move</td></tr>
+</tbody>
+</table>
+<p class="muted">12 px, the faint text level, after the title. Never a tone, never in the word's slot. On iPhone and iPad they lead the why line; the long-press menu title repeats the tooltip.</p>
+</section>
+</div>
+
+<div class="grid2">
+<section>
+<h2>Entry row and what folds</h2>
+<div class="sample cm th-matelight" style="padding: 8px 4px">
+<div class="row hov" style="padding-left: 8px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><svg class="i faint" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg><span class="l">Fix flaky switcher test</span><span style="display: inline-flex; color: var(--t4); flex: none"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z" style="stroke-dasharray: 2 1.7"/><circle cx="8" cy="8" r="1.7"/></svg></span><span style="width: 18px; height: 18px; border-radius: 4px; background: var(--prs); display: inline-flex; align-items: center; justify-content: center; flex: none"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r="1" style="fill: currentColor"/><circle cx="8" cy="8" r="1" style="fill: currentColor"/><circle cx="12.5" cy="8" r="1" style="fill: currentColor"/></svg></span><span class="d cap">waits</span></div>
+</div>
+<p class="mono muted">indent · chevron · glyph · title · marks · ••• · word</p>
+<ol>
+<li>Marks hide first; they stay in the tooltip, the expanded row and the files popover.</li>
+<li>••• shows only on focus; right-click and ⌥↑ ⌥↓ stay.</li>
+<li>The title truncates.</li>
+<li>The group title truncates at the end of the branch.</li>
+</ol>
+<p>Never folds: glyph, word, tone, the group's detail. At 640 the files open in a popover beside the drawer from the <code>9 files · 3 shared</code> line; an asking entry shows the Land card inline under its row.</p>
+<p><b>Expanded (→):</b> the why line; <code>Shares ‹n› files with ‹title›</code> groups first, then <code>Also changes</code>; up to 10 files, then <code>+‹n› more</code>. Shared files carry the overlap glyph.</p>
+</section>
+
+<section>
+<h2>Needs you</h2>
+<p>Only the plugin's needsYou: today asking, and blocked by your own edits or a conflict nobody can fix. Then, on every device:</p>
+<ul>
+<li>warning glyph and word on the entry row</li>
+<li>the group detail turns to <span class="w wa">1 needs you</span></li>
+<li>it counts in the Needs you chip, the rail dot, the status bar and the bell</li>
+<li>iPhone and iPad list it under Needs you too, subtitle <code>Land into ‹branch›?</code> or the why</li>
+<li>opening it lands on the session's Land card</li>
+</ul>
+<h2 style="margin-top: 12px">Actions (you only)</h2>
+<table>
+<thead><tr><th>Menu item</th><th>Mac · iPad</th><th>iPhone</th><th>Off when</th></tr></thead>
+<tbody>
+<tr><td><code>Move up</code></td><td>⌥↑ · drag</td><td>menu</td><td>head; would pass a head that's landing</td></tr>
+<tr><td><code>Move down</code></td><td>⌥↓ · drag</td><td>menu</td><td>last; head that's landing</td></tr>
+<tr><td><code>Skip once</code></td><td>menu</td><td>swipe · menu</td><td>last; head that's landing</td></tr>
+<tr><td><code>Show changed files</code></td><td>→</td><td>menu → sheet</td><td>—</td></tr>
+<tr><td><code>Remove from line</code></td><td>menu · ⌘Z undoes</td><td>swipe <code>Remove</code> · menu</td><td>head that's landing</td></tr>
+<tr><td>Land card</td><td>⏎ opens it · ⌥1 Land · ⌥2 Not yet</td><td>tap</td><td>only on asking</td></tr>
+</tbody>
+</table>
+<p class="muted">Menu header: <code>‹place› of ‹n› in line · ‹word›</code>. Remove keeps the session and its branch. ⌥↑ ⌥↓ are the only new keys, live only on a focused entry row.</p>
+</section>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1640}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

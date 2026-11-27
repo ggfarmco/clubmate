@@ -106,11 +106,13 @@ public enum AgentsTree {
         return out
     }
 
-    public static func sections(_ sessions: [AgentSession], filter: ListFilter = .all, older: [AgentSession] = [], olderCount: Int = 0) -> [ListSection] {
-        let roots = AgentSession.trees(sessions).filter { filter == .all || $0.matches(filter) }
+    public static func sections(_ sessions: [AgentSession], filter: ListFilter = .all, older: [AgentSession] = [], olderCount: Int = 0, inLine: Set<String> = []) -> [ListSection] {
+        let all = AgentSession.trees(sessions).filter { filter == .all || $0.matches(filter) }
+        let hidden = filter == .all ? inLine : []
+        let roots = hidden.isEmpty ? all : AgentSession.trees(sessions.filter { !hidden.contains($0.id) }).filter { filter == .all || $0.matches(filter) }
         var out: [ListSection] = []
         if filter == .all {
-            let inbox = roots.flatMap(\.inboxed).sorted(by: SessionNode.inboxFirst)
+            let inbox = all.flatMap(\.inboxed).sorted(by: SessionNode.inboxFirst)
             let needs = inbox.filter { $0.session.inboxKey?.hasPrefix(Self.needsSection) == true }
             let open = inbox.filter { $0.session.inboxKey?.hasPrefix(Self.needsSection) != true }
             if !needs.isEmpty { out.append(ListSection(kind: .needsYou, title: "Needs you", nodes: needs)) }

@@ -18,7 +18,7 @@ refuse() {
 }
 
 gated() {
-	[ -n "$CLUBMATE_LAND_PROTECT" ] && [ -n "$CLUBMATE_LAND_COMMON" ] || return 1
+	[ -n "$CLUBMATE_LAND_COMMON" ] || return 1
 	common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
 	common=$(cd "$common" 2>/dev/null && pwd -P) || return 1
 	[ "$common" = "$CLUBMATE_LAND_COMMON" ]
@@ -27,6 +27,10 @@ gated() {
 approved() {
 	tree=$(git rev-parse -q --verify "$2^{tree}" 2>/dev/null)
 	[ -n "$tree" ] && grep -q '"outcome": *"approved"' "$CLUBMATE_LAND_VERDICTS/$1-$tree.json" 2>/dev/null
+}
+
+approved_commit() {
+	approved "$1" "$2" && [ "$(git rev-parse -q --verify "$2^" 2>/dev/null)" = "$1" ]
 }
 
 upstream() {
@@ -87,8 +91,27 @@ NF >= 3 {
 }'
 }
 
+held() {
+	status=0
+	while read -r old new ref; do
+		case $ref in refs/heads/*) ;; *) continue ;; esac
+		[ -s "$CLUBMATE_LAND_QUEUE/$ref" ] || continue
+		case $old in *[!0]*) ;; *) old=$(git rev-parse -q --verify "$ref" 2>/dev/null || printf '%s' "$old") ;; esac
+		[ "$new" = "$old" ] && continue
+		case $old in *[!0]*) case $new in *[!0]*) synced "$old" "$new" "$ref" && continue ;; esac ;; esac
+		echo "Clubmate: the branch ${ref#refs/heads/} has a landing queue; stage your change and call git_land with mode index to take a place" >&2
+		echo "This command may already have changed the index or files: \`git reset --merge\` puts them back." >&2
+		status=1
+	done <<EOF
+$input
+EOF
+	return $status
+}
+
 gate() {
 	[ "$1" = prepared ] && gated || return 0
+	[ -z "$CLUBMATE_LAND_QUEUE" ] || held || return 1
+	[ -n "$CLUBMATE_LAND_PROTECT" ] || return 0
 	refs=$(protected) || { refuse "$CLUBMATE_LAND_PROTECT"; return 1; }
 	status=0
 	while read -r old new ref; do
@@ -98,7 +121,7 @@ gate() {
 		case $old in *[!0]*) ;; *) old=$(git rev-parse -q --verify "$ref" 2>/dev/null || printf '%s' "$old") ;; esac
 		[ "$new" = "$old" ] && continue
 		case $old in *[!0]*) synced "$old" "$new" "$ref" && continue ;; esac
-		approved "$old" "$new" && continue
+		approved_commit "$old" "$new" && continue
 		refuse "$ref"
 		status=1
 	done <<EOF
@@ -108,7 +131,7 @@ EOF
 }
 
 push_gate() {
-	gated || return 0
+	gated && [ -n "$CLUBMATE_LAND_PROTECT" ] || return 0
 	refs=$(protected) || { refuse "$CLUBMATE_LAND_PROTECT on $1"; return 1; }
 	status=0
 	while read -r lref lsha rref rsha; do

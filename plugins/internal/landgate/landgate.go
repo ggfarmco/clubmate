@@ -18,6 +18,7 @@ const (
 	ProtectEnv     = "CLUBMATE_LAND_PROTECT"
 	ProtectGlobEnv = "CLUBMATE_LAND_PROTECT_GLOB"
 	VerdictsEnv    = "CLUBMATE_LAND_VERDICTS"
+	QueueEnv       = "CLUBMATE_LAND_QUEUE"
 	priorCountEnv  = "CLUBMATE_GIT_CONFIG_COUNT"
 	configCountEnv = "GIT_CONFIG_COUNT"
 	hooksPathKey   = "core.hooksPath"
@@ -29,6 +30,7 @@ const (
 	ByCheck    = "check"
 	ByDocs     = "docs"
 	ByUser     = "user"
+	ByCarried  = "carried"
 	ByNoGate   = "nogate"
 )
 
@@ -47,6 +49,7 @@ var (
 
 type Verdict struct {
 	Old      string    `json:"old"`
+	OldTree  string    `json:"oldTree,omitempty"`
 	Tree     string    `json:"tree"`
 	Outcome  string    `json:"outcome"`
 	By       string    `json:"by"`
@@ -81,10 +84,10 @@ func Install(dir string) error {
 	return nil
 }
 
-var Inherited = []string{priorCountEnv, CommonEnv, ProtectEnv, ProtectGlobEnv, VerdictsEnv}
+var Inherited = []string{priorCountEnv, CommonEnv, ProtectEnv, ProtectGlobEnv, VerdictsEnv, QueueEnv}
 
-func SessionEnv(env []string, hooksDir, common string, protect, glob []string, verdicts string) map[string]string {
-	if common == "" || len(protect) == 0 {
+func SessionEnv(env []string, hooksDir, common string, protect, glob []string, verdicts, queue string) map[string]string {
+	if common == "" {
 		return map[string]string{}
 	}
 	count := 0
@@ -93,16 +96,20 @@ func SessionEnv(env []string, hooksDir, common string, protect, glob []string, v
 			count, _ = strconv.Atoi(value)
 		}
 	}
-	return map[string]string{
+	out := map[string]string{
 		priorCountEnv:                             strconv.Itoa(count),
 		fmt.Sprintf("GIT_CONFIG_KEY_%d", count):   hooksPathKey,
 		fmt.Sprintf("GIT_CONFIG_VALUE_%d", count): hooksDir,
 		configCountEnv:                            strconv.Itoa(count + 1),
 		CommonEnv:                                 common,
-		ProtectEnv:                                strings.Join(protect, " "),
-		ProtectGlobEnv:                            strings.Join(glob, " "),
 		VerdictsEnv:                               verdicts,
+		QueueEnv:                                  queue,
 	}
+	if len(protect) > 0 {
+		out[ProtectEnv] = strings.Join(protect, " ")
+		out[ProtectGlobEnv] = strings.Join(glob, " ")
+	}
+	return out
 }
 
 func Write(dir string, v Verdict) error {

@@ -20,7 +20,7 @@ const (
 	cleanupLimit        = 2 * time.Minute
 	cleanupFailed       = "Couldn't remove the merged worktree"
 
-	finishAskText          = "[Clubmate finish mode: ask] When the task is done, don't merge into main or remove worktrees and branches on your own; ask the user first unless they already asked for it."
+	finishAskText          = "[Clubmate finish mode: ask] When the task is done, call git_land with path your worktree (on the target branch itself, stage your change and call it with mode index); Clubmate asks the user before it commits. In a repo whose own instructions land through a pull request, follow them instead. Don't merge, squash or remove worktrees and branches with plain git."
 	mergeHead              = "run the project's tests. If they all pass, land the task as one commit without asking: call the git_land tool (mcp__clubmate__git_land; load it with ToolSearch if it is deferred) with path your worktree and one conventional commit message; it squashes your branch into "
 	mergeTail              = ", then removes that worktree and force-deletes the branch. On main itself, stage your change and call git_land with mode index instead of committing. If git_land says a review is pending, end your turn: Clubmate prompts you with the verdict; fix the confirmed findings, commit, and call it again. Never merge, squash or remove worktrees and branches with plain git. If tests fail or cannot run, don't land; report why."
 	mergeIntro             = "[Clubmate finish mode: merge] When the task is done, "

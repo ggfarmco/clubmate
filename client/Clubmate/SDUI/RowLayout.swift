@@ -8,6 +8,7 @@ struct RowLayout: Layout {
     let spacing: CGFloat
     let keptLabel: CGFloat
     let keptDetail: CGFloat
+    var foldable: [Bool] = []
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
@@ -20,7 +21,10 @@ struct RowLayout: Layout {
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         guard let first = subviews.first else { return }
-        let parts = parts(subviews.map { $0.sizeThatFits(.unspecified).width })
+        let all = parts(subviews.map { $0.sizeThatFits(.unspecified).width })
+        let folds = !RowFit.badgesFit(available: bounds.width, label: all.label, badges: trailing(all), detail: all.detail, gap: gap(all), keptLabel: keptLabel, keptDetail: keptDetail)
+        let fold = all.badges.indices.map { folds && foldable.indices.contains($0) && foldable[$0] }
+        let parts = Parts(label: all.label, badges: all.badges.indices.filter { !fold[$0] }.map { all.badges[$0] }, detail: all.detail)
         let available = bounds.width - trailing(parts)
         let fit = RowFit.widths(available: available, label: parts.label, detail: parts.detail, gap: gap(parts), keptLabel: keptLabel, keptDetail: keptDetail)
         first.place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: ProposedViewSize(width: fit.label, height: bounds.height))
@@ -29,7 +33,11 @@ struct RowLayout: Layout {
             detail.place(at: CGPoint(x: x, y: bounds.midY), anchor: .trailing, proposal: ProposedViewSize(width: fit.detail ?? 0, height: bounds.height))
             if let shown = fit.detail { x -= shown + spacing }
         }
-        for badge in subviews.dropFirst().prefix(parts.badges.count).reversed() {
+        for (index, badge) in subviews.dropFirst().prefix(all.badges.count).enumerated().reversed() {
+            if fold[index] {
+                badge.place(at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing, proposal: .zero)
+                continue
+            }
             let size = badge.sizeThatFits(.unspecified)
             badge.place(at: CGPoint(x: x, y: bounds.midY), anchor: .trailing, proposal: ProposedViewSize(size))
             x -= size.width + spacing

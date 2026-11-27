@@ -374,6 +374,16 @@ func (f *fixture) newSession(t *testing.T, workspace string) string {
 	return out.Session
 }
 
+func (f *fixture) newLander(t *testing.T, workspace string) string {
+	t.Helper()
+	var out struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"finish": "merge"}, &out))
+	require.NotEmpty(t, out.Session)
+	return out.Session
+}
+
 func (f *fixture) prompt(t *testing.T, workspace, session, text string) {
 	t.Helper()
 	require.NoError(t, f.run(t, workspace, "agents.prompt", map[string]any{"session": session, "text": text}, nil))
@@ -1016,14 +1026,14 @@ func (f *fixture) waitSaved(t *testing.T, workspace string) {
 func (f *fixture) restartPlugin(t *testing.T, workspace string) {
 	t.Helper()
 	f.waitSaved(t, workspace)
-	pids := f.h.Sup.PIDs()
-	require.Len(t, pids, 1)
+	pid := f.agentsPID(t)
+	require.NotZero(t, pid)
 	first := f.calls(t, "start")
 	require.NotEmpty(t, first)
-	require.NoError(t, syscall.Kill(pids[0], syscall.SIGKILL))
+	require.NoError(t, syscall.Kill(pid, syscall.SIGKILL))
 	testutil.Eventually(t, func() bool {
-		now := f.h.Sup.PIDs()
-		return len(now) == 1 && now[0] != pids[0] && f.run(t, workspace, "agents.sessions", map[string]any{}, nil) == nil
+		now := f.agentsPID(t)
+		return now != 0 && now != pid && f.run(t, workspace, "agents.sessions", map[string]any{}, nil) == nil
 	}, restartWait)
 	testutil.Eventually(t, func() bool {
 		return !slices.ContainsFunc(first, func(c fakeCall) bool { return !errors.Is(syscall.Kill(c.PID, 0), syscall.ESRCH) })
@@ -1092,7 +1102,8 @@ func TestResume(t *testing.T) {
 			} `json:"_meta"`
 		}
 		require.NoError(t, json.Unmarshal(call.Params, &meta))
-		assert.Equal(t, map[string]string{"CLUBMATE_AGENT_SESSION": session}, meta.Meta.ClaudeCode.Options.Env, call.Method)
+		assert.Equal(t, session, meta.Meta.ClaudeCode.Options.Env["CLUBMATE_AGENT_SESSION"], call.Method)
+		assert.NotContains(t, meta.Meta.ClaudeCode.Options.Env, "CLUBMATE_LAND_PROTECT", call.Method)
 	}
 }
 

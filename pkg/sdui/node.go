@@ -29,10 +29,12 @@ type ListFilter struct {
 }
 
 type MenuEntry struct {
-	Action  string `json:"action"`
-	Label   string `json:"label"`
-	Confirm string `json:"confirm,omitempty"`
-	Key     string `json:"key,omitempty"`
+	Action   string `json:"action"`
+	Label    string `json:"label"`
+	Confirm  string `json:"confirm,omitempty"`
+	Key      string `json:"key,omitempty"`
+	Disabled bool   `json:"disabled,omitempty"`
+	Divider  bool   `json:"divider,omitempty"`
 }
 
 type Changes struct {

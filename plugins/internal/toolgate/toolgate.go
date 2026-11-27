@@ -29,6 +29,7 @@ const (
 	MarksDir    = "marks"
 	FindingsDir = "findings"
 	ToldDir     = "told"
+	QueueSuffix = ".queue"
 	MessagesDir = "messages"
 	BatchArg    = "batch"
 	git         = "git"

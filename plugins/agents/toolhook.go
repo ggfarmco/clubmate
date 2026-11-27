@@ -80,6 +80,8 @@ type hookState struct {
 	followOwed bool
 	held       map[string][]string
 	ran        func(endedCall)
+	queueEdit  func(editedCall)
+	warnMu     sync.Mutex
 	toolGated  func() bool
 	blankInput sync.Once
 }
@@ -159,8 +161,11 @@ func (a *app) writeToolHooksLocked(gates []gateConfig, known bool) error {
 	if !known {
 		return errors.Join(errs...)
 	}
-	for _, primary := range toolGatedRepos(gates) {
+	for _, primary := range append(toolGatedRepos(gates), a.queuedRepos()...) {
 		dir := toolHookPath(root, primary)
+		if wrote[dir] {
+			continue
+		}
 		wrote[dir] = true
 		errs = append(errs, writeToolHook(dir, bin, toolRulesOf(gates, primary)))
 	}
@@ -301,13 +306,19 @@ func (a *app) toolHookDir(ctx context.Context, rec record) string {
 		return ""
 	}
 	gates, known := a.knownGates(ctx)
-	if known && len(toolGatedRepos(gates)) == 0 {
+	if known && len(toolGatedRepos(gates)) == 0 && !a.queuedAny() {
 		return ""
 	}
 	primary, err := a.hookPrimary(ctx, rec.Worktree)
+	if known && len(toolGatedRepos(gates)) == 0 && (err != nil || !a.queuedRepo(primary)) {
+		return ""
+	}
 	dir := a.askAllDir()
 	if known && err == nil {
 		dir = toolHookDirOf(a.toolHooksRoot(), gates, rec, primary)
+		if dir == "" && a.queuedRepo(primary) {
+			dir = toolHookPath(a.toolHooksRoot(), primary)
+		}
 	}
 	if dir != "" && !hookDirReady(dir) {
 		logError("write the tool hooks", a.syncToolHooks(ctx))
@@ -368,7 +379,7 @@ func (a *app) needsHook(ctx context.Context, s *session) bool {
 	if !live || rec.closed() || !hookable(rec) {
 		return false
 	}
-	if last := a.lastGates.Load(); last != nil && len(toolGatedRepos(*last)) == 0 && have != a.askAllDir() {
+	if last := a.lastGates.Load(); last != nil && len(toolGatedRepos(*last)) == 0 && have != a.askAllDir() && !a.queuedAny() {
 		return false
 	}
 	want := a.toolHookDir(ctx, rec)
@@ -629,7 +640,7 @@ func (a *app) sweepToolHooks(now time.Time) {
 		return
 	}
 	keep := map[string]bool{a.askAllDir(): true}
-	for _, primary := range toolGatedRepos(gates) {
+	for _, primary := range append(toolGatedRepos(gates), a.queuedRepos()...) {
 		keep[toolHookPath(a.toolHooksRoot(), primary)] = true
 	}
 	for _, s := range a.allSessions() {

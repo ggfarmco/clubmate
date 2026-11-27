@@ -170,7 +170,7 @@ func TestNeighboursNoteOnLandWithoutGate(t *testing.T) {
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
 	other := f.topLevel(t, workspace, "other", "touch-a")
-	lander := f.newSession(t, workspace)
+	lander := f.newLander(t, workspace)
 	feat := filepath.Join(repo, ".worktrees", "feat")
 	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
 	write(t, filepath.Join(feat, "a.go"), "feat\n")

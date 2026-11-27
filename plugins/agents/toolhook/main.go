@@ -135,11 +135,13 @@ func tell(args []string, stdin io.Reader, stdout io.Writer) {
 	var texts, ids []string
 	first := ""
 	for _, c := range b.Calls {
-		if text, ok := read(args[0], c.ID); ok {
-			ids = append(ids, c.ID)
-			if !slices.Contains(texts, text) {
-				texts = append(texts, text)
-				first = cmp.Or(first, c.ID)
+		for _, id := range []string{c.ID, c.ID + toolgate.QueueSuffix} {
+			if text, ok := read(args[0], id); ok {
+				ids = append(ids, id)
+				if !slices.Contains(texts, text) {
+					texts = append(texts, text)
+					first = cmp.Or(first, id)
+				}
 			}
 		}
 	}

@@ -692,6 +692,10 @@ actor FixtureServer {
     private func command(_ id: String, workspace: String, args: JSONValue) -> JSONValue {
         let session = args["session"]?.stringValue ?? ""
         switch id {
+        case "agents.sessions" where workspace == self.workspace && args["session"] == nil && LandQueueFixture.page != nil:
+            return LandQueueFixture.page ?? .null
+        case "agents.transcript" where LandQueueFixture.transcript(session) != nil:
+            return LandQueueFixture.transcript(session) ?? .null
         case "agents.sessions" where LandReviewFixture.on && workspace == self.workspace && args["session"] == nil:
             return .object(["sessions": .array(Self.treeKeyed(sessions.map(Self.listKeyed)).map(JSONValue.object)), "removed": .array([]), "cursor": .string("fx.land"), "dock": .array(LandReviewFixture.dock)])
         case "agents.sessions" where OlderFixture.on && workspace == self.workspace && args["since"] == .string("fx.older"):

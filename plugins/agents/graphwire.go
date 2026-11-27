@@ -88,11 +88,12 @@ func graphsSlot(slot string) bool {
 }
 
 type graphState struct {
-	runs  []api.RunRow
-	dock  []api.DockRow
-	defs  []graphs.Definition
-	gates []gateRow
-	now   time.Time
+	runs   []api.RunRow
+	dock   []api.DockRow
+	defs   []graphs.Definition
+	gates  []gateRow
+	queues []queueRow
+	now    time.Time
 }
 
 func (a *app) graphState(ctx context.Context, workspace string, infos []sessionInfo, runs []graphs.RunSnapshot) graphState {
@@ -116,11 +117,15 @@ func (a *app) graphState(ctx context.Context, workspace string, infos []sessionI
 	}
 	sortGateRows(rows)
 	defs := a.graphs.Definitions(ctx, workspace)
-	return graphState{runs: runRows(runs, byID), dock: dockRows(service, gateCounts(rows, asking), defs), defs: defs, gates: rows, now: time.Now()}
+	recs := make([]record, 0, len(infos))
+	for _, info := range infos {
+		recs = append(recs, info.record)
+	}
+	return graphState{runs: runRows(runs, byID), dock: dockRows(service, gateCounts(rows, asking), defs), defs: defs, gates: rows, queues: a.queueTrees(workspace, recs), now: time.Now()}
 }
 
 func (st graphState) plus(open string) sidebarPlus {
-	plus := sidebarPlus{runs: st.runs, dock: st.dock, open: open, gates: gateDock(st.gates, st.now)}
+	plus := sidebarPlus{runs: st.runs, dock: st.dock, open: open, gates: gateDock(st.gates, st.now), queues: st.queues}
 	plus.graphs = append(plus.graphs, sdui.TreeItem{ID: dockGraphHelp, Label: "How graphs work", Icon: "info.circle", Open: openGraph})
 	for _, d := range st.defs {
 		item := sdui.TreeItem{ID: graphPrefix + d.Name, Label: cmp.Or(d.Title, d.Name), Icon: "doc", Detail: strconv.Itoa(d.Nodes) + " nodes", Open: openGraph}

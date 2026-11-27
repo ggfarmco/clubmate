@@ -82,7 +82,7 @@ func TestAutoHandoffAfterLandingIntoTheDefaultBranch(t *testing.T) {
 	f := startEnv(t, nil, map[string]any{"prompt": []map[string]any{say("[Clubmate handoff notes]", "nothing open")}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
-	lander := f.newSession(t, workspace)
+	lander := f.newLander(t, workspace)
 	require.NoError(t, f.run(t, workspace, "agents.config", map[string]any{"session": lander, "id": "handoff", "value": "landed"}, nil))
 	feat := filepath.Join(repo, ".worktrees", "feat")
 	side := filepath.Join(repo, ".worktrees", "side")

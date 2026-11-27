@@ -92,6 +92,7 @@ type app struct {
 	landMu         sync.Mutex
 	gateMu         sync.Mutex
 	gatePrep       map[string]bool
+	queues         landQueues
 	gateTreeRun    func(ctx context.Context, workspaceID string, args map[string]any, out any) error
 	gateStart      func(ctx context.Context, gr graphs.GateRun) (string, string, error)
 	gateRuns       sync.Map
@@ -300,6 +301,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	a.reapNight(ctx)
 	a.requeueLandPrompts()
+	if err := a.restoreQueues(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: restore landing queues:", err)
+	}
 	close(a.loaded)
 	if err := a.loadSetupFixes(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: load setup fixes:", err)
@@ -314,6 +318,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	go a.closeDoneLoop(envDelay(closeAfterEnv, closeAfter))
 	go a.deleteOldLoop(envDelay(deleteAfterEnv, deleteAfter))
 	go a.prCheckLoop(envDelay(prCheckEnv, prCheckEvery))
+	go a.landQueueLoop(envDelay(queueLoopEnv, queueLoopEvery))
 	go a.ageOpenLoop(envDelay(openAfterEnv, openAfter))
 	go a.roundResetLoop(a.roundAfter)
 	a.settleAllGatedDocs()
@@ -345,6 +350,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, sub string, ev pl
 			a.branches.reset(p.Workspace)
 			a.baseCache.reset(p.Workspace)
 			a.kick(p.Workspace)
+			go a.checkQueues(p.Workspace)
 		}
 	case editorFileTopic:
 		var f editorFile
@@ -469,6 +475,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		}()
 	}
 	s.ran = func(c endedCall) { a.judgeCall(s, c) }
+	s.queueEdit = func(c editedCall) { a.warnEdit(s, c) }
 	var tree treeKeyCache
 	s.moved = func() { a.overlapCache.move(tree.of(s.snapshot().Worktree)) }
 	s.toolGated = func() bool {
@@ -552,7 +559,7 @@ func (a *app) infosOf(workspaceID string, recs []record) []sessionInfo {
 	tree := a.spendTree()
 	out := make([]sessionInfo, 0, len(recs))
 	for _, rec := range recs {
-		rec.DocIndex, rec.NeighboursTold, rec.LandOverlap = nil, nil, nil
+		rec.DocIndex, rec.NeighboursTold, rec.QueueTold, rec.LandOverlap = nil, nil, nil, nil
 		info := baseInfo(rec, nest)
 		info.NotifyEffective, info.ChildStatus = a.effectiveNotify(rec), children[rec.ID]
 		if s := a.session(rec.ID); s != nil {
@@ -575,6 +582,7 @@ func (a *app) infosOf(workspaceID string, recs []record) []sessionInfo {
 		}
 		info.Gate = a.gateState(info.record)
 		info.Landing = a.landing(info.record)
+		info.LandQueue = a.queuePlaceOf(rec.ID)
 		info.Ungated = a.ungated(info.record)
 		info.TurnHeld = a.turnHeld(info.record)
 		info.CallHeld = info.record.callHeld()

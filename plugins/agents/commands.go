@@ -128,6 +128,11 @@ var (
 		"agents.land-done":      withArgs((*app).landDone),
 		"agents.land-verdict":   withArgs((*app).landVerdictCommand),
 		"agents.outcomes":       withArgs((*app).outcomesCommand),
+
+		"agents.land-queue":        withArgs((*app).landQueueCommand),
+		"agents.land-queue-move":   withArgs((*app).landQueueMoveCommand),
+		"agents.land-queue-skip":   withArgs((*app).landQueueSkipCommand),
+		"agents.land-queue-remove": withArgs((*app).landQueueRemoveCommand),
 	}
 
 	errUnknownCmd    = errors.New("unknown command")

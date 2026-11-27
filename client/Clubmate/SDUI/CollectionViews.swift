@@ -587,7 +587,7 @@ struct TreeNodeView: View {
     }
 
     private func menuKey(_ key: String) -> Bool {
-        guard let id = cursor ?? selected, let row = rows.first(where: { $0.id == id }), let entry = row.item.item.menu.first(where: { $0.key == key }) else { return false }
+        guard let id = cursor ?? selected, let row = rows.first(where: { $0.id == id }), let entry = row.item.item.menu.first(where: { $0.key == key && !$0.disabled }) else { return false }
         dispatch.choose(entry, item: row.item.target, in: node)
         return true
     }
@@ -775,7 +775,7 @@ struct ItemRow<Leading: View>: View {
                     .foregroundStyle(theme.muted)
                     .frame(width: 14)
             }
-            RowLayout(hasDetail: item.detail != nil && !detailHidden, lead: labelIcon == nil ? theme.gutter + theme.spacing.m * 2 : theme.spacing.l, spacing: theme.spacing.m, keptLabel: keptLabel, keptDetail: keptDetail) {
+            RowLayout(hasDetail: item.detail != nil && !detailHidden, lead: labelIcon == nil ? theme.gutter + theme.spacing.m * 2 : theme.spacing.l, spacing: theme.spacing.m, keptLabel: keptLabel, keptDetail: keptDetail, foldable: badges.map { ($0.tone ?? "").isEmpty }) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: theme.spacing.s) {
                         Text(item.label)
@@ -798,8 +798,11 @@ struct ItemRow<Leading: View>: View {
                     }
                 }
                 ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
-                    BadgeLabel(text: badge.text, tone: theme.tone(badge.tone), outline: badge.outline)
-                        .fixedSize()
+                    ViewThatFits(in: .horizontal) {
+                        BadgeLabel(text: badge.text, tone: theme.tone(badge.tone), outline: badge.outline)
+                            .fixedSize()
+                        Color.clear.frame(width: 0, height: 0)
+                    }
                 }
                 if let detail = item.detail, !detailHidden {
                     Text(detail)
@@ -938,17 +941,20 @@ private struct ItemMenu: ViewModifier {
         } else {
             content.contextMenu {
                 ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                    if entry.confirm != nil, index > 0 { Divider() }
-                    switch MenuEntryKey(entry.key) {
-                    case .plain(let key):
-                        Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
-                            .keyboardShortcut(KeyEquivalent(key), modifiers: [])
-                    case .commandDelete:
-                        Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
-                            .keyboardShortcut(.delete, modifiers: .command)
-                    case nil:
-                        Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
+                    if entry.confirm != nil || entry.divider, index > 0 { Divider() }
+                    Group {
+                        switch MenuEntryKey(entry.key) {
+                        case .plain(let key):
+                            Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
+                                .keyboardShortcut(KeyEquivalent(key), modifiers: [])
+                        case .commandDelete:
+                            Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
+                                .keyboardShortcut(.delete, modifiers: .command)
+                        case nil:
+                            Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
+                        }
                     }
+                    .disabled(entry.disabled)
                 }
             }
         }

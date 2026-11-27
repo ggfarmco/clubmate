@@ -52,7 +52,7 @@ func cardMessage(rec record, request string) string {
 	}
 	i := slices.IndexFunc(rec.LandReviews, func(st landReview) bool { return st.Request == request })
 	if i < 0 {
-		return ""
+		return rec.queueAskMessage(request)
 	}
 	st := rec.LandReviews[i]
 	return fmt.Sprintf(cardMessageFormat, gateCardTitle(st), fmt.Sprintf(gateCardQuestion, cmp.Or(st.Source, st.Into)))

@@ -349,3 +349,34 @@ func TestLandKeepsAWorktreeOpenInTheEditor(t *testing.T) {
 	assert.Equal(t, "two", git(t, repo, "log", "-1", "--format=%s", "feat"))
 	testutil.Never(t, func() bool { return len(commandArgs(t, h, "editor-nvim.stop-root", 0)) > 0 }, 250*time.Millisecond)
 }
+
+func TestMergeTreeOnSyntheticParentEqualsRealSquash(t *testing.T) {
+	repo := newRepo(t)
+	write(t, filepath.Join(repo, "s.go"), "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "init")
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	a, b := filepath.Join(dir, "A"), filepath.Join(dir, "B")
+	git(t, repo, "worktree", "add", "-q", "-b", "A", a)
+	git(t, repo, "worktree", "add", "-q", "-b", "B", b)
+	write(t, filepath.Join(a, "s.go"), "one\n2\n3\n4\n5\n6\n7\n8\n9\n10\n")
+	write(t, filepath.Join(a, "a.go"), "a\n")
+	git(t, a, "add", ".")
+	git(t, a, "commit", "-qm", "a")
+	write(t, filepath.Join(b, "s.go"), "1\n2\n3\n4\n5\n6\n7\n8\n9\nten\n")
+	git(t, b, "add", ".")
+	git(t, b, "commit", "-qm", "b")
+	old := git(t, repo, "rev-parse", "main")
+	predicted := git(t, repo, "merge-tree", "--write-tree", old, "A")
+	synthetic := git(t, repo, "commit-tree", predicted, "-p", old, "-m", "gate")
+	speculated := git(t, repo, "merge-tree", "--write-tree", synthetic, "B")
+	h, id := open(t, repo)
+
+	require.NoError(t, runCommand(t, h, id, "git.land", map[string]string{"path": a, "message": "feat: a"}, nil))
+	require.Equal(t, predicted, git(t, repo, "rev-parse", "main^{tree}"))
+	assert.Equal(t, speculated, git(t, repo, "merge-tree", "--write-tree", "main", "B"))
+	require.NoError(t, runCommand(t, h, id, "git.land", map[string]string{"path": b, "message": "feat: b"}, nil))
+
+	assert.Equal(t, speculated, git(t, repo, "rev-parse", "main^{tree}"))
+}

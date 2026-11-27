@@ -81,7 +81,7 @@ func (a *app) closeDone(after time.Duration) {
 		if owned := owners[workspace]; owned == nil || slices.ContainsFunc(tree, func(s *session) bool { return owned[s.snapshot().ID] }) {
 			continue
 		}
-		if slices.ContainsFunc(tree, func(s *session) bool { return a.unlanded(ctx, s.snapshot()) }) {
+		if slices.ContainsFunc(tree, func(s *session) bool { return a.inLandQueue(s.snapshot().ID) || a.unlanded(ctx, s.snapshot()) }) {
 			continue
 		}
 		a.holdClose()

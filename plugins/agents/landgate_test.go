@@ -13,6 +13,7 @@ import (
 
 	"clubmate/internal/testutil"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/landgate"
 )
 
 const gateWhere = `{"nodes":[{"id":"lint","prompt":"Lint. {{input}}","start":true},{"id":"where","run":"pwd"},{"id":"review","prompt":"Review. {{input}}","outcomes":["approved","changes"]}],"edges":[{"from":"lint","to":"where"},{"from":"where","to":"review"}]}`
@@ -65,7 +66,7 @@ func startGateReview(t *testing.T, env []string, name, graph, release string, re
 	workspace := f.workspace(t, repo)
 	var added gateListed
 	require.NoError(t, f.run(t, workspace, "agents.gate-add", args, &added))
-	g := gateSetup{f: f, repo: repo, workspace: workspace, lander: f.newSession(t, workspace), worktree: filepath.Join(repo, ".worktrees", "feat"), release: release, gate: added.ID}
+	g := gateSetup{f: f, repo: repo, workspace: workspace, lander: f.newLander(t, workspace), worktree: filepath.Join(repo, ".worktrees", "feat"), release: release, gate: added.ID}
 	git(t, repo, "worktree", "add", "-q", "-b", "feat", g.worktree)
 	g.commit(t, "b.go", "two\n")
 	return g
@@ -223,6 +224,143 @@ func TestMovedTipVoidsVerdict(t *testing.T) {
 	require.ErrorContains(t, g.land(t), "review pending")
 }
 
+func (g gateSetup) history(t *testing.T) []gateVerdictRow {
+	t.Helper()
+	var h gateHistory
+	require.NoError(t, g.f.run(t, g.workspace, "agents.gate-verdicts", map[string]any{"id": g.gate}, &h))
+	return h.Verdicts
+}
+
+func TestMovedTipLogsBaseMoved(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.Error(t, g.land(t))
+	g.verdict(t, "approved")
+	write(t, filepath.Join(g.repo, "c.go"), "three\n")
+	git(t, g.repo, "add", "c.go")
+	git(t, g.repo, "commit", "-qm", "user moved main")
+
+	require.ErrorContains(t, g.land(t), "review pending")
+	g.f.restartAgents(t, g.workspace)
+	g.verdict(t, "approved")
+
+	h := g.history(t)
+	require.Len(t, h, 2)
+	assert.Equal(t, "", h[1].Reason)
+	assert.Equal(t, "base-moved", h[0].Reason)
+	assert.Equal(t, git(t, g.repo, "rev-parse", "main"), h[0].Old)
+	assert.Equal(t, git(t, g.repo, "rev-parse", "main^{tree}"), h[0].OldTree)
+	assert.NotEmpty(t, h[0].Tree)
+}
+
+func TestChangedTreeLogsTreeChanged(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.Error(t, g.land(t))
+	g.verdict(t, "approved")
+	g.commit(t, "c.go", "more\n")
+
+	require.ErrorContains(t, g.land(t), "review pending")
+	g.verdict(t, "approved")
+
+	assert.Equal(t, "tree-changed", g.history(t)[0].Reason)
+}
+
+func TestReasonAfterDocsOnlyComparesWithIt(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.Error(t, g.land(t))
+	g.verdict(t, "approved")
+	write(t, filepath.Join(g.repo, "c.go"), "three\n")
+	git(t, g.repo, "add", "c.go")
+	git(t, g.repo, "commit", "-qm", "user moved main")
+	git(t, g.worktree, "rm", "-q", "b.go")
+	g.commit(t, "README.md", "docs\n")
+	write(t, filepath.Join(g.repo, "staged.txt"), "x\n")
+	git(t, g.repo, "add", "staged.txt")
+
+	require.Error(t, g.land(t))
+	docs := g.history(t)[0]
+	assert.Equal(t, [3]string{"docs", "base-moved", git(t, g.repo, "rev-parse", "main")}, [3]string{docs.By, docs.Reason, docs.Old})
+
+	git(t, g.repo, "rm", "-q", "--cached", "staged.txt")
+	g.commit(t, "d.go", "code\n")
+	require.ErrorContains(t, g.land(t), "review pending")
+	g.verdict(t, "approved")
+
+	assert.Equal(t, "tree-changed", g.history(t)[0].Reason)
+}
+
+func TestChangesLogsRound(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.Error(t, g.land(t))
+	g.verdict(t, "changes", "b.go:1 — breaks")
+	g.commit(t, "d.go", "fix\n")
+
+	require.ErrorContains(t, g.land(t), "review pending")
+	g.verdict(t, "approved")
+
+	assert.Equal(t, "round", g.history(t)[0].Reason)
+}
+
+func TestDisjointMoveWithoutTestSendsShortPrompt(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.Error(t, g.land(t))
+	old := git(t, g.repo, "rev-parse", "main")
+	g.verdict(t, "approved")
+	write(t, g.release, "")
+	write(t, filepath.Join(g.repo, "c.go"), "three\n")
+	git(t, g.repo, "add", "c.go")
+	git(t, g.repo, "commit", "-qm", "user moved main")
+
+	require.ErrorContains(t, g.land(t), "review pending")
+	g.f.waitCall(t, "session/prompt", func(c fakeCall) bool {
+		return strings.Contains(string(c.Params), "The base moved on other files since your approval: c.go")
+	})
+	first := slices.DeleteFunc(g.f.calls(t, "session/prompt"), func(c fakeCall) bool {
+		return !strings.Contains(string(c.Params), "Review this change before it lands")
+	})
+	assert.Len(t, first, 1)
+	g.f.restartAgents(t, g.workspace)
+	g.verdict(t, "approved")
+
+	h := g.history(t)
+	assert.Equal(t, [3]string{"carried", old, "base-moved"}, [3]string{h[0].By, h[0].CarriedFrom, h[0].Reason})
+	require.NoError(t, g.land(t))
+}
+
+func TestMoveWithNoFilesCarriesWithoutAPrompt(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.Error(t, g.land(t))
+	old := git(t, g.repo, "rev-parse", "main")
+	g.approveWithSummary(t, "Sums it up.")
+	git(t, g.repo, "commit", "-q", "--allow-empty", "-m", "empty")
+
+	require.NoError(t, g.land(t))
+
+	h := g.history(t)
+	assert.Equal(t, [3]string{"carried", old, "Sums it up."}, [3]string{h[0].By, h[0].CarriedFrom, h[0].Summary})
+	assert.Contains(t, git(t, g.repo, "log", "-1", "--format=%B", "main"), "Sums it up.")
+}
+
+func TestLandAnywayIsNotCarried(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.NoError(t, g.f.run(t, g.workspace, "agents.gate-update", map[string]any{"id": g.gate, "rounds": 1}, nil))
+	require.ErrorContains(t, g.land(t), "review pending")
+	g.verdict(t, "changes", "b.go:1 — breaks")
+	require.ErrorContains(t, g.land(t), "waits for the user")
+	g.answer(t, g.f.session(t, g.workspace, g.lander).Pending[0], "merge")
+	git(t, g.repo, "commit", "-q", "--allow-empty", "-m", "empty")
+
+	require.ErrorContains(t, g.land(t), "waits for the user")
+
+	assert.NotEqual(t, "carried", g.history(t)[0].By)
+}
+
 func TestChangesRoundsCapWaitsForUser(t *testing.T) {
 	t.Parallel()
 	g := startGate(t)
@@ -333,10 +471,10 @@ func TestNextCardAfterMoreIsNotAskedAgain(t *testing.T) {
 	assert.NotContains(t, g.cardCaption(t), "asked again")
 }
 
-func TestOnlyGatedSessionsGetHookEnv(t *testing.T) {
+func TestUngatedRepoSessionGetsQueueEnv(t *testing.T) {
 	t.Parallel()
 	gated, open := newRepo(t), newRepo(t)
-	f := start(t, map[string]any{"prompt": []map[string]any{{"run": "git config --get core.hooksPath || echo none"}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	f := start(t, map[string]any{"prompt": []map[string]any{{"run": "git config --get core.hooksPath"}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	workspace := f.workspace(t, gated)
 	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": gated}, nil))
 	other := f.workspace(t, open)
@@ -364,18 +502,27 @@ func TestOnlyGatedSessionsGetHookEnv(t *testing.T) {
 	assert.Equal(t, filepath.Join(gated, ".git"), got["CLUBMATE_LAND_COMMON"])
 	assert.Equal(t, "core.hooksPath", got["GIT_CONFIG_KEY_"+got["CLUBMATE_GIT_CONFIG_COUNT"]])
 	assert.True(t, strings.HasSuffix(got["GIT_CONFIG_VALUE_"+got["CLUBMATE_GIT_CONFIG_COUNT"]], "githooks"))
-	assert.NotContains(t, env(other), "GIT_CONFIG_COUNT")
+	assert.NotEmpty(t, got["CLUBMATE_LAND_QUEUE"])
+
+	ungated := env(other)
+	assert.NotContains(t, ungated, "CLUBMATE_LAND_PROTECT")
+	assert.Equal(t, filepath.Join(open, ".git"), ungated["CLUBMATE_LAND_COMMON"])
+	assert.Contains(t, ungated["CLUBMATE_LAND_QUEUE"], filepath.Join("githooks", "queue"))
+	assert.NotEqual(t, got["CLUBMATE_LAND_QUEUE"], ungated["CLUBMATE_LAND_QUEUE"])
+	assert.Equal(t, landgate.QueueDir(ungated["GIT_CONFIG_VALUE_"+ungated["CLUBMATE_GIT_CONFIG_COUNT"]], ungated["CLUBMATE_LAND_COMMON"]), ungated["CLUBMATE_LAND_QUEUE"])
+	assert.Equal(t, "core.hooksPath", ungated["GIT_CONFIG_KEY_"+ungated["CLUBMATE_GIT_CONFIG_COUNT"]])
 	testutil.Eventually(t, func() bool {
-		var seen []string
+		var seen int
 		for _, c := range f.calls(t, "run") {
 			var out struct {
 				Output string `json:"output"`
 			}
 			require.NoError(t, json.Unmarshal(c.Params, &out))
-			seen = append(seen, strings.TrimSpace(out.Output))
+			if strings.HasSuffix(strings.TrimSpace(out.Output), "githooks") {
+				seen++
+			}
 		}
-		slices.Sort(seen)
-		return len(seen) == 2 && strings.HasSuffix(seen[0], "githooks") && seen[1] == "none"
+		return seen == 2
 	}, wait)
 }
 
@@ -575,6 +722,7 @@ func TestBaseGateHoldsTheSessionsBaseFromAnyBranch(t *testing.T) {
 		git(t, dir, "commit", "-qm", "x")
 		err := f.runAs(t, workspace, lander, "git.land", map[string]any{"path": dir, "into": "A", "message": "feat: x"}, nil)
 		assert.ErrorContains(t, err, "review pending", dir)
+		f.clearQueues(t, workspace)
 	}
 }
 
@@ -967,10 +1115,11 @@ func TestTwoLandingsThroughOneGateUseTheirOwnTrees(t *testing.T) {
 	t.Parallel()
 	g := startGateEnv(t, allowHome(t, "Bash(pwd)"), "where", gateWhere)
 	o := g.another(t, "other")
+	git(t, g.repo, "worktree", "add", "-q", "-b", "rel", filepath.Join(g.repo, ".worktrees", "rel"), "main")
 	write(t, g.release, "")
 
 	require.ErrorContains(t, g.land(t), "review pending")
-	require.ErrorContains(t, o.land(t), "review pending")
+	require.ErrorContains(t, g.f.runAs(t, g.workspace, o.lander, "git.land", map[string]any{"path": o.worktree, "into": "rel", "message": "feat: other"}, nil), "review pending")
 
 	mine, theirs := g.stepOutput(t, g.reviewer(t).GateFor.Run, "where"), o.stepOutput(t, o.reviewer(t).GateFor.Run, "where")
 	assert.NotEqual(t, mine, theirs)
@@ -1094,7 +1243,7 @@ func TestPausedLandGateFinishesItsRunningReview(t *testing.T) {
 	require.NoError(t, g.land(t))
 	assert.Equal(t, "Groups the inbox by workspace.", git(t, g.repo, "log", "-1", "--format=%b", "main"))
 
-	other, worktree := g.f.newSession(t, g.workspace), filepath.Join(g.repo, ".worktrees", "other")
+	other, worktree := g.f.newLander(t, g.workspace), filepath.Join(g.repo, ".worktrees", "other")
 	git(t, g.repo, "worktree", "add", "-q", "-b", "other", worktree)
 	write(t, filepath.Join(worktree, "c.go"), "three\n")
 	git(t, worktree, "add", ".")
@@ -1135,7 +1284,7 @@ func TestLandingMatchingNoGateIsNotReviewed(t *testing.T) {
 	workspace := f.workspace(t, repo)
 	var gate gateListed
 	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo, "into": "release/*"}, &gate))
-	g := gateSetup{f: f, repo: repo, workspace: workspace, lander: f.newSession(t, workspace), worktree: filepath.Join(repo, ".worktrees", "feat")}
+	g := gateSetup{f: f, repo: repo, workspace: workspace, lander: f.newLander(t, workspace), worktree: filepath.Join(repo, ".worktrees", "feat")}
 	git(t, repo, "worktree", "add", "-q", "-b", "feat", g.worktree)
 	g.commit(t, "b.go", "two\n")
 

@@ -98,6 +98,9 @@ func requestCard(sc screen) (sdui.Node, bool) {
 	if requests := rec.callRequests(); len(requests) > 0 {
 		return callCard(rec, requests[0]), true
 	}
+	if rec.queueAskWaits() {
+		return queueAskCard(rec, rec.QueueAsks[0]), true
+	}
 	if rec.Task == nil {
 		return sdui.Node{}, false
 	}

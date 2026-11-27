@@ -33,6 +33,12 @@ final class AgentsTreeTests: XCTestCase {
         XCTAssertEqual(sections[5].rows(expanded: [], folded: [], unfolded: ["closed"]).map(\.session), ["c1"])
     }
 
+    func testSessionInLineLeavesItsWorktreeButStaysInTheInbox() throws {
+        let sections = AgentsTree.sections(try sessions(), inLine: ["m0"])
+        XCTAssertEqual(sections.first { $0.kind == .needsYou }?.nodes.map(\.id), ["b2", "m2", "m0"])
+        XCTAssertEqual(sections.first { $0.id == "wt:0" }?.nodes.map(\.id), ["m1", "m2"])
+    }
+
     func testOlderFollowsClosedOnlyInAllAndCountsWhatThePluginSent() throws {
         let older = try sessions(#"[{"id":"o1","status":"closed","older":true},{"id":"o2","parentSession":"o1","status":"closed","older":true},{"id":"c1","status":"closed","older":true}]"#)
         let all = AgentsTree.sections(try sessions(), older: older, olderCount: 40)

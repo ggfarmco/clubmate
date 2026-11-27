@@ -54,14 +54,15 @@ type outcomeEntry struct {
 }
 
 type landingOutcome struct {
-	Lander   string             `json:"lander"`
-	Builder  string             `json:"builder,omitempty"`
-	Fixers   []string           `json:"fixers,omitempty"`
-	Into     string             `json:"into"`
-	Source   string             `json:"source,omitempty"`
-	Worktree string             `json:"worktree,omitempty"`
-	Squash   string             `json:"squash"`
-	Costs    map[string]float64 `json:"costs,omitempty"`
+	Lander    string             `json:"lander"`
+	Builder   string             `json:"builder,omitempty"`
+	Fixers    []string           `json:"fixers,omitempty"`
+	Into      string             `json:"into"`
+	Source    string             `json:"source,omitempty"`
+	Worktree  string             `json:"worktree,omitempty"`
+	Squash    string             `json:"squash"`
+	Costs     map[string]float64 `json:"costs,omitempty"`
+	QueueWait float64            `json:"queueWait,omitempty"`
 }
 
 type sessionOutcome struct {
@@ -287,7 +288,7 @@ func (a *app) forgetJournaled(id string) {
 }
 
 func (a *app) journalLanding(workspaceID string, args landGateArgs) {
-	l := landingOutcome{Lander: args.Session, Into: args.Into, Source: args.Source, Worktree: args.Worktree, Squash: args.Commit, Costs: map[string]float64{}}
+	l := landingOutcome{Lander: args.Session, Into: args.Into, Source: args.Source, Worktree: args.Worktree, Squash: args.Commit, Costs: map[string]float64{}, QueueWait: a.queueWait(args)}
 	builder, fixers := a.builderOf(args)
 	if builder != nil {
 		l.Builder = builder.snapshot().ID
@@ -603,7 +604,7 @@ func (j outcomeJournal) landingRow(e outcomeEntry, gates map[string]*gateFor, cr
 		if v.Outcome == gateChanges {
 			row.Changes++
 		}
-		if v.By == landgate.ByReviewer || v.By == landgate.ByCheck {
+		if v.By == landgate.ByReviewer || v.By == landgate.ByCheck || v.By == landgate.ByCarried {
 			row.Rounds++
 		}
 		if v.Reviewer != "" && !slices.Contains(row.Reviewers, v.Reviewer) {

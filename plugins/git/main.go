@@ -16,7 +16,7 @@ type app struct {
 	workspaces map[string]*state
 	ops        opTable
 	meta       metaStore
-	landMu     sync.Mutex
+	lands      landLocks
 	bases      baseImport
 	gateTreeMu sync.Mutex
 	swept      map[string]bool

@@ -50,18 +50,23 @@ type gateHistory struct {
 }
 
 type gateVerdictRow struct {
-	Gate     string    `json:"gate"`
-	Outcome  string    `json:"outcome"`
-	By       string    `json:"by"`
-	Lander   string    `json:"lander"`
-	Into     string    `json:"into"`
-	Source   string    `json:"source"`
-	Call     string    `json:"call"`
-	Round    int       `json:"round"`
-	Reviewer string    `json:"reviewer"`
-	Findings []string  `json:"findings"`
-	Summary  string    `json:"summary"`
-	At       time.Time `json:"at"`
+	Gate        string    `json:"gate"`
+	Outcome     string    `json:"outcome"`
+	By          string    `json:"by"`
+	Lander      string    `json:"lander"`
+	Into        string    `json:"into"`
+	Source      string    `json:"source"`
+	Call        string    `json:"call"`
+	Round       int       `json:"round"`
+	Reviewer    string    `json:"reviewer"`
+	Findings    []string  `json:"findings"`
+	Summary     string    `json:"summary"`
+	Old         string    `json:"old"`
+	OldTree     string    `json:"oldTree"`
+	Tree        string    `json:"tree"`
+	Reason      string    `json:"reason"`
+	CarriedFrom string    `json:"carriedFrom"`
+	At          time.Time `json:"at"`
 }
 
 func (f *fixture) gates(t *testing.T, workspace string) []gateListed {

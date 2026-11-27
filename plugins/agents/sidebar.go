@@ -134,6 +134,10 @@ type sessionRow struct {
 	Group     string
 	Until     int64
 	Older     bool
+	InLine    string
+	Queues    []*queueGroup
+	Alone     *queueEntryRow
+	AloneHelp string
 }
 
 type sidebarPlus struct {
@@ -144,6 +148,7 @@ type sidebarPlus struct {
 	open     string
 	needRuns []string
 	older    olderSide
+	queues   []queueRow
 }
 
 type olderSide struct {
@@ -238,6 +243,11 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			sdui.HStack(sdui.Button("start", "Start", "arrow.triangle.branch"), sdui.WithAction(sdui.Button("cancel", "Cancel", "xmark"), actHideBranch)),
 		), actNewBranch)
 	}
+	var rootQueues []*queueGroup
+	if cmp.Or(filter, filterAll) == filterAll && search.query == "" {
+		rows = slices.Clone(rows)
+		rootQueues = placeQueues(rows, plus.queues)
+	}
 	roots, kids := sidebarTree(rows)
 	var serviceRows []sessionRow
 	for _, row := range roots {
@@ -319,7 +329,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		case row.Rec.closed():
 			closed = append(closed, row)
 			continue
-		case row.Rec.restricted():
+		case row.Rec.restricted(), row.InLine != "":
 			continue
 		case row.Group == groupPaused:
 			if _, ok := paused[row.Until]; !ok {
@@ -358,6 +368,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		groups = append(groups, group)
 	}
 	groups = append(append(append(gates, mirrors...), pausedGroups(resets, paused, kids, collapsed, now, oldest)...), groups...)
+	groups = append(groups, queueItems(rootQueues, kids, collapsed, now, map[string]bool{}, oldest)...)
 	if len(closed) > 0 || len(emptied) > 0 {
 		folded, ok := collapsed[closedKey]
 		items := closedItems(closed, selected, closedShown+closedExtra, kids, collapsed, now, oldest)
@@ -749,7 +760,7 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 	var children, asides []sessionRow
 	for _, kid := range kids[row.Rec.ID] {
 		switch {
-		case path[kid.Rec.ID]:
+		case path[kid.Rec.ID], kid.InLine != "":
 		case kid.Rec.isAside():
 			asides = append(asides, kid)
 		default:
@@ -757,6 +768,7 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 		}
 	}
 	item := sessionItem(row, descendantCount(row.Rec.ID, kids, map[string]bool{}), now)
+	dressAlone(&item, row)
 	if row.Nest != nil {
 		item = reviewItem(item, *row.Nest)
 	}
@@ -768,19 +780,26 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 		if len(asides) > 0 && (item.Expanded || anyNeeds(asides, oldest)) {
 			item.Children = append(item.Children, asideItems(row.Rec.ID, asides, kids, collapsed, now, path, oldest)...)
 		}
+		if len(row.Queues) > 0 && (item.Expanded || queueNeeds(row.Queues, oldest)) {
+			item.Children = append(queueItems(row.Queues, kids, collapsed, now, path, oldest), item.Children...)
+		}
 		return item
 	}
 	ask, asks := gateAskItem(row)
-	if len(children) == 0 && len(asides) == 0 && !asks {
+	queued := len(row.Queues) > 0
+	if len(children) == 0 && len(asides) == 0 && !asks && !queued {
 		return item
 	}
 	item.HasChildren = true
 	folded, ok := collapsed[expandPrefix+row.Rec.ID]
-	item.Expanded = ok && !folded || asks || anyNeeds(children, oldest) || anyNeeds(asides, oldest)
+	item.Expanded = ok && !folded || asks || anyNeeds(children, oldest) || anyNeeds(asides, oldest) || queued && (!ok || queueNeeds(row.Queues, oldest))
 	if item.Expanded {
 		item.Children = append(runItems(children, row.Rec.ID, kids, collapsed, now, path, oldest), asideItems(row.Rec.ID, asides, kids, collapsed, now, path, oldest)...)
 		if asks {
 			item.Children = append([]sdui.TreeItem{ask}, item.Children...)
+		}
+		if queued {
+			item.Children = append(queueItems(row.Queues, kids, collapsed, now, path, oldest), item.Children...)
 		}
 	}
 	return item
@@ -917,7 +936,7 @@ func descendantCount(id string, kids map[string][]sessionRow, seen map[string]bo
 	seen[id] = true
 	n := 0
 	for _, kid := range kids[id] {
-		if !seen[kid.Rec.ID] && !kid.Rec.isAside() {
+		if !seen[kid.Rec.ID] && !kid.Rec.isAside() && kid.InLine == "" {
 			n += 1 + descendantCount(kid.Rec.ID, kids, seen)
 		}
 	}

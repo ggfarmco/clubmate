@@ -90,7 +90,7 @@ var (
 	errUserAction    = errors.New("only the user presses this")
 )
 
-var userActions = []string{actSend, actAsidePick, actAsideAsk, actAsideQuote, actAsideFull, actAsideBeside, actAsideParent, actAsideNext, actAsideKeep, actAsideClose, actSendBackOpen, actSendBackDraft, actSendBackFrom, actSendBackSend, actSendBackCancel, actSendBackKey, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actQuizPick, actQuizRate, actQuizUndo, actQuizSkip, actQuizOpen, actStepAct, actTourOffer, actTourPanel, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph, actPhoneNotNow, actSetupFix, actJump, actLast, actNeeds}
+var userActions = []string{actSend, actAsidePick, actAsideAsk, actAsideQuote, actAsideFull, actAsideBeside, actAsideParent, actAsideNext, actAsideKeep, actAsideClose, actSendBackOpen, actSendBackDraft, actSendBackFrom, actSendBackSend, actSendBackCancel, actSendBackKey, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actQuizPick, actQuizRate, actQuizUndo, actQuizSkip, actQuizOpen, actStepAct, actTourOffer, actTourPanel, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph, actPhoneNotNow, actSetupFix, actJump, actLast, actNeeds, actQueueUp, actQueueDown, actQueueSkip, actQueueRemove}
 
 type textValue struct {
 	Text string `json:"text"`
@@ -291,6 +291,12 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if strings.HasPrefix(id, groupPrefix) {
 			return nil
 		}
+		if target, ok := queueRowTarget(id); ok {
+			if target == "" {
+				return nil
+			}
+			id = target
+		}
 		if repo, ok := strings.CutPrefix(id, gateRepoPrefix); ok {
 			return a.openRepoGate(ctx, ev.WorkspaceID, repo)
 		}
@@ -410,6 +416,8 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			a.uiMu.Unlock()
 		}
 		return a.setCollapsed(ctx, ev.WorkspaceID, map[string]bool{key: ev.Action == actCollapse})
+	case actQueuePlace, actQueueUp, actQueueDown, actQueueSkip, actQueueFiles, actQueueOpen, actQueueRemove:
+		return a.queueAct(ctx, ev)
 	case actClose, actDelete, actHandoff:
 		s, err := a.rowSession(ev)
 		if err != nil {

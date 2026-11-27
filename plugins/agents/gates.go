@@ -28,26 +28,35 @@ const (
 	gateNameDefault  = "the default branch"
 	gateUngated      = "ungated"
 	gateChangesWaits = "changes · waits for %s"
+
+	reasonBaseMoved   = "base-moved"
+	reasonTreeChanged = "tree-changed"
+	reasonRound       = "round"
 )
 
 var gateRank = map[string]int{gateApproved: 1, gateChanges: 2, gateStateReview: 3, gateStateNeedsMe: 4}
 
 type gateVerdict struct {
-	Gate      string    `json:"gate"`
-	Workspace string    `json:"workspace,omitempty"`
-	Outcome   string    `json:"outcome"`
-	By        string    `json:"by"`
-	Lander    string    `json:"lander,omitempty"`
-	Title     string    `json:"title,omitempty"`
-	Into      string    `json:"into"`
-	Source    string    `json:"source,omitempty"`
-	Call      string    `json:"call,omitempty"`
-	Round     int       `json:"round,omitempty"`
-	Reviewer  string    `json:"reviewer,omitempty"`
-	Findings  []string  `json:"findings,omitempty"`
-	Deferred  []string  `json:"deferred,omitempty"`
-	Summary   string    `json:"summary,omitempty"`
-	At        time.Time `json:"at"`
+	Gate        string    `json:"gate"`
+	Workspace   string    `json:"workspace,omitempty"`
+	Outcome     string    `json:"outcome"`
+	By          string    `json:"by"`
+	Lander      string    `json:"lander,omitempty"`
+	Title       string    `json:"title,omitempty"`
+	Into        string    `json:"into"`
+	Source      string    `json:"source,omitempty"`
+	Call        string    `json:"call,omitempty"`
+	Round       int       `json:"round,omitempty"`
+	Reviewer    string    `json:"reviewer,omitempty"`
+	Findings    []string  `json:"findings,omitempty"`
+	Deferred    []string  `json:"deferred,omitempty"`
+	Summary     string    `json:"summary,omitempty"`
+	Old         string    `json:"old,omitempty"`
+	OldTree     string    `json:"oldTree,omitempty"`
+	Tree        string    `json:"tree,omitempty"`
+	Reason      string    `json:"reason,omitempty"`
+	CarriedFrom string    `json:"carriedFrom,omitempty"`
+	At          time.Time `json:"at"`
 }
 
 type gateLanding struct {

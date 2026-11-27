@@ -31,6 +31,7 @@ type outcomeRow struct {
 		Into      string   `json:"into"`
 		Rounds    int      `json:"rounds"`
 		Reviewers []string `json:"reviewers"`
+		QueueWait float64  `json:"queueWait"`
 	} `json:"landing"`
 }
 
@@ -86,7 +87,7 @@ func TestOutcomeBindsLandingToChildBuilderWithReviewCost(t *testing.T) {
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
 	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo}, nil))
-	parent := f.newSession(t, workspace)
+	parent := f.newLander(t, workspace)
 	f.prompt(t, workspace, parent, "orchestrate")
 	f.waitStatus(t, workspace, parent, "done")
 	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "[exp kind=feature size=M arm=opus/high]\nbuild it"})
@@ -198,7 +199,7 @@ func TestOutcomeIndexLandingIsBuiltByTheLander(t *testing.T) {
 	f := start(t, map[string]any{}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
-	lander := f.newSession(t, workspace)
+	lander := f.newLander(t, workspace)
 	f.newSession(t, workspace)
 	write(t, filepath.Join(repo, "x.go"), "x\n")
 	git(t, repo, "add", ".")

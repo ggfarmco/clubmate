@@ -30,6 +30,7 @@ const (
 	gateTreeCmd       = "git.gate-tree"
 	gatesKey          = "land-gates"
 	verdictKey        = "land-verdict/"
+	verdictTreeKey    = "land-verdict-tree/"
 	gatePinKey        = "gate-pin/"
 	gateKindReview    = "fable-review"
 	gatePointLand     = "land"
@@ -64,6 +65,7 @@ const (
 	gateFirstVerdict     = " Then call agents_land_verdict once with tree %s: outcome changes only for confirmed bugs, each finding as \"file:line — what breaks\"; otherwise approved. Nits and suggestions go to deferred."
 	gateDeltaFormat      = "[Clubmate land review] The lander changed the change after your findings. Review only the delta: `git diff %s %s` (the whole change is `git diff %s %s`)."
 	gateDeltaVerdict     = " Then call agents_land_verdict again with tree %s."
+	gateCarryFormat      = "[Clubmate land review] The base moved on other files since your approval: %s (`git diff %s %s`). The change itself is the same: `git diff %s %s`. Confirm that it still holds on the new base; review the whole change again only if the moved files can break it."
 	gateLandedFormat     = "\nThese commits already landed on %s through the gate, each for its own diff: %s. Still review the whole change above; spend most of the time on the other commits: %s."
 	verdictTreeFormat    = "tree must be the one your latest review prompt names: %s"
 	gateBusyText         = "a review of an earlier version of this change is still running (%s). End your turn; when its verdict comes, call git_land again and the reviewer gets what changed since."
@@ -203,6 +205,11 @@ type landReview struct {
 	Moved    bool      `json:"moved,omitempty"`
 	Findings []string  `json:"findings,omitempty"`
 	Check    string    `json:"check,omitempty"`
+	Reason   string    `json:"reason,omitempty"`
+	Carried  string    `json:"carriedFrom,omitempty"`
+	Ahead    bool      `json:"ahead,omitempty"`
+	DocsOld  string    `json:"docsOld,omitempty"`
+	DocsTree string    `json:"docsTree,omitempty"`
 	Since    time.Time `json:"since,omitzero"`
 }
 
@@ -253,6 +260,7 @@ type landGateArgs struct {
 	Old      string `json:"old"`
 	Tree     string `json:"tree"`
 	Commit   string `json:"commit"`
+	ahead    bool
 }
 
 type landGateResult struct {
@@ -564,15 +572,19 @@ func primaryRead(ctx context.Context, worktree string) (string, error) {
 
 func (a *app) gateEnv(ctx context.Context, rec record) map[string]string {
 	none := map[string]string{}
-	bases := a.sessionBases(ctx, rec)
-	gates := a.repoLandGates(ctx, rec.Worktree)
-	if len(gates) == 0 {
+	if rec.Night != "" {
 		return none
 	}
 	_, common, err := gitrepo.Dirs(ctx, rec.Worktree)
 	if err != nil {
 		return none
 	}
+	queue := landgate.QueueDir(a.hooksDir(), common)
+	gates := a.repoLandGates(ctx, rec.Worktree)
+	if len(gates) == 0 {
+		return landgate.SessionEnv(os.Environ(), a.hooksDir(), common, nil, nil, a.verdictsDir(), queue)
+	}
+	bases := a.sessionBases(ctx, rec)
 	branch, err := gitrepo.DefaultBranch(ctx, rec.Worktree)
 	if err != nil {
 		return none
@@ -585,7 +597,7 @@ func (a *app) gateEnv(ctx context.Context, rec record) map[string]string {
 	for _, ref := range exact {
 		protect = appendNew(protect, ref)
 	}
-	return landgate.SessionEnv(os.Environ(), a.hooksDir(), common, a.protectList(rec, protect, bases), glob, a.verdictsDir())
+	return landgate.SessionEnv(os.Environ(), a.hooksDir(), common, a.protectList(rec, protect, bases), glob, a.verdictsDir(), queue)
 }
 
 func (a *app) gatedMeta(ctx context.Context, rec record) (*acp.SessionMeta, string) {
@@ -960,10 +972,34 @@ func (a *app) landGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	if cmd.Via != gitPlugin {
 		return nil, errGitOnly
 	}
+	turn, err := a.joinQueue(ctx, cmd.WorkspaceID, args)
+	if refused, ok := errors.AsType[queueRefused](err); ok {
+		return landGateResult{State: queueStateRefuse, Text: refused.Error()}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer a.reviewAheadOf(context.WithoutCancel(ctx), args)
+	if !turn.Head {
+		return landGateResult{State: queueStateGit, Text: turn.Text}, nil
+	}
+	res, err := a.landHead(ctx, cmd, args)
+	if err != nil {
+		return nil, err
+	}
+	return a.askBeforeLand(ctx, cmd.WorkspaceID, args, res)
+}
+
+func (a *app) landHead(ctx context.Context, cmd pluginsdk.CommandRun, args landGateArgs) (landGateResult, error) {
 	g := a.landingGate(ctx, cmd.WorkspaceID, args.Session, args.Target, args.Into, args.Source)
 	v, decided := a.readVerdict(ctx, args.Old, args.Tree)
 	if g == nil {
 		return landGateResult{State: gateApproved, Summary: reviewedSummary(v, decided)}, nil
+	}
+	if !decided {
+		if res, ok, err := a.carryTree(ctx, cmd.WorkspaceID, *g, args); ok || err != nil {
+			return res, err
+		}
 	}
 	if decided {
 		switch v.Outcome {
@@ -978,21 +1014,70 @@ func (a *app) landGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	}
 	if docsOnly(ctx, args.Target, args.Old, args.Tree) {
 		v := landgate.Verdict{Old: args.Old, Tree: args.Tree, Outcome: gateApproved, By: landgate.ByDocs, At: time.Now().UTC()}
-		if err := a.writeVerdict(ctx, v); err != nil {
-			return nil, err
+		if err := a.writeVerdict(ctx, args.Target, v); err != nil {
+			return landGateResult{}, err
 		}
-		a.logGateVerdict(ctx, gateVerdict{Gate: g.ID, Workspace: cmd.WorkspaceID, Outcome: gateApproved, By: landgate.ByDocs, Lander: args.Session, Title: a.titleOf(args.Session), Into: args.Into, Source: args.Source, At: v.At})
+		reason := a.docsApproved(ctx, cmd.WorkspaceID, args)
+		a.logGateVerdict(ctx, gateVerdict{Gate: g.ID, Workspace: cmd.WorkspaceID, Outcome: gateApproved, By: landgate.ByDocs, Lander: args.Session, Title: a.titleOf(args.Session), Into: args.Into, Source: args.Source, Old: args.Old, OldTree: oldTree(ctx, args.Target, args.Old), Tree: args.Tree, Reason: reason, At: v.At})
 		return landGateResult{State: gateApproved}, nil
 	}
 	lander, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
-		return nil, errGateNoLander
+		return landGateResult{}, errGateNoLander
 	}
 	return a.reviewLanding(ctx, cmd.WorkspaceID, lander, *g, args, a.gateGraphReady(ctx, *g))
 }
 
+func (a *app) docsApproved(ctx context.Context, workspaceID string, args landGateArgs) string {
+	lander, err := a.lookup(workspaceID, args.Session)
+	if err != nil {
+		return ""
+	}
+	a.gateMu.Lock()
+	st := lander.landReview(args.Into, args.Source)
+	if st.Old == "" {
+		a.gateMu.Unlock()
+		return ""
+	}
+	reason := rereviewReason(st, args.Old, args.Tree)
+	st.DocsOld, st.DocsTree = args.Old, args.Tree
+	lander.putLandReview(st)
+	a.gateMu.Unlock()
+	a.saveNow(ctx, lander)
+	return reason
+}
+
+func rereviewReason(st landReview, old, tree string) string {
+	last, prevOld, prevTree := st.Last, st.Old, st.Tree
+	if st.DocsOld != "" {
+		last, prevOld, prevTree = gateApproved, st.DocsOld, st.DocsTree
+	}
+	switch {
+	case prevOld == "":
+		return ""
+	case last == gateChanges:
+		return reasonRound
+	case prevOld != old:
+		return reasonBaseMoved
+	case prevTree != tree:
+		return reasonTreeChanged
+	}
+	return ""
+}
+
+func oldTree(ctx context.Context, repo, old string) string {
+	if repo == "" || old == "" {
+		return ""
+	}
+	out, err := gitrepo.Run(ctx, repo, "rev-parse", "--verify", "-q", "--end-of-options", old+"^{tree}")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func reviewedSummary(v landgate.Verdict, decided bool) string {
-	if !decided || v.Outcome != gateApproved || v.By != landgate.ByReviewer {
+	if !decided || v.Outcome != gateApproved || v.By != landgate.ByReviewer && v.By != landgate.ByCarried {
 		return ""
 	}
 	return v.Summary
@@ -1022,10 +1107,15 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 	if lander.snapshot().closed() {
 		return landGateResult{}, errClosed
 	}
+	st := lander.landReview(args.Into, args.Source)
+	if st.Ahead && !args.ahead {
+		st.Ahead = false
+		lander.putLandReview(st)
+		a.saveNow(ctx, lander)
+	}
 	if a.waitPreparing(lander.snapshot().ID, args.Into, args.Source) {
 		return landGateResult{State: gatePending, Text: gatePreparingText}, nil
 	}
-	st := lander.landReview(args.Into, args.Source)
 	made := st
 	st.Repo, st.Cap, st.Gate = args.Target, g.Rounds+st.Extra, g.ID
 	if st.Request != "" {
@@ -1056,21 +1146,31 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 	}
 	steps := a.graphs.GateSteps(ctx, g.Repo, g.Graph)
 	gf := gateFor{Gate: g.ID, Point: gatePointLand, Key: args.Tree, Lander: lander.snapshot().ID, Into: args.Into, Source: args.Source, Old: args.Old, Tree: args.Tree, Run: st.Run}
-	prompted := false
+	prompted, carried, waitedOn := false, "", false
 	if live && st.Tree != "" && made.Gate == g.ID && (!steps || st.TreeKey != "") && a.graphs.GateRunOf(ctx, st.Run, g.Graph, graph.hash) && a.graphs.GateStepsIdle(ctx, st.Run) {
 		if steps {
-			if _, _, err := a.unlockedGateTree(ctx, workspaceID, lander, g, st.TreeKey, args, made); err != nil {
+			_, waited, err := a.unlockedGateTree(ctx, workspaceID, lander, g, st.TreeKey, args, made)
+			if err != nil {
 				return landGateResult{}, err
 			}
+			waitedOn = waited
 		}
 		other := fmt.Sprintf(gateDeltaFormat, st.Tree, args.Tree, args.Old, args.Tree)
 		verdict := other + fmt.Sprintf(gateDeltaVerdict, args.Tree)
-		if st.Old != args.Old {
+		short, carry := a.carriedMove(ctx, made, args)
+		switch {
+		case carry:
+			other = short
+			verdict = other + fmt.Sprintf(gateDeltaVerdict, args.Tree)
+		case st.Old != args.Old:
 			other = a.firstReviewPrompt(ctx, lander.snapshot(), args)
 			verdict = other + fmt.Sprintf(gateFirstVerdict, args.Tree)
 		}
 		err := a.graphs.PromptGate(ctx, st.Run, verdict, other, args.Tree)
 		if prompted = err == nil; prompted {
+			if carry {
+				carried = made.Old
+			}
 			a.gateRuns.Store(st.Run, struct{}{})
 			a.openGateRound(ctx, workspaceID, gf)
 		}
@@ -1094,7 +1194,7 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 			if dir, waited, err = a.unlockedGateTree(ctx, workspaceID, lander, g, key, args, made); err != nil {
 				return landGateResult{}, err
 			}
-			st.TreeKey = key
+			st.TreeKey, waitedOn = key, waited
 		}
 		first := a.firstReviewPrompt(ctx, lander.snapshot(), args)
 		run, verdict, err := a.startGate(ctx, graphs.GateRun{
@@ -1127,7 +1227,10 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 		a.gateRuns.Store(run, struct{}{})
 		a.kick(workspaceID)
 	}
-	st.Old, st.Tree, st.Last = args.Old, args.Tree, ""
+	if made.Old != args.Old || made.Tree != args.Tree || made.Last != "" || made.DocsOld != "" {
+		st.Reason = rereviewReason(made, args.Old, args.Tree)
+	}
+	st.Old, st.Tree, st.Last, st.DocsOld, st.DocsTree, st.Carried, st.Ahead = args.Old, args.Tree, "", "", "", carried, args.ahead && !waitedOn
 	lander.putLandReview(st)
 	a.saveNow(ctx, lander)
 	a.gatesChanged()
@@ -1241,6 +1344,7 @@ func (a *app) landerClosed(ctx context.Context, s *session) {
 	if s.snapshot().GateFor != nil {
 		return
 	}
+	a.leaveQueues(ctx, s.snapshot().ID)
 	a.gateMu.Lock()
 	var drop []landReview
 	for _, st := range s.snapshot().LandReviews {
@@ -1428,7 +1532,11 @@ func (a *app) firstReviewPrompt(ctx context.Context, lander record, args landGat
 			landed = fmt.Sprintf(gateLandedFormat, args.Source, strings.Join(done, ", "), cmp.Or(strings.Join(rest, ", "), "none"))
 		}
 	}
-	return fmt.Sprintf(gateFirstFormat, args.Into, filepath.Base(primaryOf(ctx, args.Target)), lander.Title, a.gateTask(lander), args.Old, args.Tree, args.Into, args.Into, commits, landed)
+	text := fmt.Sprintf(gateFirstFormat, args.Into, filepath.Base(primaryOf(ctx, args.Target)), lander.Title, a.gateTask(lander), args.Old, args.Tree, args.Into, args.Into, commits, landed)
+	if args.ahead {
+		text += fmt.Sprintf(aheadNote, args.Old, args.Into)
+	}
+	return text
 }
 
 func (a *app) gateTask(lander record) string {
@@ -1477,9 +1585,25 @@ func (a *app) readVerdict(ctx context.Context, old, tree string) (landgate.Verdi
 	return v, err == nil && found
 }
 
-func (a *app) writeVerdict(ctx context.Context, v landgate.Verdict) error {
+func (a *app) treeVerdict(ctx context.Context, repo, old, tree string) (landgate.Verdict, bool) {
+	ot := oldTree(ctx, repo, old)
+	if ot == "" {
+		return landgate.Verdict{}, false
+	}
+	var v landgate.Verdict
+	found, err := a.host.StorageGet(ctx, verdictTreeKey+ot+"-"+tree, &v)
+	return v, err == nil && found
+}
+
+func (a *app) writeVerdict(ctx context.Context, repo string, v landgate.Verdict) error {
+	v.OldTree = cmp.Or(v.OldTree, oldTree(ctx, repo, v.Old))
 	if err := a.host.StorageSet(ctx, verdictKey+v.Old+"-"+v.Tree, v); err != nil {
 		return err
+	}
+	if v.OldTree != "" {
+		if err := a.host.StorageSet(ctx, verdictTreeKey+v.OldTree+"-"+v.Tree, v); err != nil {
+			return err
+		}
 	}
 	return landgate.Write(a.verdictsDir(), v)
 }
@@ -1516,6 +1640,8 @@ func splitLanded(ctx context.Context, repo, old, head string, landed map[string]
 			done = append(done, short+" (reviewed)")
 		case landgate.ByCheck:
 			done = append(done, short+" (checked)")
+		case landgate.ByCarried:
+			done = append(done, short+" (approved, then carried across a base move on other files)")
 		case landgate.ByDocs:
 			done = append(done, short+" (docs only, not reviewed)")
 		case landgate.ByUser:
@@ -1579,14 +1705,18 @@ func (a *app) decideLanding(ctx context.Context, workspaceID string, gf gateFor,
 	if gf.Done || gf.Run != "" && lander != nil && st.Run != gf.Run {
 		return errNoReview
 	}
-	if err := a.writeVerdict(ctx, v); err != nil {
+	v.By = carriedBy(st, gf, v)
+	if err := a.writeVerdict(ctx, st.Repo, v); err != nil {
 		return err
 	}
 	a.closeGateRound(ctx, workspaceID, gf.Run, node)
 	if gf.Run != "" && node != nil {
 		a.graphs.GateOutcome(ctx, gf.Run, node.snapshot().ID, v.Outcome)
 	}
-	logged := gateVerdict{Gate: cmp.Or(gf.Gate, st.Gate), Outcome: v.Outcome, By: v.By, Lander: gf.Lander, Title: a.titleOf(gf.Lander), Into: gf.Into, Source: gf.Source, Round: st.Rounds + 1, Reviewer: v.Reviewer, Findings: v.Findings, Deferred: v.Deferred, Summary: v.Summary, At: v.At}
+	logged := gateVerdict{Gate: cmp.Or(gf.Gate, st.Gate), Outcome: v.Outcome, By: v.By, Lander: gf.Lander, Title: a.titleOf(gf.Lander), Into: gf.Into, Source: gf.Source, Round: st.Rounds + 1, Reviewer: v.Reviewer, Findings: v.Findings, Deferred: v.Deferred, Summary: v.Summary, Old: gf.Old, OldTree: oldTree(ctx, st.Repo, gf.Old), Tree: gf.Tree, Reason: st.Reason, At: v.At}
+	if v.By == landgate.ByCarried {
+		logged.CarriedFrom = st.Carried
+	}
 	a.logGateVerdict(ctx, logged)
 	if lander == nil || lander.snapshot().closed() {
 		return nil
@@ -1606,6 +1736,9 @@ func (a *app) decideLanding(ctx context.Context, workspaceID string, gf gateFor,
 	}
 	lander.putLandReview(st)
 	a.saveNow(ctx, lander)
+	if st.Ahead && v.Outcome == gateApproved && len(v.Deferred) == 0 {
+		return nil
+	}
 	return a.submit(lander, &promptArgs{Text: text})
 }
 
@@ -1718,9 +1851,10 @@ func (a *app) landDoneCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	if cmd.Via != gitPlugin {
 		return nil, errGitOnly
 	}
+	defer a.advanceLanded(ctx, args)
 	if v, ok := a.readVerdict(ctx, args.Old, args.Tree); ok {
 		v.Commit = args.Commit
-		logError("land verdict commit", a.writeVerdict(ctx, v))
+		logError("land verdict commit", a.writeVerdict(ctx, args.Target, v))
 	}
 	lander := a.session(args.Session)
 	if lander == nil {
@@ -1756,7 +1890,7 @@ func (a *app) answerGate(ctx context.Context, workspaceID string, args landAnswe
 	switch args.Action {
 	case landActionMerge:
 		v := landgate.Verdict{Old: st.ReqOld, Tree: st.ReqTree, Outcome: gateApproved, By: landgate.ByUser, At: time.Now().UTC()}
-		if err := a.writeVerdict(ctx, v); err != nil {
+		if err := a.writeVerdict(ctx, st.Repo, v); err != nil {
 			a.gateMu.Unlock()
 			return err
 		}
@@ -1925,7 +2059,7 @@ func gateCaption(st landReview) string {
 }
 
 func (r record) gateWaits() bool {
-	return r.heldWaits() || len(r.callRequests()) > 0 || !r.closed() && slices.ContainsFunc(r.LandReviews, func(st landReview) bool { return st.Request != "" })
+	return r.heldWaits() || len(r.callRequests()) > 0 || r.queueAskWaits() || !r.closed() && slices.ContainsFunc(r.LandReviews, func(st landReview) bool { return st.Request != "" })
 }
 
 func (r record) gateRequests() []string {
@@ -1938,7 +2072,7 @@ func (r record) gateRequests() []string {
 			out = append(out, st.Request)
 		}
 	}
-	return append(out, r.callRequests()...)
+	return append(append(out, r.callRequests()...), r.queueAskRequests()...)
 }
 
 func (r record) gatePending() *pendingSummary {
@@ -1954,7 +2088,7 @@ func (r record) gatePending() *pendingSummary {
 		holds := r.cardHolds(requests[0])
 		return &pendingSummary{Kind: pendingLand, Text: callCardTitle(holds), At: cmp.Or(holds[0].Hold.Asked, holds[0].Hold.Since), OnMac: true}
 	}
-	return nil
+	return r.queueAskPending()
 }
 
 func (s *session) landReview(into, source string) landReview {
