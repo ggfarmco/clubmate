@@ -60,7 +60,7 @@
         "title": "Set Mac name",
         "hidden": true,
         "scope": "app",
-        "description": "Set the name this Mac shows on paired phones, in their notifications and in Settings → Remote (at most 40 characters, one line; empty goes back to the macOS computer name); kept across restarts; publishes remote.identity. Returns the status.",
+        "description": "Set the name this Mac shows on paired phones, in their notifications and in Settings → Remote (at most 40 characters and 128 bytes, one line, no control or format characters (zero-width joiners are allowed); empty goes back to the macOS computer name); kept across restarts; publishes remote.identity. Returns the status.",
         "args": {
           "properties": {
             "name": {"type": "string", "description": "New name; empty for the macOS computer name."}

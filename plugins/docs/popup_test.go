@@ -37,6 +37,10 @@ type fakeCore struct {
 	unwatched int
 	queued    bool
 	gateArgs  []docGateArgs
+
+	sessionCalls int
+	hold         chan struct{}
+	holding      chan struct{}
 }
 
 type fakeClock struct {
@@ -263,7 +267,7 @@ func TestSubfolderWorktreeOpensLandedCopy(t *testing.T) {
 	e.assertDoc(landed, 1, false)
 
 	kept := filepath.Join(live, "spec.md")
-	assert.Equal(t, kept, e.d.landed(t.Context(), e.h, e.core.ws, kept))
+	assert.Equal(t, kept, e.d.landed(e.core.ws, lazySessions(t.Context(), e.h, "ws"), kept))
 }
 
 func TestPopupFollowsRemovedWorktree(t *testing.T) {
@@ -280,6 +284,55 @@ func TestPopupFollowsRemovedWorktree(t *testing.T) {
 	e.event("openDoc", filepath.Join(tree, "b.md"))
 	e.assertDoc(landedB, 1, true)
 	e.event("back", nil)
+	e.assertDoc(landedA, 1, false)
+}
+
+func TestSessionsFetchedOncePerCommand(t *testing.T) {
+	e := newEnv(t)
+	e.doc(".git", "")
+	gone := filepath.Join(e.dir, ".worktrees", "chore", "design")
+	e.core.sessions = []map[string]string{{"id": "agt_d", "worktree": gone}}
+	landed := e.doc("README.md", "# Root")
+
+	res, err := e.run(pluginsdk.CommandRun{ID: "docs.open", Args: e.args(map[string]any{"path": "README.md", "session": "agt_d"})})
+	require.NoError(t, err)
+	assert.Equal(t, openResult{Path: landed}, res)
+	assert.Equal(t, 1, e.core.sessionCalls)
+}
+
+func TestBackDoesNotHoldSpaceOverSessionsCall(t *testing.T) {
+	e := newEnv(t)
+	e.doc(".git", "")
+	tree := filepath.Join(e.dir, ".worktrees", "feat", "y")
+	e.doc(filepath.Join(".worktrees", "feat", "y", ".git"), "")
+	e.core.sessions = []map[string]string{{"id": "agt_y", "worktree": tree}}
+	a := e.doc(filepath.Join(".worktrees", "feat", "y", "a.md"), "# A")
+	landedA, b := e.doc("a.md", "# A"), e.doc("b.md", "# B")
+	e.open(a)
+	e.event("openDoc", b)
+	require.NoError(t, os.RemoveAll(tree))
+	e.core.hold, e.core.holding = make(chan struct{}), make(chan struct{})
+
+	backDone := make(chan error, 1)
+	go func() {
+		_, err := e.d.uiEvent(t.Context(), e.h, pluginsdk.UIEvent{WorkspaceID: "ws", Slot: popupSlot, Action: "back", Value: []byte("null")})
+		backDone <- err
+	}()
+	<-e.core.holding
+
+	readDone := make(chan error, 1)
+	go func() {
+		_, err := e.run(pluginsdk.CommandRun{ID: "docs.read", Args: e.args(map[string]any{"path": b})})
+		readDone <- err
+	}()
+	select {
+	case err := <-readDone:
+		require.NoError(t, err)
+	case <-time.After(testutil.Timeout(3 * time.Second)):
+		t.Fatal("docs.read waits for the sessions call of back")
+	}
+	close(e.core.hold)
+	require.NoError(t, <-backDone)
 	e.assertDoc(landedA, 1, false)
 }
 
@@ -366,9 +419,9 @@ func (e *env) anchor() any {
 func (c *fakeCore) connect(t *testing.T) *pluginsdk.Host {
 	t.Helper()
 	coreSide, pluginSide := net.Pipe()
-	handler := jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+	handler := jsonrpc2.AsyncHandler(jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
 		return c.handle(req)
-	})
+	}))
 	conn := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), handler)
 	t.Cleanup(func() { conn.Close() })
 	ready := make(chan *pluginsdk.Host, 1)
@@ -449,6 +502,13 @@ func (c *fakeCore) handle(req *jsonrpc2.Request) (any, error) {
 			}
 			c.gateArgs = append(c.gateArgs, args)
 			return docGateResult{Queued: c.queued}, nil
+		}
+		c.sessionCalls++
+		if c.hold != nil {
+			c.mu.Unlock()
+			close(c.holding)
+			<-c.hold
+			c.mu.Lock()
 		}
 		return c.sessions, nil
 	}

@@ -8,8 +8,8 @@
 - Don't move the user's workspace with `git_worktree_switch`, or `git_worktree_new` unless `switch` is false; your worktrees come from `agents_new` with `branch`, not `git branch`: from a feature branch, a child's base is your branch: `git_land` with no `into` lands there.
 - Waiting on CI or a build, or repeated work: `cron_add`, never a polling loop. React to events with `triggers_add`.
 - From Home, read-only tools also take another workspace's id (`workspace_list`).
-- Track multi-step work in the backlog: `backlog_add`, `backlog_claim`, `backlog_done` with the commit. Wiki: `wiki_search` first, `wiki_write` after.
-- Batch: one ToolSearch `select:a,b,c` loads every Clubmate tool you need; independent calls (several `backlog_get`) go in one message.
+- Track multi-step work in the backlog: `backlog_add`, `backlog_claim`, `backlog_done` with a note naming the commit. Wiki: `wiki_search` first, `wiki_write` after.
+- Batch: load every Clubmate tool you need in one ToolSearch `select:a,b,c`; send independent calls in one message.
 - Show results: a spec, plan or report goes in a file you `docs_open` or `docs_present`; locations go in `editor_quickfix`; `notify_post` when the user should look now.
 - Web pages: `browser_open`, `browser_snapshot`; `browser_handoff` for a captcha or sign-in.
 - For a Clubmate bug on a Mac where it isn't developed, offer the user `report_send`.

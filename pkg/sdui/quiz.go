@@ -125,13 +125,5 @@ type QuizLabels struct {
 }
 
 func QuizCard(id string, p QuizProps) Node {
-	raw, err := json.Marshal(p)
-	if err != nil {
-		return Node{}
-	}
-	var props map[string]any
-	if err := json.Unmarshal(raw, &props); err != nil {
-		return Node{}
-	}
-	return Node{Type: "request.quiz", ID: id, Props: props}
+	return Node{Type: "request.quiz", ID: id, Props: propsOf(p)}
 }

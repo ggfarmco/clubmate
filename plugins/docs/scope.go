@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 
 	"clubmate/pkg/contract"
@@ -15,6 +16,7 @@ import (
 	"clubmate/pkg/docrender"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/gitrepo"
 	"clubmate/plugins/internal/wikiroot"
@@ -98,7 +100,13 @@ func load(path string, allow func(string) bool) (string, []byte, error) {
 	return abs, src, nil
 }
 
-func (d *docs) landed(ctx context.Context, h *pluginsdk.Host, ws contract.Workspace, path string) string {
+type sessionsFn func() ([]api.Session, error)
+
+func lazySessions(ctx context.Context, h *pluginsdk.Host, workspaceID string) sessionsFn {
+	return sync.OnceValues(func() ([]api.Session, error) { return agentcall.Sessions(ctx, h, workspaceID) })
+}
+
+func (d *docs) landed(ws contract.Workspace, sessions sessionsFn, path string) string {
 	sep := string(filepath.Separator)
 	if !strings.Contains(path, sep+worktreesDir+sep) {
 		return path
@@ -106,14 +114,14 @@ func (d *docs) landed(ctx context.Context, h *pluginsdk.Host, ws contract.Worksp
 	if _, err := os.Lstat(path); err == nil {
 		return path
 	}
-	sessions, err := agentcall.Sessions(ctx, h, ws.ID)
+	list, err := sessions()
 	if err != nil {
 		logError("landed copy of "+path, err)
 		return path
 	}
 	path = gitrepo.Canonical(path)
 	tree := ""
-	for _, s := range sessions {
+	for _, s := range list {
 		if t := gitrepo.Canonical(s.Worktree); s.Worktree != "" && gitrepo.Within(path, t) && len(t) > len(tree) {
 			tree = t
 		}
@@ -167,21 +175,21 @@ func render(src []byte, path string, allow func(string) bool) (docrender.Doc, st
 	return docrender.Render(src, docrender.Options{Path: path, Allowed: allow}), sdui.DocumentMarkdown
 }
 
-func (d *docs) scope(ctx context.Context, h *pluginsdk.Host, ws contract.Workspace) func(string) bool {
-	return workspaceScope(ctx, ws, d.sessionUploads(ctx, h, ws.ID))
+func (d *docs) scope(ctx context.Context, ws contract.Workspace, sessions sessionsFn) func(string) bool {
+	return workspaceScope(ctx, ws, d.sessionUploads(ws.ID, sessions))
 }
 
-func (d *docs) sessionUploads(ctx context.Context, h *pluginsdk.Host, workspaceID string) []string {
+func (d *docs) sessionUploads(workspaceID string, sessions sessionsFn) []string {
 	if d.uploads == "" {
 		return nil
 	}
-	sessions, err := agentcall.Sessions(ctx, h, workspaceID)
+	list, err := sessions()
 	if err != nil {
 		logError("upload scope "+workspaceID, err)
 		return nil
 	}
-	dirs := make([]string, 0, len(sessions))
-	for _, s := range sessions {
+	dirs := make([]string, 0, len(list))
+	for _, s := range list {
 		if s.ID != "" && filepath.Base(s.ID) == s.ID {
 			dirs = append(dirs, filepath.Join(d.uploads, s.ID))
 		}

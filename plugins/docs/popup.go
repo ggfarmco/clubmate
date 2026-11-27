@@ -94,8 +94,9 @@ func (d *docs) openDoc(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEv
 	if err != nil {
 		return err
 	}
-	allow := d.scope(ctx, h, ws)
-	abs, src, err := load(d.landed(ctx, h, ws, path), allow)
+	sessions := lazySessions(ctx, h, ws.ID)
+	allow := d.scope(ctx, ws, sessions)
+	abs, src, err := load(d.landed(ws, sessions, path), allow)
 	if err != nil && !errors.Is(err, errNotFound) {
 		return err
 	}
@@ -122,7 +123,7 @@ func (d *docs) openFile(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIE
 	if err != nil {
 		return err
 	}
-	if !d.scope(ctx, h, ws)(path) {
+	if !d.scope(ctx, ws, lazySessions(ctx, h, ws.ID))(path) {
 		return errNotInWorkspace
 	}
 	return h.RunCommand(ctx, "editor.open", ev.WorkspaceID, map[string]string{"path": path}, nil)
@@ -133,16 +134,42 @@ func (d *docs) back(ctx context.Context, h *pluginsdk.Host, workspaceID string) 
 	if err != nil {
 		return err
 	}
-	allow := d.scope(ctx, h, ws)
+	sessions := lazySessions(ctx, h, ws.ID)
+	allow := d.scope(ctx, ws, sessions)
 	s := d.space(workspaceID)
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if len(s.stack) < 2 {
+		s.mu.Unlock()
 		return nil
 	}
 	s.stack = s.stack[:len(s.stack)-1]
 	s.prune()
-	return s.present(ctx, h, workspaceID, allow, d.resolver(ctx, h, ws))
+	s.mu.Unlock()
+	return d.refresh(ctx, h, ws, sessions, s, allow)
+}
+
+func (d *docs) refresh(ctx context.Context, h *pluginsdk.Host, ws contract.Workspace, sessions sessionsFn, s *space, allow func(string) bool) error {
+	s.mu.Lock()
+	if len(s.stack) == 0 {
+		s.mu.Unlock()
+		return nil
+	}
+	top := s.top()
+	s.mu.Unlock()
+	path := d.landed(ws, sessions, top)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.stack) == 0 {
+		return nil
+	}
+	if s.top() != top {
+		return nil
+	}
+	if path != top {
+		s.stack[len(s.stack)-1].path = path
+		s.prune()
+	}
+	return s.present(ctx, h, ws.ID, allow)
 }
 
 func (d *docs) close(ctx context.Context, h *pluginsdk.Host, workspaceID string) error {
@@ -167,11 +194,18 @@ func (d *docs) flush(workspaceID string) {
 		return
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.stop = nil
 	paths := slices.Sorted(maps.Keys(s.pending))
 	clear(s.pending)
-	if len(paths) == 0 {
+	var bumped []bump
+	for _, path := range paths {
+		if st, ok := s.docs[path]; ok {
+			st.rev++
+			bumped = append(bumped, bump{path: path, rev: st.rev, shown: len(s.stack) > 0 && s.top() == path})
+		}
+	}
+	s.mu.Unlock()
+	if len(bumped) == 0 {
 		return
 	}
 	ws, err := d.h.GetWorkspace(ctx, workspaceID)
@@ -179,19 +213,24 @@ func (d *docs) flush(workspaceID string) {
 		logError("flush "+workspaceID, err)
 		return
 	}
-	allow := d.scope(ctx, d.h, ws)
-	for _, path := range paths {
-		st, ok := s.docs[path]
-		if !ok {
-			continue
+	sessions := lazySessions(ctx, d.h, workspaceID)
+	var allow func(string) bool
+	for _, b := range bumped {
+		if b.shown {
+			if allow == nil {
+				allow = d.scope(ctx, ws, sessions)
+			}
+			logError("render "+b.path, d.refresh(ctx, d.h, ws, sessions, s, allow))
 		}
-		st.rev++
-		if len(s.stack) > 0 && s.top() == path {
-			logError("render "+path, s.present(ctx, d.h, workspaceID, allow, d.resolver(ctx, d.h, ws)))
-		}
-		_, err := d.h.Publish(ctx, changedTopic, changedEvent{Workspace: workspaceID, Path: path, Rev: st.rev})
+		_, err := d.h.Publish(ctx, changedTopic, changedEvent{Workspace: workspaceID, Path: b.path, Rev: b.rev})
 		logError("publish "+changedTopic, err)
 	}
+}
+
+type bump struct {
+	path  string
+	rev   int
+	shown bool
 }
 
 func (d *docs) ensureWatch(ctx context.Context, h *pluginsdk.Host, workspaceID string, s *space) error {
@@ -245,16 +284,7 @@ func (s *space) prune() {
 	}
 }
 
-func (d *docs) resolver(ctx context.Context, h *pluginsdk.Host, ws contract.Workspace) func(string) string {
-	return func(path string) string { return d.landed(ctx, h, ws, path) }
-}
-
-func (s *space) present(ctx context.Context, h *pluginsdk.Host, workspaceID string, allow func(string) bool, resolve func(string) string) error {
-	top := &s.stack[len(s.stack)-1]
-	if path := resolve(top.path); path != top.path {
-		top.path = path
-		s.prune()
-	}
+func (s *space) present(ctx context.Context, h *pluginsdk.Host, workspaceID string, allow func(string) bool) error {
 	_, src, err := load(s.top(), allow)
 	if err != nil && !errors.Is(err, errNotFound) {
 		return err

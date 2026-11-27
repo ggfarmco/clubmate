@@ -187,9 +187,10 @@ func (d *docs) open(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comman
 		return nil, errGatedArg
 	}
 	session := cmp.Or(args.Session, cmd.Caller)
-	allow := d.scope(ctx, h, ws)
+	sessions := lazySessions(ctx, h, ws.ID)
+	allow := d.scope(ctx, ws, sessions)
 	path, anchor := splitAnchor(args.Path)
-	abs, src, err := load(d.absolute(ctx, h, ws, session, path), allow)
+	abs, src, err := load(d.absolute(ws, sessions, session, path), allow)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +227,8 @@ func (d *docs) present(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Com
 	}
 	session := cmp.Or(args.Session, cmd.Caller)
 	path, _ := splitAnchor(args.Path)
-	abs, _, err := load(d.absolute(ctx, h, ws, session, path), d.scope(ctx, h, ws))
+	sessions := lazySessions(ctx, h, ws.ID)
+	abs, _, err := load(d.absolute(ws, sessions, session, path), d.scope(ctx, ws, sessions))
 	if err != nil {
 		return nil, err
 	}
@@ -256,8 +258,9 @@ func (d *docs) read(ctx context.Context, h *pluginsdk.Host, workspaceID, path st
 	if err != nil {
 		return nil, err
 	}
-	allow := d.scope(ctx, h, ws)
-	abs, src, err := load(d.absolute(ctx, h, ws, "", path), allow)
+	sessions := lazySessions(ctx, h, ws.ID)
+	allow := d.scope(ctx, ws, sessions)
+	abs, src, err := load(d.absolute(ws, sessions, "", path), allow)
 	if err != nil {
 		return nil, err
 	}
@@ -273,17 +276,17 @@ func (d *docs) read(ctx context.Context, h *pluginsdk.Host, workspaceID, path st
 	return readResult{Path: abs, Title: doc.Title, HTML: doc.HTML, Rev: st.rev, Kind: kind}, nil
 }
 
-func (d *docs) absolute(ctx context.Context, h *pluginsdk.Host, ws contract.Workspace, session, path string) string {
-	return d.landed(ctx, h, ws, d.joined(ctx, h, ws, session, path))
+func (d *docs) absolute(ws contract.Workspace, sessions sessionsFn, session, path string) string {
+	return d.landed(ws, sessions, d.joined(ws, sessions, session, path))
 }
 
-func (d *docs) joined(ctx context.Context, h *pluginsdk.Host, ws contract.Workspace, session, path string) string {
+func (d *docs) joined(ws contract.Workspace, sessions sessionsFn, session, path string) string {
 	if filepath.IsAbs(path) {
 		return path
 	}
 	if session != "" {
-		if sessions, err := agentcall.Sessions(ctx, h, ws.ID); err == nil {
-			if s, ok := agentcall.Find(sessions, session); ok && s.Worktree != "" {
+		if list, err := sessions(); err == nil {
+			if s, ok := agentcall.Find(list, session); ok && s.Worktree != "" {
 				return filepath.Join(s.Worktree, path)
 			}
 		}

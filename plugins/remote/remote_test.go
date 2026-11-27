@@ -365,6 +365,10 @@ func TestSetIdentityName(t *testing.T) {
 		{"empty is the system name", "", computer{ID: "cmp", Name: "Mac"}, "", nil},
 		{"two lines", "Stu\ndio", computer{ID: "cmp", Name: "Mac"}, codeInvalidParams, nil},
 		{"too long", strings.Repeat("é", maxNameRunes+1), computer{ID: "cmp", Name: "Mac"}, codeInvalidParams, nil},
+		{"joiner in an emoji sequence", "👩\u200D💻", computer{ID: "cmp", Name: "👩\u200D💻"}, "", []string{identityTopic, changedTopic}},
+		{"format character", "Stu\u202Edio", computer{ID: "cmp", Name: "Mac"}, codeInvalidParams, nil},
+		{"line separator", "Stu\u2028dio", computer{ID: "cmp", Name: "Mac"}, codeInvalidParams, nil},
+		{"too many bytes", strings.Repeat("😀", 33), computer{ID: "cmp", Name: "Mac"}, codeInvalidParams, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

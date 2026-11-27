@@ -141,7 +141,7 @@ func (d *docs) list(ctx context.Context, h *pluginsdk.Host, workspaceID string, 
 		}
 		logError("agents.docs", err)
 	}
-	l := newLister(ws, d.scope(ctx, h, ws))
+	l := newLister(ws, d.scope(ctx, ws, lazySessions(ctx, h, ws.ID)))
 	for _, doc := range written.Docs {
 		if !l.add(doc.Path, "", true) {
 			return l.res, nil

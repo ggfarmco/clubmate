@@ -16,13 +16,15 @@ const (
 	identityTopic = "remote.identity"
 	nameKey       = "computerName"
 	maxNameRunes  = 40
+	zwnj          = '\u200C'
+	zwj           = '\u200D'
 )
 
 var (
 	colourOrder = []string{"blue", "magenta", "sky", "purple", "indigo", "graphite"}
 
 	errBadColour = errors.New("colour must be one of sky, blue, indigo, purple, magenta, graphite")
-	errBadName   = errors.New("name must be at most 40 characters, on one line")
+	errBadName   = errors.New("name must be at most 40 characters and 128 bytes, on one line, without control or format characters (zero-width joiners are allowed)")
 )
 
 type identity struct {
@@ -71,7 +73,7 @@ func (i *identity) ensureColour(ctx context.Context, used []string) (computer, e
 
 func (i *identity) setName(ctx context.Context, name string) (computer, error) {
 	name = strings.TrimSpace(name)
-	if utf8.RuneCountInString(name) > maxNameRunes || len(name) > maxDeviceField || strings.ContainsFunc(name, unicode.IsControl) {
+	if utf8.RuneCountInString(name) > maxNameRunes || len(name) > maxDeviceField || strings.ContainsFunc(name, hiddenRune) {
 		return computer{}, errBadName
 	}
 	if name == i.system {
@@ -83,6 +85,10 @@ func (i *identity) setName(ctx context.Context, name string) (computer, error) {
 		return computer{}, err
 	}
 	return i.save(ctx, func(c computer) computer { c.Name = cmp.Or(name, i.system); return c })
+}
+
+func hiddenRune(r rune) bool {
+	return r != zwnj && r != zwj && unicode.In(r, unicode.Cc, unicode.Cf, unicode.Zl, unicode.Zp)
 }
 
 func (i *identity) save(ctx context.Context, next func(computer) computer) (computer, error) {
