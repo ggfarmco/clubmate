@@ -28,7 +28,6 @@ struct WorkspaceWindow: View {
         }
             .background(theme.background, ignoresSafeAreaEdges: .all)
             .navigationTitle(title)
-            .background(FullScreenTitlebar(color: NSColor(theme.surface1)))
             .modifier(WorkspacePresenters(windowID: $windowID))
             .focusedSceneValue(\.workspaceWindowID, windowID)
             .background(WindowObserver { [app, windowID] in
