@@ -136,3 +136,158 @@ func TestChangedAskSessionWaitsForReviewBeforeClosing(t *testing.T) {
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return !reviewed(n) })
 	assert.True(t, f.waitStatus(t, workspace, review, "closed").AutoClosed)
 }
+
+const treeCloseAfter = 300 * time.Millisecond
+
+func startDoneTree(t *testing.T, repo string) (*fixture, string, string, func()) {
+	t.Helper()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_CLOSE_AFTER=" + treeCloseAfter.String()}, map[string]any{"resume": true, "prompt": []map[string]any{{"echo": true}}},
+		testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"),
+		testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"),
+		testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"))
+	workspace := f.workspace(t, repo)
+	var out struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"finish": "merge"}, &out))
+	root := out.Session
+	var job struct {
+		ID string `json:"id"`
+	}
+	require.NoError(t, f.runAs(t, workspace, root, "cron.add", map[string]any{"name": "hold", "command": "agents.prompt", "args": `{"session":"` + root + `","text":"hold"}`, "in": "10h"}, &job))
+	require.NotEmpty(t, job.ID)
+	return f, workspace, root, func() {
+		t.Helper()
+		require.NoError(t, f.runAs(t, workspace, root, "cron.delete", map[string]any{"id": job.ID}, nil))
+	}
+}
+
+func turnEnds(t *testing.T, f *fixture, session string) int {
+	t.Helper()
+	n := 0
+	for _, l := range f.logLines(t, session) {
+		if string(l["kind"]) == `"turn_end"` {
+			n++
+		}
+	}
+	return n
+}
+
+func (f *fixture) waitTurnEnds(t *testing.T, session string, turns int) {
+	t.Helper()
+	testutil.Eventually(t, func() bool { return turnEnds(t, f, session) >= turns }, wait)
+}
+
+func TestDoneTreeWithAnUnlandedChildBranchStaysOpenUntilItLandsOnOrigin(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	origin := t.TempDir()
+	git(t, origin, "init", "-q", "--bare", "-b", "main")
+	git(t, repo, "remote", "add", "origin", origin)
+	git(t, repo, "push", "-q", "origin", "main")
+	git(t, repo, "remote", "set-head", "origin", "main")
+	f, workspace, root, release := startDoneTree(t, repo)
+	kid := f.newChild(t, workspace, root, map[string]any{"branch": "c1", "prompt": "work"})
+	f.waitBranchChildDone(t, workspace, kid.Session)
+	f.waitTurnEnds(t, root, 1)
+	commitIn(t, kid.Worktree, "b.go")
+	release()
+
+	testutil.Never(t, func() bool {
+		return f.session(t, workspace, root).Status == "closed" || f.session(t, workspace, kid.Session).Status == "closed"
+	}, 3*treeCloseAfter)
+
+	git(t, kid.Worktree, "push", "-q", "origin", "c1:main")
+	assert.True(t, f.waitStatus(t, workspace, kid.Session, "closed").AutoClosed)
+	assert.True(t, f.waitStatus(t, workspace, root, "closed").AutoClosed)
+}
+
+func TestDoneTreeStaysOpenWhileGitCannotReadAChildWorktree(t *testing.T) {
+	t.Parallel()
+	f, workspace, root, release := startDoneTree(t, newRepo(t))
+	kid := f.newChild(t, workspace, root, map[string]any{"branch": "c1", "prompt": "work"})
+	f.waitBranchChildDone(t, workspace, kid.Session)
+	f.waitTurnEnds(t, root, 1)
+	dotGit := filepath.Join(kid.Worktree, ".git")
+	saved, err := os.ReadFile(dotGit)
+	require.NoError(t, err)
+	write(t, dotGit, "gitdir: "+filepath.Join(t.TempDir(), "gone")+"\n")
+	release()
+
+	testutil.Never(t, func() bool { return f.session(t, workspace, kid.Session).Status == "closed" }, 3*treeCloseAfter)
+
+	write(t, dotGit, string(saved))
+	assert.True(t, f.waitStatus(t, workspace, kid.Session, "closed").AutoClosed)
+}
+
+func TestChildWhoseClosedParentWorktreeIsGoneLandsAgainstTheParentsClosedBranch(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	f, workspace, root, _ := startDoneTree(t, repo)
+	mid := f.newChild(t, workspace, root, map[string]any{"branch": "feat", "prompt": "mid"})
+	f.waitBranchChildDone(t, workspace, mid.Session)
+	kid := f.newChild(t, workspace, mid.Session, map[string]any{"branch": "c1", "prompt": "work"})
+	f.waitBranchChildDone(t, workspace, kid.Session)
+	f.waitTurnEnds(t, mid.Session, 2)
+	f.waitStatus(t, workspace, mid.Session, "done")
+	commitIn(t, kid.Worktree, "a.go")
+	git(t, mid.Worktree, "merge", "-q", "--ff-only", "c1")
+	require.NoError(t, f.run(t, workspace, "agents.close", map[string]any{"session": mid.Session}, nil))
+	assert.Equal(t, "feat", f.waitStatus(t, workspace, mid.Session, "closed").ClosedBranch)
+	f.waitStatus(t, workspace, kid.Session, "closed")
+	git(t, repo, "worktree", "remove", "--force", mid.Worktree)
+	write(t, filepath.Join(repo, "a.go"), "main\n")
+	git(t, repo, "commit", "-qam", "main")
+	require.NoError(t, f.run(t, workspace, "agents.resume", map[string]any{"session": kid.Session}, nil))
+	f.prompt(t, workspace, kid.Session, "go")
+
+	assert.True(t, f.waitStatus(t, workspace, kid.Session, "closed").AutoClosed)
+}
+
+func TestDoneTreeWithAChildInAFolderOutsideGitCloses(t *testing.T) {
+	t.Parallel()
+	f, workspace, root, release := startDoneTree(t, t.TempDir())
+	kid := f.newChild(t, workspace, root, map[string]any{"prompt": "work"})
+	f.waitStatus(t, workspace, kid.Session, "done")
+	release()
+
+	assert.True(t, f.waitStatus(t, workspace, kid.Session, "closed").AutoClosed)
+	assert.True(t, f.waitStatus(t, workspace, root, "closed").AutoClosed)
+}
+
+func TestChildWhoseWorktreeWasRemovedStaysOpenUntilItsBranchIsGone(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	f, workspace, root, release := startDoneTree(t, repo)
+	kid := f.newChild(t, workspace, root, map[string]any{"branch": "c1", "prompt": "work"})
+	f.waitBranchChildDone(t, workspace, kid.Session)
+	f.waitTurnEnds(t, root, 1)
+	commitIn(t, kid.Worktree, "b.go")
+	git(t, repo, "worktree", "remove", "--force", kid.Worktree)
+	release()
+
+	testutil.Never(t, func() bool { return f.session(t, workspace, kid.Session).Status == "closed" }, 3*treeCloseAfter)
+
+	git(t, repo, "branch", "-D", "c1")
+	assert.True(t, f.waitStatus(t, workspace, kid.Session, "closed").AutoClosed)
+}
+
+func TestChildWithNoRecordedBaseLandsAgainstTheBranchItsOpenParentsGoneWorktreeWasMadeOn(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	f, workspace, root, release := startDoneTree(t, repo)
+	mid := f.newChild(t, workspace, root, map[string]any{"branch": "feat", "prompt": "mid"})
+	f.waitBranchChildDone(t, workspace, mid.Session)
+	git(t, mid.Worktree, "branch", "c1")
+	kid := f.newChild(t, workspace, mid.Session, map[string]any{"branch": "c1", "prompt": "work"})
+	f.waitBranchChildDone(t, workspace, kid.Session)
+	f.waitTurnEnds(t, mid.Session, 2)
+	f.waitStatus(t, workspace, mid.Session, "done")
+	commitIn(t, kid.Worktree, "b.go")
+	git(t, mid.Worktree, "merge", "-q", "--ff-only", "c1")
+	git(t, repo, "merge", "-q", "--ff-only", "feat")
+	git(t, repo, "worktree", "remove", "--force", mid.Worktree)
+	release()
+
+	assert.True(t, f.waitStatus(t, workspace, kid.Session, "closed").AutoClosed)
+}

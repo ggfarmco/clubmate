@@ -1,11 +1,19 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"errors"
+	"maps"
 	"os"
 	"slices"
+	"strings"
 	"time"
+
+	"clubmate/plugins/internal/gitrepo"
 )
+
+var errParentBranch = errors.New("the parent's branch can't be resolved")
 
 const (
 	closeAfter    = time.Hour
@@ -42,6 +50,9 @@ func (a *app) closeDone(after time.Duration) {
 			roots = append(roots, s)
 		}
 	}
+	a.unlandedMu.Lock()
+	maps.DeleteFunc(a.unlandedSeen, func(id string, _ unlandedVerdict) bool { return a.sessions[id] == nil })
+	a.unlandedMu.Unlock()
 	a.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), cleanupLimit)
 	defer cancel()
@@ -68,6 +79,9 @@ func (a *app) closeDone(after time.Duration) {
 			owners[workspace] = a.jobOwners(ctx, workspace)
 		}
 		if owned := owners[workspace]; owned == nil || slices.ContainsFunc(tree, func(s *session) bool { return owned[s.snapshot().ID] }) {
+			continue
+		}
+		if slices.ContainsFunc(tree, func(s *session) bool { return a.unlanded(ctx, s.snapshot()) }) {
 			continue
 		}
 		a.holdClose()
@@ -148,4 +162,107 @@ func (a *app) asidesSettled(tree []*session, after time.Duration) bool {
 		}
 	}
 	return true
+}
+
+type unlandedVerdict struct {
+	tips     string
+	unlanded bool
+}
+
+func (a *app) unlanded(ctx context.Context, rec record) bool {
+	if rec.closed() || rec.RepoPath != "" || rec.ParentSession == "" {
+		a.unlandedMu.Lock()
+		delete(a.unlandedSeen, rec.ID)
+		a.unlandedMu.Unlock()
+		return false
+	}
+	repo, refs, err := a.landRefs(ctx, rec)
+	if err != nil {
+		return true
+	}
+	if refs == nil {
+		return false
+	}
+	tips, err := gitrepo.Tips(ctx, repo, refs...)
+	if err != nil {
+		return true
+	}
+	if tips[0] == "" {
+		return false
+	}
+	key := strings.Join(tips, " ")
+	a.unlandedMu.Lock()
+	v, ok := a.unlandedSeen[rec.ID]
+	a.unlandedMu.Unlock()
+	if ok && v.tips == key {
+		return v.unlanded
+	}
+	out, err := gitrepo.Unlanded(ctx, repo, tips[0], slices.DeleteFunc(slices.Clone(tips[1:]), func(t string) bool { return t == "" })...)
+	if err != nil {
+		return true
+	}
+	a.unlandedMu.Lock()
+	if a.unlandedSeen == nil {
+		a.unlandedSeen = map[string]unlandedVerdict{}
+	}
+	a.unlandedSeen[rec.ID] = unlandedVerdict{tips: key, unlanded: out}
+	a.unlandedMu.Unlock()
+	return out
+}
+
+func (a *app) landRefs(ctx context.Context, rec record) (string, []string, error) {
+	t, err := a.childTree(ctx, rec)
+	if err != nil || t == nil {
+		return "", nil, err
+	}
+	parent, err := a.parentBranch(ctx, rec, t)
+	if err != nil || parent == "" || parent == t.own.Branch {
+		return "", nil, err
+	}
+	refs := []string{headsPrefix + t.own.Branch, headsPrefix + parent}
+	if t.isDefault(parent) {
+		refs = append(refs, originRefPrefix+parent)
+	}
+	return t.primary.Path, refs, nil
+}
+
+func (a *app) childTree(ctx context.Context, rec record) (*taskTree, error) {
+	if _, err := os.Stat(rec.Worktree); !errors.Is(err, os.ErrNotExist) {
+		f, err := gitrepo.OpenFolder(ctx, rec.Worktree)
+		if errors.Is(err, gitrepo.ErrNotRepo) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		return taskTreeOf(ctx, f.Trees, f.Checkout), nil
+	}
+	top, ok := gitrepo.RepoRoot(rec.Worktree)
+	if rec.ForkBranch == "" || !ok {
+		return nil, nil
+	}
+	trees, err := gitrepo.Worktrees(ctx, top)
+	if err != nil || len(trees) == 0 {
+		return nil, err
+	}
+	return taskTreeOf(ctx, trees, gitrepo.Worktree{Path: rec.Worktree, Real: gitrepo.Canonical(rec.Worktree), Branch: rec.ForkBranch}), nil
+}
+
+func (a *app) parentBranch(ctx context.Context, rec record, t *taskTree) (string, error) {
+	if p := a.session(rec.ParentSession); p != nil {
+		prec := p.snapshot()
+		if _, err := os.Stat(prec.Worktree); !errors.Is(err, os.ErrNotExist) {
+			if w := gitrepo.Longest(t.trees, gitrepo.Canonical(prec.Worktree)); w != nil && w.Real != t.own.Real {
+				return w.Branch, nil
+			}
+			return "", nil
+		}
+		if branch := cmp.Or(prec.ClosedBranch, prec.ForkBranch); branch != "" {
+			return branch, nil
+		}
+	}
+	if base := a.baseOf(ctx, rec); base != "" {
+		return base, nil
+	}
+	return "", errParentBranch
 }

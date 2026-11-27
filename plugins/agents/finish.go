@@ -150,13 +150,17 @@ func openTaskTree(ctx context.Context, worktree string) *taskTree {
 	if err != nil {
 		return nil
 	}
-	primary, own := f.Trees[0], f.Checkout
+	return taskTreeOf(ctx, f.Trees, f.Checkout)
+}
+
+func taskTreeOf(ctx context.Context, trees []gitrepo.Worktree, own gitrepo.Worktree) *taskTree {
+	primary := trees[0]
 	if own.Branch == "" || own.Real == primary.Real || !strings.HasPrefix(own.Real, filepath.Join(primary.Real, worktreesDir)+string(filepath.Separator)) {
 		return nil
 	}
 	base, _ := gitrepo.DefaultBase(ctx, primary.Path)
 	_, remoteBase, _ := strings.Cut(base, "/")
-	t := &taskTree{trees: f.Trees, primary: primary, own: own, isDefault: func(branch string) bool {
+	t := &taskTree{trees: trees, primary: primary, own: own, isDefault: func(branch string) bool {
 		return branch == base || branch == remoteBase || slices.Contains(defaultBranches, branch)
 	}}
 	if t.isDefault(own.Branch) {
@@ -347,12 +351,15 @@ func (a *app) awaitOp(ctx context.Context, workspaceID, id string) (string, erro
 }
 
 func (a *app) setFork(ctx context.Context, s *session) {
-	head, err := gitrepo.Run(ctx, s.snapshot().Worktree, "rev-parse", "--verify", "HEAD")
+	worktree := s.snapshot().Worktree
+	head, err := gitrepo.Run(ctx, worktree, "rev-parse", "--verify", "HEAD")
 	if err != nil {
 		return
 	}
+	branch, _ := gitrepo.Run(ctx, worktree, "symbolic-ref", "--short", "-q", "HEAD")
 	s.mu.Lock()
 	s.rec.Fork = strings.TrimSpace(string(head))
+	s.rec.ForkBranch = strings.TrimSpace(string(branch))
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
 }

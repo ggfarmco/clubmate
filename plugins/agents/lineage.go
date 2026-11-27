@@ -11,6 +11,7 @@ type lineage struct {
 	ParentSession string `json:"parentSession,omitempty"`
 	Advisor       string `json:"advisor,omitempty"`
 	Fork          string `json:"fork,omitempty"`
+	ForkBranch    string `json:"forkBranch,omitempty"`
 	HandoffFrom   string `json:"handoffFrom,omitempty"`
 	HandoffTo     string `json:"handoffTo,omitempty"`
 	ImportedFrom  string `json:"importedFrom,omitempty"`

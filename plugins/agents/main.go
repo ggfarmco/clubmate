@@ -57,6 +57,8 @@ type app struct {
 	usage        usageTracker
 	branches     branchCache
 	baseCache    baseCache
+	unlandedMu   sync.Mutex
+	unlandedSeen map[string]unlandedVerdict
 	texts        textIndex
 	found        searchCache
 	thumbs       thumbCache

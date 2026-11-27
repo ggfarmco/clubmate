@@ -76,6 +76,56 @@ func LandedIn(ctx context.Context, repo, tip, base string) bool {
 	return landedIn(ctx, runWith, repo, tip, base)
 }
 
+func Tips(ctx context.Context, repo string, refs ...string) ([]string, error) {
+	out := make([]string, len(refs))
+	for i, ref := range refs {
+		sha, err := runWith(ctx, repo, nil, "--no-replace-objects", "rev-parse", "--verify", "--quiet", ref+"^{commit}")
+		if killed(err) {
+			return nil, err
+		}
+		if err == nil {
+			out[i] = strings.TrimSpace(string(sha))
+		}
+	}
+	return out, nil
+}
+
+func Unlanded(ctx context.Context, repo, tip string, bases ...string) (bool, error) {
+	var failed error
+	watched := func(ctx context.Context, repo string, env []string, args ...string) ([]byte, error) {
+		out, err := runWith(ctx, repo, env, args...)
+		if killed(err) {
+			failed = err
+		}
+		return out, err
+	}
+	for _, base := range bases {
+		if !unlandedIn(ctx, watched, repo, tip, base) {
+			return false, nil
+		}
+	}
+	return true, failed
+}
+
+func unlandedIn(ctx context.Context, git runner, repo, tip, base string) bool {
+	plain := func(args ...string) ([]byte, error) {
+		return git(ctx, repo, nil, append([]string{"--no-replace-objects"}, args...)...)
+	}
+	if _, err := plain("merge-base", "--is-ancestor", tip, base); err == nil {
+		return false
+	}
+	fork, err := plain("merge-base", base, tip)
+	if err != nil {
+		return true
+	}
+	forkTree, err := plain("rev-parse", strings.TrimSpace(string(fork))+"^{tree}")
+	if err != nil {
+		return true
+	}
+	tipTree, err := plain("rev-parse", tip+"^{tree}")
+	return err != nil || string(forkTree) != string(tipTree) && !landedIn(ctx, git, repo, tip, base)
+}
+
 func landedIn(ctx context.Context, git runner, repo, tip, base string) bool {
 	plain := func(args ...string) ([]byte, error) {
 		return git(ctx, repo, nil, append([]string{"--no-replace-objects"}, args...)...)

@@ -83,6 +83,7 @@ type record struct {
 	AutoClosed    bool   `json:"autoClosed"`
 	CleanupOnSeen bool   `json:"cleanupOnSeen"`
 	ClosedStatus  string `json:"closedStatus"`
+	ClosedBranch  string `json:"closedBranch"`
 	Service       bool   `json:"service"`
 	Review        bool   `json:"review"`
 	NeedsYou      bool   `json:"needsYou"`

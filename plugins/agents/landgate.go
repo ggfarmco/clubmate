@@ -42,6 +42,7 @@ const (
 	gateIDPrefix      = "gt"
 	shortSha          = 10
 	headsPrefix       = "refs/heads/"
+	originRefPrefix   = "refs/remotes/origin/"
 	gateRequestPrefix = "lg"
 	gateTreeKeyPrefix = "lt"
 	hooksDirName      = "githooks"
