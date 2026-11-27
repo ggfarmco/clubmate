@@ -124,10 +124,14 @@ func TestDrawnGraphRun(t *testing.T) {
 	for i := range report {
 		report[i] = fmt.Sprintf("Line %d of the coder's report.", i+1)
 	}
-	script, err := json.Marshal(map[string]any{"prompt": []any{map[string]any{
-		"match":  "Implement",
-		"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": strings.Join(report, "\n\n")}},
-	}}})
+	say := func(text string) map[string]any {
+		return map[string]any{"match": "Implement", "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": text}}}
+	}
+	script, err := json.Marshal(map[string]any{"prompt": []any{
+		say(strings.Join(report, "\n\n")),
+		map[string]any{"match": "Implement", "update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "r1", "title": "Read `README.md`", "kind": "read", "status": "completed"}},
+		say("The readme is in place."),
+	}})
 	require.NoError(t, err)
 	app := start(t, "macui-drawn-graph", string(script))
 	graph, err := os.ReadFile(filepath.Join(root, "plugins", "agents", "graphs", "testdata", ".clubmate", "graphs", "review-loop.json"))
