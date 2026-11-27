@@ -619,7 +619,7 @@ func (s *session) apply(e envelope) {
 		s.linkDocs(e.Turn)
 		var p turnEndPayload
 		if json.Unmarshal(e.Payload, &p) == nil {
-			s.turnInfo(e.Turn).StopReason = p.StopReason
+			s.turnInfo(e.Turn).StopReason = cmp.Or(p.StopReason, s.turnInfo(e.Turn).StopReason)
 			s.turnInfo(e.Turn).failed = p.Error != "" || p.StopReason == acp.StopCancelled
 			s.failedTurn = strings.TrimPrefix(acpErrorRe.ReplaceAllString(firstLine(p.Error), ""), internalErrorPrefix)
 		}

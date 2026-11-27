@@ -108,6 +108,7 @@ type record struct {
 	Spare           []callSpare    `json:"spare,omitempty"`
 	GatedDocs       []gatedDoc     `json:"gatedDocs,omitempty"`
 	LimitWait       *limitWait     `json:"limitWait,omitempty"`
+	AuthWait        bool           `json:"authWait,omitempty"`
 	Aside           *asideInfo     `json:"asideInfo,omitempty"`
 	ForkedFrom      string         `json:"forkedFrom,omitempty"`
 	ComposerDraft   *composerDraft `json:"composerDraft,omitempty"`

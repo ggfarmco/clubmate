@@ -58,6 +58,7 @@ func (s *session) trackLocked(kind string, payload json.RawMessage) (started, en
 		s.late = false
 	case kind == acp.UpdateUsage && s.cycle && !s.running && hasCost(payload):
 		s.cycle = false
+		s.cycleSignedIn = s.cycleAuth == ""
 		if s.dropping > 0 {
 			s.followOwed = true
 		} else {
@@ -65,8 +66,11 @@ func (s *session) trackLocked(kind string, payload json.RawMessage) (started, en
 		}
 		s.refuseCallsLocked()
 		return false, true
+	case slices.Contains(cycleKinds, kind) && s.cycle && !s.running:
+		s.cycleAuth = signedOutText(kind, payload)
 	case slices.Contains(cycleKinds, kind) && !s.workingLocked() && s.proc != nil:
 		s.cycle = true
+		s.cycleAuth = signedOutText(kind, payload)
 		s.started = time.Now()
 		s.settleLocked()
 		return true, false
@@ -245,6 +249,16 @@ func shellsUnder(root int, procs []proc.Process) []int {
 func (a *app) settleBackground(s *session) {
 	a.pruneBackground(s)
 	a.logRefusals(s)
+	if a.cycleSignedOut(s) {
+		return
+	}
 	a.finishTurn(s)
 	a.retryAfterCycle(s)
+	s.mu.Lock()
+	signedIn := s.cycleSignedIn
+	s.cycleSignedIn = false
+	s.mu.Unlock()
+	if signedIn {
+		a.continueSignedIn()
+	}
 }

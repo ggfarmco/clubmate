@@ -36,6 +36,8 @@ type runState struct {
 	proc            *agentProc
 	running         bool
 	cycle           bool
+	cycleAuth       string
+	cycleSignedIn   bool
 	background      map[string]bool
 	cancelRequested bool
 	prior           string
@@ -349,7 +351,8 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		s.mu.Unlock()
 	})
 	err = p.conn.Call(answered, acp.MethodSessionPrompt, req, &res)
-	if s.supersededOnly(err) {
+	superseded := s.supersededOnly(err)
+	if superseded {
 		err, res = nil, acp.PromptResponse{StopReason: acp.StopEndTurn}
 	}
 	if retry, ok := a.retryTurn(s, rec, epoch, err); ok {
@@ -419,6 +422,9 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		s.refuseCallsLocked()
 	}
 	prior := s.rec.Held
+	if !s.rec.closed() {
+		s.rec.AuthWait = needsSignIn(err) && s.rec.Night == ""
+	}
 	switch {
 	case s.rec.closed():
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
@@ -466,6 +472,9 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		}
 	} else {
 		a.resetNetRetry(rec.ID)
+		if !closed && !cancelled && !superseded {
+			a.continueSignedIn()
+		}
 	}
 	a.settleLimitWait(s, err, closed || cancelled)
 	if finished && !cancelled {

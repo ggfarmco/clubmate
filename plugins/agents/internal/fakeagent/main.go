@@ -58,6 +58,7 @@ type step struct {
 	Echo       bool            `json:"echo"`
 	Match      string          `json:"match"`
 	Fail       string          `json:"fail"`
+	Code       int             `json:"code"`
 	ErrorKind  string          `json:"errorKind"`
 	Session    string          `json:"session"`
 	Batch      []string        `json:"batch"`
@@ -448,7 +449,7 @@ func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step)
 		case s.Sleep > 0:
 			time.Sleep(time.Duration(s.Sleep) * time.Millisecond)
 		case s.Fail != "":
-			rpcErr := &acp.Error{Code: acp.CodeInternal, Message: s.Fail}
+			rpcErr := &acp.Error{Code: cmp.Or(s.Code, acp.CodeInternal), Message: s.Fail}
 			if s.ErrorKind != "" {
 				rpcErr.Data, _ = json.Marshal(acp.ErrorData{ErrorKind: s.ErrorKind})
 			}
