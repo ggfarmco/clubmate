@@ -1,0 +1,16 @@
+{
+  "title": "Compact session header · round 2 · top bar",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 27 Nov 2026. The window top bar after the 32 pt custom bar was built: what height is right on every Mac, and what the bar does in full screen when the traffic lights come and go. Rules: rules.md § Round 2.",
+    "Pick Q1: N · back to the native NSToolbar .unifiedCompact (AppKit sets the height, 40 pt here, and the inset after the lights). M · keep the custom bar, but measure height and inset at run time. Never a fixed 28 or 69.",
+    "Pick Q2: ride along · no fixed gap; the left items slide right while the lights show and back when they hide, on the menu bar's own clock. No notch: the bar rides down under the menu bar. Notch: the bar stays under the black band."
+  ],
+  "boards": [
+    {"file": "r2-Height-1280.dc.html", "w": 1280, "title": "Q1 · bar height · N native (pick) · M measured · ✗ fixed 28", "caption": "A 3× zoom shows the 2 pt offset that makes a fixed 28 look crooked."},
+    {"file": "r2-FS-Notch-1280.dc.html", "w": 1280, "title": "Q2 · full screen on a notched Mac · ride along (pick)", "caption": "Menu bar hidden, half way, shown: the bar stays under the band; only the left inset slides 12 → 81 and the lights fade in."},
+    {"file": "r2-FS-NoNotch-1280.dc.html", "w": 1280, "title": "Q2 · full screen without a notch · ride along (pick)", "caption": "The bar rides down with the menu bar (0 → 24) over the content with a shadow; the content does not reflow."},
+    {"file": "r2-Motion.dc.html", "w": 1280, "title": "Q2 · reveal motion spec", "caption": "One clock, the menu bar's; N vs M column; 0.25 s ease-in-out only as the fallback; Reduce Motion: no slide."},
+    {"file": "rounds/r2-FS-Alts-1280.dc.html", "w": 1280, "title": "Q2 · rejected: fixed gap (today) · stay with the strip over the pills", "caption": "With the user's two real shots."}
+  ]
+}

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r2 · full screen · rejected alternatives</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/77baef3ce02f146bccd35190e260a9d1">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.cm .bar{position:absolute;left:0;right:0;display:flex;align-items:center;gap:6px;padding-right:10px;background:var(--s1);border-bottom:1px solid var(--bd);min-width:0;z-index:2}
+.cm .lt{position:absolute;left:17px;display:flex;gap:8px;z-index:4}
+.cm .lt i{width:12px;height:12px;border-radius:6px;display:block;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.25)}
+.cm .p18{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:5px;background:var(--s2);border:1px solid var(--bd);color:var(--fg);font-size:11px;line-height:16px;flex:none;white-space:nowrap;min-width:0}
+.cm .p18 svg.i{width:12px;height:12px}
+.cm .ct{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:40px 248px minmax(0,1fr)}
+.cm .hd{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px 0 16px;border-bottom:1px solid var(--bd);min-width:0}
+.cm .hd>.ttl{margin:0}
+.cm .hole{position:absolute;left:0;width:81px;z-index:3;background:repeating-linear-gradient(135deg,transparent 0 6px,color-mix(in srgb,var(--er) 22%,transparent) 6px 7px)}
+.band{position:absolute;left:0;right:0;top:0;height:34px;background:#000;display:flex;align-items:center;gap:18px;padding:0 14px;font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;font-size:13px;color:#F2F2F2;z-index:5}
+.strip{position:absolute;left:0;right:0;height:28px;background:rgba(232,232,228,.92);z-index:3}
+.lab{display:flex;align-items:baseline;gap:12px;padding:16px 24px 8px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:16px;color:#3A3D3B;flex:none}
+.lab b{font-weight:600;color:#1B1D1C}
+</style>
+</helmet>
+<div class="doc" style="width: 1280px; height: 1060px; display: flex; flex-direction: column; overflow: hidden">
+<div style="padding: 24px 24px 4px; display: flex; flex-direction: column; gap: 6px; flex: none">
+<div class="eyebrow">r2 · Q2 · the alternatives, notch Mac, custom 32 pt bar</div>
+<h2>Fixed gap (today) and stay-at-top-under-the-strip, both rejected</h2>
+</div>
+
+<div class="lab"><b>F · fixed gap, hidden</b><span>today: a permanent 81 pt hole at the left (hatched). Nothing is there 99% of the time — this is the part that reads as “crooked”</span></div>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 120px; position: relative; overflow: hidden; flex: none">
+<div class="band"></div>
+<div class="bar" style="top: 34px; height: 32px; padding-left: 81px">
+<button class="p18" aria-label="Workspace clubmate, worktree main"><span class="mdot id-blue"></span><span>clubmate</span><span class="faint">/</span><span>main</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="p18" aria-label="Notifications"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg></button>
+</div>
+<span class="hole" style="top: 34px; height: 32px"></span>
+<div class="ct" style="top: 66px">
+<nav class="rail" aria-label="Sections"><button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button></nav>
+<aside class="side" aria-label="Agent sessions"><div style="display: flex; gap: 6px; align-items: center; height: 28px; padding: 0 10px"><span class="t2">+ New</span><span class="t2">⑂ New in worktree…</span></div></aside>
+<main class="main"><div class="hd"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><h1 class="ttl ell" style="flex: 0 1 auto">Шапка транскрипта сессии</h1><span class="mut cap">Claude · main · Auto</span></div></main>
+</div>
+</div>
+
+<div class="lab"><b>F · fixed gap, shown</b><span>lights fill the hole; it works, but only for the second the pointer is up there</span></div>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 120px; position: relative; overflow: hidden; flex: none">
+<div class="band"><b>Clubmate</b><span>File</span><span>Edit</span><span>View</span><span>Section</span><span>Window</span><span>Help</span></div>
+<div class="bar" style="top: 34px; height: 32px; padding-left: 81px">
+<button class="p18" aria-label="Workspace clubmate, worktree main"><span class="mdot id-blue"></span><span>clubmate</span><span class="faint">/</span><span>main</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="p18" aria-label="Notifications"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg></button>
+</div>
+<div class="lt" style="top: 44px"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<div class="ct" style="top: 66px">
+<nav class="rail" aria-label="Sections"><button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button></nav>
+<aside class="side" aria-label="Agent sessions"><div style="display: flex; gap: 6px; align-items: center; height: 28px; padding: 0 10px"><span class="t2">+ New</span><span class="t2">⑂ New in worktree…</span></div></aside>
+<main class="main"><div class="hd"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><h1 class="ttl ell" style="flex: 0 1 auto">Шапка транскрипта сессии</h1><span class="mut cap">Claude · main · Auto</span></div></main>
+</div>
+</div>
+
+<div class="lab"><b>S · stay, strip over</b><span>no gap, bar stays put; macOS's lights strip lands on top of the pills (shot 1). The worktree pill is unreachable while the menu is up</span></div>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 120px; position: relative; overflow: hidden; flex: none">
+<div class="band"><b>Clubmate</b><span>File</span><span>Edit</span><span>View</span><span>Section</span><span>Window</span><span>Help</span></div>
+<div class="bar" style="top: 34px; height: 32px; padding-left: 12px">
+<button class="p18" aria-label="Workspace clubmate, worktree main"><span class="mdot id-blue"></span><span>clubmate</span><span class="faint">/</span><span>main</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="p18" aria-label="Notifications"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg></button>
+</div>
+<span class="strip" style="top: 34px"></span>
+<div class="lt" style="top: 42px"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<div class="ct" style="top: 66px">
+<nav class="rail" aria-label="Sections"><button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button></nav>
+<aside class="side" aria-label="Agent sessions"><div style="display: flex; gap: 6px; align-items: center; height: 28px; padding: 0 10px"><span class="t2">+ New</span><span class="t2">⑂ New in worktree…</span></div></aside>
+<main class="main"><div class="hd"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><h1 class="ttl ell" style="flex: 0 1 auto">Шапка транскрипта сессии</h1><span class="mut cap">Claude · main · Auto</span></div></main>
+</div>
+</div>
+
+<div class="lab" style="padding-top: 22px"><b>shots</b><span>1 · full screen, menu bar shown: the lights strip comes out under the band, over the bar · 2 · window after leaving full screen</span></div>
+<div style="display: flex; gap: 32px; padding: 0 24px; flex: none">
+<img src="/_blob/7950d882f9676a5f0f35f697aab80324" alt="Real shot: Clubmate in full screen with the menu bar shown; a light strip with the traffic lights sits under the menu bar, over the app's top bar" style="width: 600px; height: 390px; object-fit: contain; object-position: left top; background: #E4E2D9; border-radius: 8px; display: block">
+<img src="/_blob/94220997de14523e3828aae07788fc7d" alt="Real shot: Clubmate window after leaving full screen; the top bar shows the traffic lights and no workspace pill" style="width: 568px; height: 390px; object-fit: contain; object-position: left top; background: #E4E2D9; border-radius: 8px; display: block">
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"mate"},"$preview":{"width":1280,"height":1060}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'mate' };
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r2 · bar height · 1280</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/77baef3ce02f146bccd35190e260a9d1">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.cm .bar{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:6px;padding-right:10px;background:var(--s1);border-bottom:1px solid var(--bd);min-width:0}
+.cm .lt{position:absolute;left:17px;display:flex;gap:8px;z-index:3}
+.cm .lt i{width:12px;height:12px;border-radius:6px;display:block;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.25)}
+.cm .p18{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:5px;background:var(--s2);border:1px solid var(--bd);color:var(--fg);font-size:11px;line-height:16px;flex:none;white-space:nowrap;min-width:0}
+.cm .p22{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:6px;background:var(--s2);border:1px solid var(--bd);color:var(--fg);font-size:11.5px;line-height:16px;flex:none;white-space:nowrap;min-width:0}
+.cm .p18 svg.i,.cm .p22 svg.i{width:12px;height:12px}
+.cm .p18 .count,.cm .p22 .count{height:14px;min-width:14px;font-size:10px;padding:0 3px}
+.cm .ct{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:40px 248px minmax(0,1fr)}
+.cm .hd{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px 0 16px;border-bottom:1px solid var(--bd);min-width:0}
+.cm .hd>.ttl{margin:0}
+.cm .gd{position:absolute;left:0;right:0;height:0;border-top:1px dashed var(--er);z-index:4}
+.cm .gl{position:absolute;right:12px;z-index:4;font-size:10.5px;line-height:14px;color:var(--er-i);background:var(--bg);padding:0 4px}
+.lab{display:flex;align-items:baseline;gap:12px;padding:16px 24px 8px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:16px;color:#3A3D3B;flex:none}
+.lab b{font-weight:600;color:#1B1D1C}
+</style>
+</helmet>
+<div class="doc" style="width: 1280px; height: 1000px; display: flex; flex-direction: column; overflow: hidden">
+<div style="padding: 24px 24px 4px; display: flex; flex-direction: column; gap: 6px; flex: none">
+<div class="eyebrow">r2 · Q1 · bar height and left inset, windowed</div>
+<h2>Native toolbar (pick) · measured title bar · why a fixed 28 looks crooked</h2>
+</div>
+
+<div class="lab"><b>N · pick</b><span>native NSToolbar .unifiedCompact: AppKit sets the height (40 pt on this Mac), centres the lights, and starts the items after them</span></div>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 128px; position: relative; overflow: hidden; flex: none">
+<div class="bar" style="height: 40px; padding-left: 81px">
+<button class="p22" aria-label="Workspace clubmate, worktree main"><span class="mdot id-blue"></span><span>clubmate</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span>main</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="p22" aria-label="Notifications"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg></button>
+<button class="p22" aria-label="Workspaces: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</div>
+<div class="lt" style="top: 14px"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<div class="ct" style="top: 40px">
+<nav class="rail" aria-label="Sections"><button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button></nav>
+<aside class="side" aria-label="Agent sessions"><div style="display: flex; gap: 6px; align-items: center; height: 28px; padding: 0 10px"><span class="t2">+ New</span><span class="t2">⑂ New in worktree…</span></div><div class="row" style="margin: 0 4px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Задача merge train</span><span class="d cap ac-i">approved</span></div></aside>
+<main class="main"><div class="hd"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg><h1 class="ttl ell" style="flex: 0 1 auto">Шапка транскрипта сессии</h1><span class="mut cap">Claude · main · Auto</span><span style="flex: 1"></span><span class="cap t2">39%</span></div><div style="padding: 8px 24px" class="t2">Фикс для пропавшего пикера ворктри уже в <code>main</code>.</div></main>
+</div>
+</div>
+
+<div class="lab"><b>M</b><span>measured title bar (today, fixed up): height = 2 × lights' centre = 32 here, pills 18, inset = lights' right edge (69) + 12 — measured, never a constant</span></div>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 120px; position: relative; overflow: hidden; flex: none">
+<div class="bar" style="height: 32px; padding-left: 81px">
+<button class="p18" aria-label="Workspace clubmate, worktree main"><span class="mdot id-blue"></span><span>clubmate</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span>main</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="p18" aria-label="Notifications"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg></button>
+<button class="p18" aria-label="Workspaces: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</div>
+<div class="lt" style="top: 10px"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<div class="ct" style="top: 32px">
+<nav class="rail" aria-label="Sections"><button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button></nav>
+<aside class="side" aria-label="Agent sessions"><div style="display: flex; gap: 6px; align-items: center; height: 28px; padding: 0 10px"><span class="t2">+ New</span><span class="t2">⑂ New in worktree…</span></div><div class="row" style="margin: 0 4px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Задача merge train</span><span class="d cap ac-i">approved</span></div></aside>
+<main class="main"><div class="hd"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg><h1 class="ttl ell" style="flex: 0 1 auto">Шапка транскрипта сессии</h1><span class="mut cap">Claude · main · Auto</span><span style="flex: 1"></span><span class="cap t2">39%</span></div><div style="padding: 8px 24px" class="t2">Фикс для пропавшего пикера ворктри уже в <code>main</code>.</div></main>
+</div>
+</div>
+
+<div class="lab"><b>M elsewhere</b><span>a Mac whose title bar is 28: the same rule gives 28, lights centred at 14 — M adapts, but every reveal, inset and text-size change is ours to code</span></div>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 116px; position: relative; overflow: hidden; flex: none">
+<div class="bar" style="height: 28px; padding-left: 81px">
+<button class="p18" aria-label="Workspace clubmate, worktree main"><span class="mdot id-blue"></span><span>clubmate</span><span class="faint">/</span><span>main</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="p18" aria-label="Notifications"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg></button>
+<button class="p18" aria-label="Workspaces: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</div>
+<div class="lt" style="top: 8px"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<div class="ct" style="top: 28px">
+<nav class="rail" aria-label="Sections"><button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button></nav>
+<aside class="side" aria-label="Agent sessions"><div style="display: flex; gap: 6px; align-items: center; height: 28px; padding: 0 10px"><span class="t2">+ New</span><span class="t2">⑂ New in worktree…</span></div></aside>
+<main class="main"><div class="hd"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg><h1 class="ttl ell" style="flex: 0 1 auto">Шапка транскрипта сессии</h1><span class="mut cap">Claude · main · Auto</span><span style="flex: 1"></span><span class="cap t2">39%</span></div></main>
+</div>
+</div>
+
+<div class="lab"><b>✗ fixed 28</b><span>on this Mac: macOS still puts the lights' centre at 16, the bar centres the pills at 14 — 2 pt off, the lights hang over the bar's edge. This is the “crooked” look</span></div>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 116px; position: relative; overflow: hidden; flex: none">
+<div class="bar" style="height: 28px; padding-left: 81px">
+<button class="p18" aria-label="Workspace clubmate, worktree main"><span class="mdot id-blue"></span><span>clubmate</span><span class="faint">/</span><span>main</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="p18" aria-label="Notifications"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg></button>
+</div>
+<div class="lt" style="top: 10px"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<span class="gd" style="top: 16px"></span><span class="gl" style="top: 17px">lights' centre 16</span>
+<span class="gd" style="top: 14px; border-top-color: var(--wa)"></span><span class="gl" style="top: -1px; color: var(--wa-i)">pills' centre 14</span>
+<div class="ct" style="top: 28px">
+<nav class="rail" aria-label="Sections"><button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button></nav>
+<aside class="side" aria-label="Agent sessions"><div style="display: flex; gap: 6px; align-items: center; height: 28px; padding: 0 10px"><span class="t2">+ New</span><span class="t2">⑂ New in worktree…</span></div></aside>
+<main class="main"><div class="hd"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg><h1 class="ttl ell" style="flex: 0 1 auto">Шапка транскрипта сессии</h1><span class="mut cap">Claude · main · Auto</span></div></main>
+</div>
+</div>
+
+<div class="lab"><b>3×</b><span>the first 120 × 40 pt of each: N 40 · M 32 · fixed 28 on this Mac</span></div>
+<div style="display: flex; gap: 24px; padding: 0 24px; flex: none">
+<div class="cm th-{{theme}}" style="width: 360px; height: 120px; overflow: hidden; position: relative; border-radius: 8px; flex: none"><div style="width: 120px; height: 40px; position: relative; transform: scale(3); transform-origin: 0 0">
+<div class="bar" style="height: 40px; padding-left: 81px"><span class="p22"><span class="mdot id-blue"></span>clu</span></div>
+<div class="lt" style="top: 14px"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+</div></div>
+<div class="cm th-{{theme}}" style="width: 360px; height: 120px; overflow: hidden; position: relative; border-radius: 8px; flex: none"><div style="width: 120px; height: 40px; position: relative; transform: scale(3); transform-origin: 0 0">
+<div class="bar" style="height: 32px; padding-left: 81px"><span class="p18"><span class="mdot id-blue"></span>clu</span></div>
+<div class="lt" style="top: 10px"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+</div></div>
+<div class="cm th-{{theme}}" style="width: 360px; height: 120px; overflow: hidden; position: relative; border-radius: 8px; flex: none"><div style="width: 120px; height: 40px; position: relative; transform: scale(3); transform-origin: 0 0">
+<div class="bar" style="height: 28px; padding-left: 81px"><span class="p18"><span class="mdot id-blue"></span>clu</span></div>
+<div class="lt" style="top: 10px"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<span class="gd" style="top: 16px; border-top-width: .4px"></span><span class="gd" style="top: 14px; border-top: .4px dashed var(--wa)"></span>
+</div></div>
+</div>
+
+<div class="lab" style="padding-top: 20px"><b>rule</b><span>height and leading inset come from AppKit (N) or are measured from the lights at run time (M); never a constant. “Default width” = the bar's thickness; the inset follows the lights</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"mate"},"$preview":{"width":1280,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'mate' };
+}
+}
+</script>
+</body>
+</html>

@@ -8,12 +8,12 @@ struct TitlePill<Content: View>: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        HStack(spacing: theme.spacing.s) {
+        HStack(spacing: theme.spacing.m) {
             content
         }
         .font(theme.uiSmall)
         .foregroundStyle(theme.text2)
-        .padding(.horizontal, theme.spacing.chip.leading)
+        .padding(.horizontal, theme.spacing.l)
         .frame(height: theme.pill)
         .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(pressed ? theme.pressed : hovering ? theme.hover : .clear))
         .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.surface2))
@@ -35,7 +35,7 @@ struct CountBadge: View {
                 .font(theme.count.monospacedDigit())
                 .foregroundStyle(needsYou ? theme.onWarning : theme.text2)
                 .padding(.horizontal, theme.spacing.s)
-                .frame(minWidth: theme.pill - 4, minHeight: theme.pill - 4)
+                .frame(minWidth: 16, minHeight: 16)
                 .background(Capsule().fill(needsYou ? theme.warningFill : theme.hover))
                 .accessibilityLabel(needsYou ? "\(count), needs you" : "\(count) unread")
         }

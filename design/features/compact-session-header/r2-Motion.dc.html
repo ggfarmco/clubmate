@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r2 · full screen reveal · motion</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/77baef3ce02f146bccd35190e260a9d1">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+.sv text{font-family:'JetBrains Mono',monospace;font-size:12px;fill:#3A3D3B}
+.sv .h{font-weight:600;fill:#1B1D1C}
+.sv .m{fill:#5B5F5C;font-size:11px}
+</style>
+</helmet>
+<div class="doc" style="width: 1280px; height: 860px; box-sizing: border-box; padding: 40px 48px; display: flex; flex-direction: column; gap: 24px; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div class="eyebrow">r2 · Q2 · the reveal, frame by frame</div>
+<h2>One clock: the menu bar's. Four things follow it, nothing else moves</h2>
+</div>
+
+<svg class="sv" width="1184" height="330" viewBox="0 0 1184 330" role="img" aria-label="Timeline: when the menu bar shows, the menu bar slides down, the bar follows it (no-notch only), the lights fade in and the left inset grows from 12 to 81 points, all on the same ease-in-out curve over the menu bar's duration; hiding mirrors it">
+<text x="230" y="16" class="h">show · pointer reaches the top edge</text>
+<text x="740" y="16" class="h">hide · pointer leaves</text>
+<line x1="230" y1="300" x2="670" y2="300" stroke="#1B1D1C" stroke-width="1"/>
+<line x1="740" y1="300" x2="1180" y2="300" stroke="#1B1D1C" stroke-width="1"/>
+<text x="230" y="318" class="m">0</text><text x="430" y="318" class="m">½</text><text x="630" y="318" class="m">end</text>
+<text x="740" y="318" class="m">0</text><text x="940" y="318" class="m">½</text><text x="1140" y="318" class="m">end</text>
+
+<text x="0" y="56" class="h">menu bar</text><text x="0" y="72" class="m">system, y −24 → 0</text>
+<path d="M230 80 C 415 80, 485 36, 670 36" fill="none" stroke="#1B1D1C" stroke-width="2"/>
+<path d="M740 36 C 925 36, 995 80, 1180 80" fill="none" stroke="#1B1D1C" stroke-width="2"/>
+
+<text x="0" y="122" class="h">bar y</text><text x="0" y="138" class="m">no notch: 0 → 24; notch: 0</text>
+<path d="M230 146 C 415 146, 485 102, 670 102" fill="none" stroke="#2B6E39" stroke-width="2"/>
+<path d="M740 102 C 925 102, 995 146, 1180 146" fill="none" stroke="#2B6E39" stroke-width="2"/>
+<line x1="230" y1="146" x2="670" y2="146" stroke="#2B6E39" stroke-width="1" stroke-dasharray="3 4"/>
+
+<text x="0" y="188" class="h">lights</text><text x="0" y="204" class="m">opacity 0 → 1 (AppKit)</text>
+<path d="M230 212 C 415 212, 485 168, 670 168" fill="none" stroke="#B5761E" stroke-width="2"/>
+<path d="M740 168 C 925 168, 995 212, 1180 212" fill="none" stroke="#B5761E" stroke-width="2"/>
+
+<text x="0" y="254" class="h">left inset</text><text x="0" y="270" class="m">12 → lights' edge + 12</text>
+<path d="M230 278 C 415 278, 485 234, 670 234" fill="none" stroke="#23457C" stroke-width="2"/>
+<path d="M740 234 C 925 234, 995 278, 1180 278" fill="none" stroke="#23457C" stroke-width="2"/>
+</svg>
+
+<table>
+<thead><tr><th style="width: 220px">what</th><th>N · native toolbar (pick)</th><th>M · custom bar (if you keep it)</th></tr></thead>
+<tbody>
+<tr><td>clock</td><td>AppKit's; we add no animation of our own</td><td>follow the full-screen titlebar's frame every frame: p = shown height ÷ menu bar height; no own timer, so it can't drift from the menu bar</td></tr>
+<tr><td>fallback timing</td><td>—</td><td>only if there is no frame to follow: 0.25 s (NSAnimationContext default), ease-in-out, started by the reveal, same curve back on hide</td></tr>
+<tr><td>left inset</td><td>AppKit lays the first item after the lights</td><td>lerp(12, lights' maxX + 12, p); the lights' maxX measured, never 69</td></tr>
+<tr><td>bar while menu shows</td><td>rides down with the menu bar (no notch), stays under the band (notch)</td><td>same; overlays the top of the content with a shadow, content never reflows</td></tr>
+<tr><td>right-side pills</td><td colspan="2">never move</td></tr>
+<tr><td>Reduce Motion</td><td colspan="2">no slide: positions jump with the system's cross-fade</td></tr>
+<tr><td>enter / leave full screen</td><td colspan="2">inset snaps to the windowed value as the transition ends; no extra animation on top of the system's</td></tr>
+</tbody>
+</table>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":860}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

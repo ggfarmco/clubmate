@@ -44,3 +44,35 @@ Boards (PNG next to each `.dc.html`; all on one page in `boards.html`, config `d
 - Mac renderer (`client/Clubmate/SDUI/ContentViews.swift` `HeaderNodeView`): one row, the ring + popover, icon-only buttons with tooltips, the fold order above, `ViewThatFits` per step.
 - Top bar (`client/Clubmate/Windows/Workspace/WorkspaceToolbar.swift`, `TitlePill.swift`): 28 pt bar, 18 pt pills.
 - Companion: not in scope (it has its own session bar); the header rule changes nothing the phone shows.
+
+## Round 2 · top bar height and full screen (27 Nov 2026)
+
+Ruling by Claude Design, round 2, same canvas and chat (page r2). Brief: `design/compact-session-header-brief/prompt.md` § Round 2. It replaces item 9 and the "Top bar 32 pt, not 28" deviation above. The user picked N, the native toolbar (27 Nov 2026).
+
+The user's words (Russian, translated): "Honestly this is ugly, let the designer advise. 1) We must return the default width of this header, because on new Macs it will look crooked. 2) In other apps it simply slides to the side when the buttons come out; why don't we do that?"
+
+Boards (PNG next to each `.dc.html`; all on one page in `boards-r2.html`, config `design/compact-session-header-brief/round-2.json`):
+
+| Board | Shows |
+|---|---|
+| `r2-Height-1280` | Q1 in a window: N native toolbar (pick, 40 pt), M measured title bar (32 here, 28 on another Mac), ✗ fixed 28 (pills 2 pt above the lights' centre), a 3× zoom of each |
+| `r2-FS-Notch-1280` | Q2 on a Mac with a notch: menu bar hidden, half way, shown |
+| `r2-FS-NoNotch-1280` | Q2 on a Mac without a notch: the same three frames, the bar rides down |
+| `r2-Motion` | the reveal timeline and the N / M table |
+| `rounds/r2-FS-Alts-1280` | rejected: fixed gap (today), stay with the lights strip over the pills; the user's two shots |
+
+### Ruling
+
+1. **"Default width" = the bar's thickness (height).** A fixed or guessed height does not line up with the traffic lights on other Macs: that is the "crooked" look. The fixed gap is the user's point 2.
+2. **Height, pick N: back to the native `NSToolbar` `.unifiedCompact`.** AppKit sets the height (40 pt on this Mac, and the correct value on other Macs, macOS versions and text sizes), centres the lights, insets the items and does full screen. It costs 8 pt against today; the one-row session header pays for it. The N boards draw 22 pt pills (text 11.5, padding 9, radius 6), not 18.
+3. **Height, M (only if the custom bar stays):** height = 2 × the lights' centre, measured at run time. Never a constant 28 or 32.
+4. **Left inset.** In a window: the lights' right edge + 12, measured (AppKit gives it with N); never a constant 69. In full screen with the lights hidden: the bar's 12 pt padding, no gap.
+5. **Full screen, pick "ride along".** No fixed gap. The left items slide right while the lights show and slide back when they hide. The right pills never move. The lights strip is never drawn over the bar.
+6. **Animation: one clock, the menu bar's.** N: AppKit does it all, no own animation. M: on every frame take the progress from the full-screen title bar window's frame (p = shown height ÷ menu bar height) and set inset = lerp(12, lights' maxX + 12, p). Only when there is no frame to follow: 0.25 s ease-in-out, the same curve back on hide. Reduce Motion: no slide, positions jump with the system's cross-fade. Entering or leaving full screen: the inset snaps to the window value at the end of the system transition.
+7. **While the menu bar shows.** Mac without a notch: the bar rides down with the menu bar (y 0 → 24) and covers the top 24 pt of the content with a shadow; the content does not reflow. Mac with a notch: the menu bar uses the black band above the bar (the screen's safe-area top), so the bar does not move; only the inset slides (12 → 81) and the lights fade in.
+8. **Keys unchanged** (`docs/shortcuts.md`).
+
+### Not verified by the designer (check on a real Mac)
+
+- With N, full-screen toolbar items move right by themselves when the lights show. If they do not, the M column of `r2-Motion` is the fallback.
+- On a notched Mac, the black band above the bar is `NSScreen.safeAreaInsets.top`.

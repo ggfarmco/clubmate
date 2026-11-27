@@ -3,9 +3,9 @@ import Foundation
 public enum LayoutAnalyzer {
     static let tolerance = 0.5
     static let overlap = 1.0
-    static let order = ["outside-window", "under-titlebar", "wider-than-parent", "overlaps-sibling", "zero-size", "truncated", "text-overflow"]
+    static let order = ["outside-window", "wider-than-parent", "overlaps-sibling", "zero-size", "truncated", "text-overflow"]
 
-    public static func flag(_ elements: [LayoutElement], bounds: Rect, covered: [Rect] = []) -> [LayoutElement] {
+    public static func flag(_ elements: [LayoutElement], bounds: Rect) -> [LayoutElement] {
         let byID = Dictionary(grouping: elements, by: \.id)
         let siblings = Dictionary(grouping: elements.filter { $0.source == "sdui" && $0.parent != nil }) { $0.parent ?? "" }
         return elements.map { element in
@@ -14,9 +14,6 @@ public enum LayoutAnalyzer {
             let f = element.frame
             if f.x < bounds.x - tolerance || f.y < bounds.y - tolerance || f.maxX > bounds.maxX + tolerance || f.maxY > bounds.maxY + tolerance {
                 flags.insert("outside-window")
-            }
-            if covered.contains(where: { overlaps($0, f) }) {
-                flags.insert("under-titlebar")
             }
             if (f.width == 0 || f.height == 0) && !element.label.isEmpty {
                 flags.insert("zero-size")
