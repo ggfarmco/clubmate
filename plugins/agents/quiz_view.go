@@ -42,7 +42,7 @@ type quizWords struct {
 	Open                                           string
 	Correct, Close, Checked                        string
 	Wrong                                          map[string]string
-	OneLine, ManyLines                             string
+	OneLine, ManyLines, Lines                      string
 	SureWrong, SureWrongConcept                    string
 	You, Answer                                    string
 	Labels                                         sdui.QuizLabels
@@ -59,7 +59,7 @@ var (
 		Open:      "Open in nvim",
 		Correct:   "Correct", Close: "Close", Checked: "Checking",
 		Wrong:   map[string]string{quizLine: "Not this line", quizRange: "Not this range", quizValue: "Not quite", quizText: "Not quite", quizChoice: "Not this one"},
-		OneLine: "line %d", ManyLines: "lines %d–%d",
+		OneLine: "line %d", ManyLines: "lines %d–%d", Lines: "lines %s",
 		SureWrong: "You were sure. The guide asks it again later.", SureWrongConcept: "You were sure. %s goes back on the map as missed; the guide asks it again later.",
 		You: "you", Answer: "answer",
 		Labels: sdui.QuizLabels{Skip: "Skip", Undo: "Undo", Sending: "Sending", Fold: "Fold", AnswerHint: "Typing answers in words; the guide grades it", You: "You:", Answer: "Answer:", AllLines: "All {n} lines", SecondsLeft: "{n} s left", SayIt: "Say it in words…", OpenOnMac: "Open on Mac", Line: "Line", Range: "Range"},
@@ -74,7 +74,7 @@ var (
 		Open:      "Открыть в nvim",
 		Correct:   "Верно", Close: "Близко", Checked: "Проверка",
 		Wrong:   map[string]string{quizLine: "Не эта строка", quizRange: "Не этот диапазон", quizValue: "Не совсем", quizText: "Не совсем", quizChoice: "Не этот"},
-		OneLine: "строка %d", ManyLines: "строки %d–%d",
+		OneLine: "строка %d", ManyLines: "строки %d–%d", Lines: "строки %s",
 		SureWrong: "Вы были уверены. Гид спросит это снова позже.", SureWrongConcept: "Вы были уверены. %s вернётся на карту как пропущенное; гид спросит снова позже.",
 		You: "вы", Answer: "ответ",
 		Labels: sdui.QuizLabels{Skip: "Пропустить", Undo: "Отменить", Sending: "Отправка", Fold: "Свернуть", AnswerHint: "Ответ словами; гид его оценит", You: "Вы:", Answer: "Ответ:", AllLines: "Все строки: {n}", SecondsLeft: "осталось {n} с", SayIt: "Скажите словами…", OpenOnMac: "Открыть на Mac", Line: "Строка", Range: "Диапазон"},
@@ -385,7 +385,7 @@ func keyWords(spec quizSpec, w quizWords) string {
 		for _, n := range spec.Key {
 			parts = append(parts, strconv.Itoa(n))
 		}
-		return strings.TrimSuffix(fmt.Sprintf(w.OneLine, 0), "0") + strings.Join(parts, ", ")
+		return fmt.Sprintf(w.Lines, strings.Join(parts, ", "))
 	case quizRange:
 		return foldLabel(spec.Key[0], spec.Key[1], w)
 	case quizChoice:

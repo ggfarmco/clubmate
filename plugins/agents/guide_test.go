@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -142,6 +143,11 @@ func TestGuideStepControlsSendFixedRequestsAndSurviveRestart(t *testing.T) {
 		return len(f.promptsTo(t, parent.AgentSessionID, `Go back to step 3: "Lazy create" (c3), and teach it again.`)) == 1
 	}, wait)
 	f.waitStatus(t, workspace, parent.ID, "done")
+	for _, l := range f.logLines(t, parent.ID) {
+		if text := string(l["payload"]); string(l["kind"]) == `"session/prompt"` && (strings.Contains(text, "Show me") || strings.Contains(text, "Go back")) {
+			assert.NotContains(t, text, `"relayed":true`)
+		}
+	}
 
 	f.restartPlugin(t, workspace)
 	var tr guideTranscript

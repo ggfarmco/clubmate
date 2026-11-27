@@ -467,7 +467,8 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		}()
 	}
 	s.ran = func(c endedCall) { a.judgeCall(s, c) }
-	s.moved = func() { a.overlapCache.move(s.snapshot().Worktree) }
+	var tree treeKeyCache
+	s.moved = func() { a.overlapCache.move(tree.of(s.snapshot().Worktree)) }
 	s.toolGated = func() bool {
 		last := a.lastGates.Load()
 		return last == nil || len(toolGatedRepos(*last)) > 0

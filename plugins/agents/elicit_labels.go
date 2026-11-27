@@ -53,31 +53,33 @@ func (el elicitation) labels() elicitLabels {
 }
 
 func labelsFor(el elicitation) elicitLabels {
-	var cyrillic, latin int
-	count := func(texts ...string) {
-		for _, s := range texts {
-			for _, r := range s {
-				switch {
-				case unicode.Is(unicode.Cyrillic, r):
-					cyrillic++
-				case unicode.Is(unicode.Latin, r):
-					latin++
-				}
-			}
-		}
-	}
-	count(el.Message)
+	texts := []string{el.Message}
 	for _, f := range el.Fields {
 		if isCustom(el.Fields, f) {
 			continue
 		}
-		count(f.Title, f.Description)
+		texts = append(texts, f.Title, f.Description)
 		for _, o := range f.Options {
-			count(o.Label, o.Description)
+			texts = append(texts, o.Label, o.Description)
 		}
 	}
-	if cyrillic > latin {
+	if mostlyCyrillic(texts...) {
 		return labelsRussian
 	}
 	return labelsEnglish
+}
+
+func mostlyCyrillic(texts ...string) bool {
+	var cyrillic, latin int
+	for _, s := range texts {
+		for _, r := range s {
+			switch {
+			case unicode.Is(unicode.Cyrillic, r):
+				cyrillic++
+			case unicode.Is(unicode.Latin, r):
+				latin++
+			}
+		}
+	}
+	return cyrillic > latin
 }

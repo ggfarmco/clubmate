@@ -79,6 +79,18 @@ func (s *session) snapshot() record {
 	return s.rec
 }
 
+func (s *session) lockLoaded() func() {
+	s.mu.RLock()
+	if s.loaded {
+		s.used = time.Now()
+		return s.mu.RUnlock
+	}
+	s.mu.RUnlock()
+	s.mu.Lock()
+	s.loadLocked()
+	return s.mu.Unlock
+}
+
 func (s *session) loadLocked() {
 	s.used = time.Now()
 	if s.loaded {

@@ -207,7 +207,7 @@ func (a *app) quizGradeCommand(_ context.Context, cmd pluginsdk.CommandRun, args
 }
 
 func (a *app) quizAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, args quizAct) (any, error) {
-	if cmd.Agent || a.session(cmd.Caller) != nil {
+	if !a.userWord(cmd) {
 		return nil, errUserOnly
 	}
 	s, err := a.lookup(cmd.WorkspaceID, args.Session)
@@ -440,9 +440,9 @@ func (s *session) finishQuiz(id string, perm *pendingPermission, run *quizRun) {
 }
 
 func (s *session) awaitQuiz(ctx context.Context, id string, d time.Duration) (quizResult, error) {
-	s.mu.Lock()
+	s.mu.RLock()
 	run := s.quizzes[id]
-	s.mu.Unlock()
+	s.mu.RUnlock()
 	if run != nil {
 		t := time.NewTimer(d)
 		defer t.Stop()
@@ -457,8 +457,8 @@ func (s *session) awaitQuiz(ctx context.Context, id string, d time.Duration) (qu
 }
 
 func (s *session) quizResult(id string) (quizResult, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	en := s.quizEntryLocked(id)
 	if en == nil {
 		return quizResult{}, errNotAQuiz
@@ -496,8 +496,8 @@ func (s *session) quizEntryLocked(id string) *entry {
 }
 
 func (s *session) quizOf(id string) (quizSpec, quizState, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	en := s.quizEntryLocked(id)
 	if en == nil {
 		return quizSpec{}, quizState{}, false
@@ -510,15 +510,15 @@ func (s *session) quizOf(id string) (quizSpec, quizState, bool) {
 }
 
 func (s *session) quizAnsweredOf(id string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	en := s.quizEntryLocked(id)
 	return en != nil && en.Response != nil
 }
 
 func (s *session) pendingQuiz() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, en := range s.entries {
 		if en.Kind == entryElicitation && en.Elicitation != nil && en.Elicitation.Quiz != nil && s.perms[en.ID] != nil {
 			return en.ID

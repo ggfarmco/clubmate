@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"unicode"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -99,18 +98,7 @@ var (
 )
 
 func guideWordsFor(texts ...string) guideWords {
-	var cyrillic, latin int
-	for _, s := range texts {
-		for _, r := range s {
-			switch {
-			case unicode.Is(unicode.Cyrillic, r):
-				cyrillic++
-			case unicode.Is(unicode.Latin, r):
-				latin++
-			}
-		}
-	}
-	if cyrillic > latin {
+	if mostlyCyrillic(texts...) {
 		return guideRussian
 	}
 	return guideEnglish
@@ -201,6 +189,9 @@ func readLedger(path string) (ledger, bool) {
 	}
 	info, err := os.Stat(path)
 	if err != nil || info.IsDir() || info.Size() > ledgerLimit {
+		ledgers.mu.Lock()
+		delete(ledgers.items, path)
+		ledgers.mu.Unlock()
 		return ledger{}, false
 	}
 	stamp := info.ModTime().String() + "/" + strconv.FormatInt(info.Size(), 10)
@@ -289,9 +280,7 @@ type guideSnapshot struct {
 }
 
 func (s *session) guideSnapshot() (guideSnapshot, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.loadLocked()
+	defer s.lockLoaded()()
 	if len(s.guide.steps) == 0 {
 		return guideSnapshot{}, false
 	}
@@ -311,9 +300,7 @@ func (s *session) guideSnapshot() (guideSnapshot, bool) {
 }
 
 func (s *session) keptLedger() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.loadLocked()
+	defer s.lockLoaded()()
 	return s.keptLedgerLocked()
 }
 
@@ -408,7 +395,7 @@ func (a *app) actOnStep(ctx context.Context, workspaceID string, s *session, act
 
 func (a *app) runStepAction(ctx context.Context, workspaceID string, s *session, step stepMark, action string, beside bool) (stepActResult, error) {
 	if action != sdui.StepGoDeeper {
-		return stepActResult{}, a.prompt(workspaceID, promptArgs{Session: s.snapshot().ID, Text: guideWordsFor(step.Title).Requests[action]})
+		return stepActResult{}, a.prompt(workspaceID, promptArgs{Session: s.snapshot().ID, Text: guideWordsFor(step.Title).Requests[action], User: true})
 	}
 	an := asideAnchor{Step: step.ID, Quote: step.Title}
 	if beside {
@@ -463,7 +450,7 @@ func (a *app) actOnTour(workspaceID string, s *session, concept, offer string) e
 	if offer == sdui.TourGoBack {
 		text = fmt.Sprintf(w.BackReq, c.Step, c.Label, c.ID)
 	}
-	return a.prompt(workspaceID, promptArgs{Session: s.snapshot().ID, Text: text})
+	return a.prompt(workspaceID, promptArgs{Session: s.snapshot().ID, Text: text, User: true})
 }
 
 func quizConceptState(en entry) string {

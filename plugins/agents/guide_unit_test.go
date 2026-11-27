@@ -1,10 +1,14 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
 )
@@ -30,4 +34,50 @@ func TestQuizConceptState(t *testing.T) {
 			assert.Equal(t, c.want, quizConceptState(c.en))
 		})
 	}
+}
+
+func TestQuizAndGuideReadsDoNotBumpTheRecordVersion(t *testing.T) {
+	t.Parallel()
+	s := newSession(record{ID: "agt_1"}, nil, true, nil)
+	ver := s.mu.ver.Load()
+
+	s.guideSnapshot()
+	s.keptLedger()
+	s.pendingQuiz()
+	s.quizOf("q")
+	s.quizAnsweredOf("q")
+	_, err := s.awaitQuiz(t.Context(), "q", 0)
+
+	assert.ErrorIs(t, err, errNotAQuiz)
+	assert.Equal(t, ver, s.mu.ver.Load())
+}
+
+func TestQuizAnswerRefusesARelayedCall(t *testing.T) {
+	t.Parallel()
+	a := &app{registry: newRegistry()}
+	_, err := a.quizAnswerCommand(t.Context(), pluginsdk.CommandRun{Via: "graphs"}, quizAct{Session: "agt_1"})
+	assert.ErrorIs(t, err, errUserOnly)
+}
+
+func TestLedgerCacheForgetsAGoneFile(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "tour.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"concepts":[{"id":"c1","title":"One"}]}`), 0o600))
+	_, ok := readLedger(path)
+	require.True(t, ok)
+
+	require.NoError(t, os.Remove(path))
+	_, ok = readLedger(path)
+
+	assert.False(t, ok)
+	ledgers.mu.Lock()
+	defer ledgers.mu.Unlock()
+	assert.NotContains(t, ledgers.items, path)
+}
+
+func TestQuizKeyOfSeveralLinesIsPlural(t *testing.T) {
+	t.Parallel()
+	spec := quizSpec{Type: quizLine, Key: []int{3, 5}}
+	assert.Equal(t, "lines 3, 5", keyWords(spec, quizEnglish))
+	assert.Equal(t, "строки 3, 5", keyWords(spec, quizRussian))
 }

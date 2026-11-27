@@ -163,8 +163,22 @@ func treeKey(worktree string) string {
 	return top
 }
 
+type treeKeyCache struct {
+	mu       sync.Mutex
+	worktree string
+	key      string
+}
+
+func (k *treeKeyCache) of(worktree string) string {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.key == "" || k.worktree != worktree {
+		k.worktree, k.key = worktree, treeKey(worktree)
+	}
+	return k.key
+}
+
 func (c *overlapCache) move(worktree string) {
-	worktree = treeKey(worktree)
 	if worktree == "" {
 		return
 	}
@@ -237,7 +251,7 @@ func (k touchedKey) git() touchedKey {
 
 func (t touched) fresh(key touchedKey, exact bool) bool {
 	age := time.Since(t.at)
-	return age < touchedMaxAge && (t.key == key || !exact && age < overlapsMaxAge && t.key.git() == key.git())
+	return age < touchedMaxAge && (t.ok || age < overlapsMaxAge) && (t.key == key || !exact && age < overlapsMaxAge && t.key.git() == key.git())
 }
 
 func (a *app) treeState(ctx context.Context, rec record, exact bool) treeState {

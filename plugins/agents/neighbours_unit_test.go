@@ -132,10 +132,10 @@ func TestTouchedFilesAreKeptUntilTheWorktreeChanges(t *testing.T) {
 	assert.Equal(t, []int32{1, 1}, counts())
 	assert.Equal(t, []int32{1, 1}, counts())
 
-	a.overlapCache.move(one)
+	a.overlapCache.move(treeKey(one))
 	assert.Equal(t, []int32{2, 1}, counts())
 
-	a.overlapCache.move(filepath.Join(one, "sub"))
+	a.overlapCache.move(treeKey(filepath.Join(one, "sub")))
 	assert.Equal(t, []int32{3, 1}, counts())
 
 	out, err := exec.Command("git", "-C", two, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "next").CombinedOutput()
@@ -154,6 +154,27 @@ func TestNeighbourToolCallCountsOnlyAfterTheFloor(t *testing.T) {
 	assert.False(t, touched{at: time.Now(), key: was}.fresh(now, true))
 	assert.False(t, touched{at: time.Now().Add(-overlapsAge), key: was}.fresh(now, false))
 	assert.False(t, touched{at: time.Now(), key: was}.fresh(touchedKey{head: "next", moves: 1}, false))
+}
+
+func TestFailedTouchedFilesExpireWithTheOverlaps(t *testing.T) {
+	t.Parallel()
+	k, at := touchedKey{head: "h"}, time.Now().Add(-overlapsMaxAge)
+
+	assert.True(t, touched{at: at, key: k, ok: true}.fresh(k, true))
+	assert.False(t, touched{at: at, key: k}.fresh(k, true))
+}
+
+func TestTreeKeyIsKeptUntilTheWorktreeChanges(t *testing.T) {
+	t.Parallel()
+	one, two := unitRepo(t), unitRepo(t)
+	var k treeKeyCache
+	require.Equal(t, one, k.of(one))
+
+	require.NoError(t, os.RemoveAll(filepath.Join(one, ".git")))
+
+	assert.Equal(t, one, k.of(one))
+	assert.Equal(t, two, k.of(two))
+	assert.Empty(t, k.of(one))
 }
 
 func TestOverlapPassListsWorktreesOncePerRepo(t *testing.T) {
