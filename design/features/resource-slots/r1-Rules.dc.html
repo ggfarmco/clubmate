@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · Resource slot rules</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/ba828212421821fa1e12ed0c3574745c">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.doc .w{font-family:'JetBrains Mono',monospace;font-size:13px;white-space:nowrap}
+.doc svg.g{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
+.doc .ac{color:#357A27}.doc .wa{color:#8A5810}.doc .no{color:#5B5F5C}
+.doc .grid2{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+.doc section{display:flex;flex-direction:column;gap:14px}
+.doc ul{margin:0;padding-left:18px}
+.doc .chip{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:13px;vertical-align:-8px;margin-right:6px}
+.doc .chip.n{background:#E9E9EE;color:#5D5D63}
+.doc .chip.nd{background:#2C2C2E;color:#A9A9AE}
+.doc .chip.w{background:#B5761E;color:#FFFFFF}
+.doc .chip.wd{background:#F2B84B;color:#1A1300}
+</style>
+</helmet>
+<div class="doc" style="width: 1280px; height: 2080px; padding: 56px 64px; display: flex; flex-direction: column; gap: 36px">
+
+<header style="display: flex; flex-direction: column; gap: 10px">
+<span class="eyebrow">Clubmate · resource slots · r1 rules</span>
+<h1>Slot waits, trust, and where they show</h1>
+<p class="lead">The plugin decides every field: <code>landing.words</code> (the Mac row word, 9 characters at most), <code>landing.line</code> (segments for the phone and the headers), the status icon and the card's <code>statusWord</code>. Clients draw them. They never shorten a word or work out a state.</p>
+</header>
+
+<section>
+<h2>Words, glyphs, tones</h2>
+<table>
+<thead><tr><th>Plugin says</th><th>Mac word</th><th>Glyph</th><th>Tone</th><th>Needs you</th><th>Line (iPhone · iPad · headers)</th></tr></thead>
+<tbody>
+<tr><td>waits for a slot · kind <code>test</code></td><td class="w no">test slot</td><td class="no"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 1.8h7M4.5 14.2h7"/><path d="M5.4 1.8c0 3.3 2.6 4 2.6 6.2s-2.6 2.9-2.6 6.2M10.6 1.8c0 3.3-2.6 4-2.6 6.2s2.6 2.9 2.6 6.2"/></svg> hourglass</td><td>none</td><td>no</td><td><code>Waits for test slot · next in line · 1 of 1 in use · 3 min</code></td></tr>
+<tr><td>waits for a slot · kind <code>sim</code></td><td class="w no">sim slot</td><td class="no"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 1.8h7M4.5 14.2h7"/><path d="M5.4 1.8c0 3.3 2.6 4 2.6 6.2s-2.6 2.9-2.6 6.2M10.6 1.8c0 3.3-2.6 4-2.6 6.2s2.6 2.9 2.6 6.2"/></svg> hourglass</td><td>none</td><td>no</td><td><code>Waits for sim slot · 2 ahead · 2 of 2 in use · 40 s</code></td></tr>
+<tr><td>waits for a slot · a kind whose <code>‹id› slot</code> passes 9 characters</td><td class="w no">android</td><td class="no"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 1.8h7M4.5 14.2h7"/><path d="M5.4 1.8c0 3.3 2.6 4 2.6 6.2s-2.6 2.9-2.6 6.2M10.6 1.8c0 3.3-2.6 4-2.6 6.2s2.6 2.9 2.6 6.2"/></svg> hourglass</td><td>none</td><td>no</td><td><code>Waits for android slot · …</code> (the line always names the kind in full)</td></tr>
+<tr><td>holds a slot</td><td class="w ac">6 min</td><td class="ac"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg> play.circle</td><td>accent</td><td>no</td><td><code>Running · 6 min</code>. Holding gets no mark on the row; it shows in Settings › Now and on the waiter's card.</td></tr>
+<tr><td>waits for trust</td><td class="w wa">trust</td><td class="wa"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="M8 5.5v3M8 10.8v.1"/></svg> exclamationmark.shield</td><td>warning</td><td>yes</td><td><code>Waits for trust · 2 min</code></td></tr>
+<tr><td>max wait passed, command not run</td><td class="w ac">‹duration›</td><td class="ac"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg> play.circle</td><td>accent</td><td>no</td><td>Back to running. Only the card keeps it: <code>not run · no test slot in 60 min</code>, tone none. The agent is told why and carries on.</td></tr>
+</tbody>
+</table>
+<p class="muted">Settings caps an Id at 9 characters (a–z, 0–9, -). The plugin sends <code>‹id› slot</code> when that fits in 9, otherwise <code>‹id›</code> alone; the hourglass already says “waits”. Phone lines start with a capital, like Running and Editing. Mac words and the Mac header line stay lower case, like every other Mac row word.</p>
+</section>
+
+<div class="grid2">
+<section>
+<h2>Mac row: the word wins</h2>
+<ul>
+<li>Both options, together: the plugin sends a word of 9 characters or fewer, and the word keeps its full width. The title cuts.</li>
+<li>RowFit's half-row rule for details goes. The word slot is never truncated: 9 characters is about 65 pt at 12 pt mono.</li>
+<li>At a 248 pt sidebar the title gets 18 characters at depth 0 and 16 at depth 1, so “Companion UI tests” fits whole.</li>
+<li>A word over 9 characters is a plugin bug. It's drawn whole anyway and the title gives way.</li>
+<li>Tooltip: <code>‹title› · ‹full line›</code>.</li>
+<li><code>waits for trust</code> leaves the Mac row. The row says <code>trust</code> with the shield; the phone and the header keep the sentence.</li>
+</ul>
+</section>
+<section>
+<h2>The line, in segments</h2>
+<ul>
+<li><code>landing.line</code> is a list joined by <code> · </code>. The first segment is the state and never drops.</li>
+<li>Place reads <code>next in line</code> or <code>‹n› ahead</code>, not “2nd in line”. “2nd” counts the holder, but <code>1 of 1 in use</code> counts holders on their own, so the two would disagree.</li>
+<li><b>Mac header</b>: the line after the title in the secondary ink, then <code>Claude · main</code> in the faint ink. <code>Claude · main</code> folds first, then segments drop from the end, then the title truncates.</li>
+<li><b>iPad header</b>: the whole line, then <code>· ‹workspace›</code>.</li>
+<li><b>iPhone header</b>: the first and last segments, then the workspace: <code>Waits for test slot · 3 min · clubmate</code>.</li>
+<li>Time counts from when the wait began and ticks each minute.</li>
+</ul>
+</section>
+</div>
+
+<section>
+<h2>Where the wait shows</h2>
+<table>
+<thead><tr><th style="width: 160px">Surface</th><th>Mac</th><th>iPad</th><th>iPhone</th></tr></thead>
+<tbody>
+<tr><td>Tree / list row</td><td>hourglass · <span class="w no">test slot</span></td><td colspan="2"><span class="chip nd"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 1.8h7M4.5 14.2h7"/><path d="M5.4 1.8c0 3.3 2.6 4 2.6 6.2s-2.6 2.9-2.6 6.2M10.6 1.8c0 3.3-2.6 4-2.6 6.2s2.6 2.9 2.6 6.2"/></svg></span>neutral circle; the line, ellipsized at the end. Today's green play said “running” while nothing ran.</td></tr>
+<tr><td>Session header</td><td>status glyph becomes the hourglass; the line follows the title (folding as above)</td><td>subtitle: the whole line · workspace</td><td>subtitle: state · time · workspace</td></tr>
+<tr><td>Bash card</td><td>no spinner: hourglass + <code>waits for test slot</code> at the right edge. Expanded, under the command: <code>Held by ‹session› · ‹command› · ‹time›</code> (the title opens that session) and <code>Next in line · waited 3 min of 60</code>.</td><td>right edge, as on the Mac</td><td>no room at the right, so a second line under the command: <code>Waits for test slot · next in line</code></td></tr>
+<tr><td>“Working…” row</td><td>—</td><td colspan="2">hidden while every running call in the turn waits for a slot; comes back with its spinner when one starts</td></tr>
+<tr><td>Counts</td><td colspan="3">A slot wait counts in Running and never in Needs you, the rail dot, the status bar or the bell. Trust counts in all of them.</td></tr>
+<tr><td>Slot granted</td><td colspan="3">hourglass → spinner on the card and play.circle on the row; the word goes back to the duration. No toast, no sound.</td></tr>
+</tbody>
+</table>
+</section>
+
+<div class="grid2">
+<section>
+<h2>Settings › Resource limits › Edit</h2>
+<p><b>Inline, fixed.</b> A sheet would need presentation work in the Settings window for a form that edits one kind at a time, and inline keeps the live Now block next to the kind's own row.</p>
+<ul>
+<li>Edit opens the kind's own row in place: Name, then the mono Id and its live summary. Add kind opens an empty one above the Add kind button. Only one is open at a time; Edit on another kind asks whether to keep or discard unsaved changes.</li>
+<li>Card: window background inside the group, 1 pt hairline, radius 8, 14/16 pt inside, 12 pt between blocks. The note sits inside the card, never against its edge.</li>
+<li>Fields: a 120 pt label column, leading-aligned, 12 pt to the control; 24 pt controls with 8 pt between rows. The Patterns label lines up with its first line.</li>
+<li>Mono: Id, Patterns, and commands in Now. Commands truncate in the middle so the matched word (<code>test</code>) stays.</li>
+<li>Now, under a hairline: summary, then <b>Holding</b> (title · command · time · Release) and <b>Waiting</b> (place · title · command · time). Release is on holders only. An empty list hides its heading; with both empty: <code>Nothing in use</code>.</li>
+<li>Footer, under a hairline: <code>Remove…</code> leading and alone (it confirms); <code>Reset to defaults · Cancel · Save</code> trailing, 8 pt apart; Save is the default (⌘↩), Cancel answers esc.</li>
+<li>Title: the kind's Name (<code>Tests</code>), never “Tests slots”.</li>
+</ul>
+</section>
+<section>
+<h2>Glyphs and the phone variants</h2>
+<table>
+<thead><tr><th>State</th><th>Mac</th><th>iPhone · iPad dark</th><th>light</th></tr></thead>
+<tbody>
+<tr><td>slot wait</td><td class="no"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 1.8h7M4.5 14.2h7"/><path d="M5.4 1.8c0 3.3 2.6 4 2.6 6.2s-2.6 2.9-2.6 6.2M10.6 1.8c0 3.3-2.6 4-2.6 6.2s2.6 2.9 2.6 6.2"/></svg> 14 pt, secondary ink</td><td><span class="chip nd"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 1.8h7M4.5 14.2h7"/><path d="M5.4 1.8c0 3.3 2.6 4 2.6 6.2s-2.6 2.9-2.6 6.2M10.6 1.8c0 3.3-2.6 4-2.6 6.2s2.6 2.9 2.6 6.2"/></svg></span>.st.n</td><td><span class="chip n"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 1.8h7M4.5 14.2h7"/><path d="M5.4 1.8c0 3.3 2.6 4 2.6 6.2s-2.6 2.9-2.6 6.2M10.6 1.8c0 3.3-2.6 4-2.6 6.2s2.6 2.9 2.6 6.2"/></svg></span>.st.n</td></tr>
+<tr><td>trust</td><td class="wa"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="M8 5.5v3M8 10.8v.1"/></svg> 14 pt, warning ink</td><td><span class="chip wd"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="M8 5.5v3M8 10.8v.1"/></svg></span>.st.wa</td><td><span class="chip w"><svg class="g" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="M8 5.5v3M8 10.8v.1"/></svg></span>.st.wa</td></tr>
+<tr><td>card status</td><td colspan="3">13 pt hourglass + the word in the secondary ink. Never the spinner while waiting.</td></tr>
+</tbody>
+</table>
+<p class="muted">SF Symbols: <code>hourglass</code>, <code>exclamationmark.shield</code>, <code>play.circle</code>. Light and dark share the glyph and the layout; only the ink comes from the theme (matelight, clight). The phone's subtitle in the header is the only spot where iPhone and iPad differ: iPhone keeps state · time, iPad keeps the whole line.</p>
+</section>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":2080}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

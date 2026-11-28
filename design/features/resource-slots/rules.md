@@ -1,39 +1,77 @@
-# Resource slots UI — rules (DRAFT, 28 Nov 2026)
+# Resource slots UI — rules (Claude Design, round 1, 28 Nov 2026)
 
-**DRAFT: not a ruling.** Claude Design was not reached: the Claude in Chrome extension was not connected (`list_connected_browsers` empty), and the session ran AFK. The agent drew round 1 and marked its own picks. Do not build from this until the designer round replaces it (backlog #1353; the real round is backlog #1360). No canvas was made; the brief for it is `brief/prompt.md`.
-
-Boards (PNG next to each `.dc.html`; all on one page in `boards.html`, config `brief/round-1.json`). Open `boards.html` or the PNGs: `boards.html` is self-contained. The `.dc.html` boards link only `./rs.css` and `./support.js` (absent, as in the other feature folders), so opened by themselves they render without the base tokens of `design/language/source/cm.css` and `design/companion/source/c.css`:
+Ruled by Claude Design on the canvas "Clubmate · resource slots" (https://claude.ai/artifact/FYiPn85steeaVozzQAYSVF, page r1), from real test-app and simulator shots (`today/`). Backlog #1353, #1360. The agent's earlier draft is in `rounds/draft/` (not a ruling).
 
 | Board | Shows |
 |---|---|
-| `R1-Mac-Row` | Q1 · Agents row at 248 pt, Mate dark: today / A short word + glyph / B full word keeps priority |
-| `R1-Settings-Form` | Q2 · Resource limits Edit form: A inline, fixed chrome / B modal sheet |
-| `R1-Wait-Mac` | Q3 · Mac session header and Bash card: today / A |
-| `R1-Wait-Companion` | Q3 · iPhone header and tool row: today / A dark / A light |
+| `r1-Mac-1280-Today` | Mac 1280 Mate dark today: row cut to "Companion U… waits for tes…", spinner on the Bash card, header says nothing |
+| `r1-Mac-1280-Pick` | Mac 1280 pick: row word `test slot` / `trust`, hourglass / shield, header line after the title, card status `waits for test slot` |
+| `r1-Mac-640-Light` | Mac 640 Mate light pick: header line drops segments; expanded card with "Held by" and "waited 3 min of 60"; drawer rows |
+| `r1-Settings-Edit` | Settings › Agents › Resource limits › Edit, today / pick (inline, fixed) |
+| `r1-Phone-iPad` | iPhone (dark, light) and iPad: header, Bash card, list rows, today / pick |
+| `r1-Rules` | The rules below as a board |
 
-## Draft picks
+PNG next to each `.dc.html`; all on one page in `boards.html` (config `brief/round-1.json`).
 
-1. **Mac Agents row · A, a short word.** The row's word never truncates and has at most 9 characters (the landing queue rule, `design/features/land-queue/rules.md` item 5), so RowFit never splits the row for it.
-   - Waiting for a slot: word `‹kind› slot` (`test slot`, `sim slot`) when it has 9 characters or less, else `waits`; glyph `hourglass`, no tone, no needs you. The glyph, not the word, says that the call waits.
-   - Waiting for trust: word `to trust` (the dock word, `design/features/dock-state/rules.md`), glyph `exclamationmark.shield` (drawn; not checked against the glyph the plugin sends today), warning tone as today.
-   - Tooltip: the full `landing.line` (`waits for test slot · 2nd in line · 1 of 1 in use · 3 min`).
-   - The plugin sends it: `landing.words` gets the short Mac word, `landing.line` keeps `waits for ‹kind› slot · ‹why›` for the phone, iPad, tooltip and header, and the session's status icon is `hourglass` while a call waits. The Mac renders the fields and derives nothing.
-   - B (the full word keeps priority) is rejected: the titles cut to their first letters, so the waiting sessions lose their names.
-2. **Settings Edit form · A, inline, fixed.** A modal sheet does not present from the Settings window today (docs/agents.md § Resource slots), and inline keeps the kind lines, which update while you edit, in view. The fixes:
-   - The form is an inner card under the edited kind's row: 14 pt padding, its own title `Edit ‹name›` with `Saved values apply at once` on the right; the row's Edit button reads `Editing` while open.
-   - Labels right-aligned in a 104 pt column, 12 pt to the value, 8 pt between rows.
-   - `mono` values (Id, Patterns, commands) in the interface's mono font, as everywhere else.
-   - A multi-line value (Patterns, 5 lines) grows its row; the next row starts under it. Holding and Waiting are form rows (one line each, cut with a tooltip; Release as a link button at the end).
-   - Footer under a divider: Remove (danger, outlined) at the left, a spacer, then Reset to defaults · Cancel · Save ⌘↩ with 8 pt gaps; the footer honours the stack `gap`.
-   - B (a modal sheet) is drawn for the designer; it needs a client change to present a root `sheet` from the Settings window.
-3. **Where the wait shows · A, the card and the header too.** The wait happens before the tool starts, so a spinner and `Running` are false.
-   - Bash card (Mac): `statusWord` `waits for ‹kind› slot`, hourglass in place of the spinner, no tone; under the command one muted line `‹n› of ‹max› in use by “‹title›” · starts when it ends`. On grant it goes back to the spinner and `Running`.
-   - Session header (Mac): the status glyph is the hourglass; the meta line is `landing.line` (it already repeats the sidebar detail in full) in place of `15 min · Bash`.
-   - iPhone and iPad: the header subtitle is `waits for ‹kind› slot · ‹age›` in place of `Working…`; the tool row word is the card's `statusWord`. Same fields, same words on all three clients.
+## Principle
 
-## Open for the designer
+The plugin decides every field: `landing.words` (the Mac row word, 9 characters at most), `landing.line` (a list of segments for the phone and the headers), the status icon and the card's `statusWord`. Clients draw them. They never shorten a word or work out a state.
 
-- The words: `test slot` vs another short form (`slot: test`), and `to trust` on a session row (it is the dock's word today).
-- The glyph pair: `hourglass` for a slot wait, `exclamationmark.shield` for trust.
-- Q2: inline (A) vs modal sheet (B) once the sheet can present from Settings.
-- Q3: the card's second line and the header age (`3 min` since the wait started).
+## 1. Mac Agents row: the word wins
+
+Both options together: the plugin sends a short word, the word keeps its full width, the title cuts.
+
+| Plugin state | Mac word | Glyph | Tone | Needs you | Line (iPhone · iPad · headers) |
+|---|---|---|---|---|---|
+| waits for a slot, kind `test` | `test slot` | `hourglass` | none | no | `Waits for test slot · next in line · 1 of 1 in use · 3 min` |
+| waits for a slot, kind `sim` | `sim slot` | `hourglass` | none | no | `Waits for sim slot · 2 ahead · 2 of 2 in use · 40 s` |
+| waits for a slot, `‹id› slot` > 9 characters | `‹id›` (e.g. `android`) | `hourglass` | none | no | `Waits for android slot · …` (the line always names the kind in full) |
+| holds a slot | duration (`6 min`) | `play.circle` | accent | no | `Running · 6 min`. Holding has no mark on the row; it shows in Settings › Now and on the waiter's card |
+| waits for trust | `trust` | `exclamationmark.shield` | warning | yes | `Waits for trust · 2 min` |
+| max wait passed, command not run | duration | `play.circle` | accent | no | back to running. Only the card keeps it: `not run · no test slot in 60 min`, tone none; the agent is told why |
+
+- RowFit's half-row rule for a detail goes. The word slot is never truncated (9 characters ≈ 65 pt at 12 pt mono). At a 248 pt sidebar the title gets 18 characters at depth 0 and 16 at depth 1, so "Companion UI tests" fits whole. A word over 9 characters is a plugin bug: it is drawn whole and the title gives way.
+- Tooltip on the row: `‹title› · ‹full line›`.
+- `waits for trust` leaves the Mac row: the row says `trust` with the shield; the phone and the header keep the sentence.
+- Settings caps a kind's Id at 9 characters (`a–z`, `0–9`, `-`). The plugin sends `‹id› slot` when it fits in 9, else `‹id›` alone; the hourglass already says "waits".
+- Case: phone lines start with a capital (`Waits for test slot`, like `Running`, `Editing`); Mac words and the Mac header line stay lower case, like every other Mac row word.
+- Phone and iPad list row: the status circle turns neutral grey with the hourglass (today's green play says "running" while nothing runs); trust keeps the filled warning circle; the line is cut at its end.
+
+## 2. Settings › Resource limits › Edit: inline, fixed
+
+Not a modal sheet: a sheet would need presentation work in the Settings window for a form that edits one kind at a time, and inline keeps the live Now block next to the kind's own row.
+
+- Edit opens the kind's own row in place: Name, then the mono Id and its live summary. Add kind opens an empty one above the Add kind button. One open at a time; Edit on another kind asks whether to keep or discard unsaved changes.
+- Title: the kind's Name (`Tests`), never "Tests slots".
+- Card: window background inside the group, 1 pt hairline, radius 8, 14/16 pt inside, 12 pt between blocks. The note sits inside the card, never against its edge.
+- Fields: a 120 pt label column, leading-aligned, 12 pt to the control; 24 pt controls, 8 pt between rows. The Patterns label lines up with its first line; under Patterns the hint `One regular expression per line, matched against the whole Bash command.`
+- Mono: Id, Patterns, and the commands in Now. Commands truncate in the middle, so the matched word (`test`) stays visible.
+- Now, under a hairline: summary (`1 of 1 in use · CPU 34 %`), then `Holding` (title · command · time · Release) and `Waiting` (place · title · command · time). Release only on holders. An empty list hides its heading; both empty: `Nothing in use`.
+- Footer, under a hairline: `Remove…` leading and alone (it confirms); `Reset to defaults · Cancel · Save` trailing, 8 pt apart; Save is the default (⌘↩), Cancel answers esc.
+
+## 3. Where the wait shows: the card and the header too
+
+| Surface | Mac | iPad | iPhone |
+|---|---|---|---|
+| Tree / list row | hourglass + `test slot` | neutral circle with the hourglass; the line, cut at its end | same as iPad |
+| Session header | status glyph becomes the hourglass; the line follows the title in the secondary ink, then `Claude · main` in the faint ink | subtitle: the whole line · workspace | subtitle: first and last segments · workspace: `Waits for test slot · 3 min · clubmate` |
+| Bash card | no spinner: hourglass + `waits for test slot` at the right edge. Expanded, under the command: `Held by ‹session› · ‹command› · ‹time›` (the title opens that session) and `Next in line · waited 3 min of 60` | right edge, as on the Mac | no room at the right: a second line under the command, `Waits for test slot · next in line` |
+| "Working…" row | — | hidden while every running call in the turn waits for a slot; back with its spinner when one starts | same |
+
+- `landing.line` is a list of segments joined by ` · `. The first segment is the state and never drops.
+- Place reads `next in line` or `‹n› ahead`, not "2nd in line": "2nd" counts the holder, while `1 of 1 in use` counts holders apart, so the two would disagree.
+- Mac header folding: `Claude · main` folds first, then segments drop from the end, then the title truncates.
+- Time counts from when the wait began and ticks each minute.
+- Counts: a slot wait counts in Running and never in Needs you, the rail dot, the status bar or the bell. Trust counts in all of them.
+- Slot granted: hourglass → spinner on the card and `play.circle` on the row; the word goes back to the duration. No toast, no sound.
+
+## Glyphs
+
+SF Symbols `hourglass` (slot wait, 14 pt, secondary ink; card 13 pt), `exclamationmark.shield` (trust, warning ink), `play.circle` (running). Light and dark share glyph and layout; only the ink comes from the theme (matelight, clight). The header subtitle is the only place where iPhone and iPad differ.
+
+## Open (the designer's additions, to confirm or strike)
+
+- The 9-character cap on a kind's Id.
+- `landing.line` sent in segments, so clients drop them from the end.
+- The "Held by ‹session›" line (with "waited ‹n› of ‹max›") on the expanded Mac card.
+- The trust row on the boards ("Audit vendored deps") is illustrative; it is not in today's shots.

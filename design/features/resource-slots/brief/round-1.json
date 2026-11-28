@@ -1,15 +1,16 @@
 {
-  "title": "Resource slots UI · round 1 (DRAFT)",
+  "title": "Resource slots UI · round 1 · Claude Design ruling",
   "fit": 1200,
-  "css": ["rs.css"],
   "intro": [
-    "DRAFT, 28 Nov 2026: drawn by the agent, not by Claude Design. The Chrome extension was not connected, so the designer was not reached. The brief for the real round is brief/prompt.md. Backlog #1353.",
-    "Q1 · Mac Agents row: A short word ‹kind› slot + hourglass glyph (pick), B full word keeps priority. Q2 · Edit form: A inline, fixed chrome (pick), B modal sheet. Q3 · the Bash card and the session header say “waits for test slot” on the Mac, iPhone and iPad."
+    "28 Nov 2026, canvas “Clubmate · resource slots”, page r1. Backlog #1353, #1360. Rules: rules.md.",
+    "Q1 · Mac row: the plugin sends a short word (test slot, trust) that never cuts; the title cuts. Q2 · Edit form: inline, fixed. Q3 · the Bash card and the session header show the wait on the Mac, iPhone and iPad."
   ],
   "boards": [
-    {"file": "R1-Mac-Row.dc.html", "w": 1100, "title": "Q1 · Mac Agents row · 248 pt · today / A / B", "caption": "A: ‹kind› slot (≤ 9 chars) with the hourglass glyph, to trust in warning; full line in the tooltip."},
-    {"file": "R1-Settings-Form.dc.html", "w": 1300, "title": "Q2 · Resource limits Edit form · A inline fixed / B modal sheet", "caption": "A: inner card with padding, right-aligned labels, mono values, growing Patterns row, spaced footer."},
-    {"file": "R1-Wait-Mac.dc.html", "w": 1400, "title": "Q3 · Mac session header and Bash card · today / A", "caption": "No spinner while the call waits; statusWord and header meta from the plugin."},
-    {"file": "R1-Wait-Companion.dc.html", "w": 1400, "title": "Q3 · iPhone header and tool row · today / A dark / A light", "caption": "Header subtitle and tool word from the same fields; iPad follows the iPhone words."}
+    {"file": "r1-Mac-1280-Today.dc.html", "w": 1280, "title": "Mac 1280 · today", "caption": "Row cut to “Companion U… waits for tes…”, spinner on the card, header says nothing."},
+    {"file": "r1-Mac-1280-Pick.dc.html", "w": 1280, "title": "Mac 1280 · pick", "caption": "Row word test slot / trust with hourglass / shield; header line after the title; card says waits for test slot."},
+    {"file": "r1-Mac-640-Light.dc.html", "w": 640, "title": "Mac 640 · Mate light · pick", "caption": "Header line drops segments from its end; expanded card: Held by … and waited 3 min of 60; drawer words never cut."},
+    {"file": "r1-Settings-Edit.dc.html", "w": 1280, "title": "Settings › Resource limits › Edit · today / pick", "caption": "Inline, fixed: kind row opens in place, 120 pt labels, mono, Now block, Remove… apart."},
+    {"file": "r1-Phone-iPad.dc.html", "w": 1360, "title": "iPhone and iPad · today / pick", "caption": "Header: Waits for test slot · 3 min · clubmate (iPhone), whole line (iPad); neutral hourglass in the list."},
+    {"file": "r1-Rules.dc.html", "w": 1280, "title": "Rules", "caption": "Words, glyphs, tones, the line in segments, where the wait shows, the Edit form."}
   ]
 }

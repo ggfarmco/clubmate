@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · Mac 1280 · pick</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/ba828212421821fa1e12ed0c3574745c">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.cm .new{display:flex;gap:16px;align-items:center;height:30px;padding:0 10px;color:var(--fg);flex:none}
+.cm .new span{display:inline-flex;align-items:center;gap:6px}
+.cm .srch{display:flex;align-items:center;gap:6px;height:26px;margin:2px 8px 8px;padding:0 8px;border-radius:6px;border:1px solid var(--bd2);background:var(--bg);color:var(--t4);flex:none}
+.cm .chips{display:flex;flex-wrap:wrap;gap:4px;padding:0 8px 8px;flex:none}
+.cm .chip{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px;border-radius:10px;background:var(--hov);color:var(--t2);font-size:11px;line-height:16px}
+.cm .chip.on{background:var(--prs);color:var(--fg)}
+.cm .chip .n{color:var(--t4)}
+.cm .chip.wa{color:var(--wa-i)}
+.cm .rows{display:flex;flex-direction:column;gap:2px;padding:0 4px;flex:1 1 auto;min-height:0}
+.cm .rows .row{height:24px}
+.cm .dock{flex:none;border-top:1px solid var(--bd);padding:6px 4px;display:flex;flex-direction:column;gap:2px}
+.cm .dock .row{height:24px}
+.cm .dock .pl{width:14px;color:var(--t3);text-align:center;flex:none}
+.cm .hd{display:flex;align-items:center;gap:8px;height:38px;padding:0 12px 0 16px;border-bottom:1px solid var(--bd);min-width:0;flex:none;white-space:nowrap}
+.cm .hd .ttl{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .hd .vs{width:1px;height:16px;background:var(--bd);flex:none}
+.cm .hd .wl{display:inline-flex;gap:0;color:var(--t3);flex:0 1 auto;min-width:0;overflow:hidden}
+.cm .tr{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:14px;padding:16px 16px 12px}
+.cm .ub{margin-left:120px;padding:8px 14px;border-radius:8px;background:var(--s2)}
+.cm .tool{display:flex;align-items:center;gap:8px;height:24px;color:var(--fg);min-width:0}
+.cm .tool .c{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cm .tool .sw{display:inline-flex;align-items:center;gap:6px;color:var(--t3);flex:none}
+.cm .cmpz{margin:0 16px;border:1px solid var(--bd2);border-radius:8px;background:var(--s1);height:58px;padding:8px 12px;color:var(--t4);flex:none}
+.cm .cbar{display:flex;align-items:center;gap:14px;height:38px;padding:0 16px;flex:none;white-space:nowrap}
+.cm .qbtn{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 10px;border-radius:5px;background:color-mix(in srgb,var(--ac) 45%,var(--bg));color:var(--bg)}
+</style>
+</helmet>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 800px; overflow: hidden">
+<div class="win">
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill" aria-label="Workspace clubmate, branch main"><span>clubmate</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span>main</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg></button>
+<button class="pill" aria-label="Windows: 2"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">2</span></button>
+</header>
+<div class="body" style="grid-template-columns: 40px 248px minmax(0, 1fr)">
+<nav class="rail" aria-label="Sections"><button class="ri" aria-label="Code"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button><button class="ri" aria-label="Terminals"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button><button class="ri on" aria-label="Agents"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button><button class="ri" aria-label="Backlog"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button><button class="ri" aria-label="Processes"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button><button class="ri" aria-label="Cron"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button><button class="ri" aria-label="Triggers"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button></nav>
+<aside class="side" aria-label="Agents">
+<div class="new"><span><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>New</span><span class="ell"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg>New in worktree…</span></div>
+<label class="srch" for="p-srch"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg>Search sessions</label>
+<input id="p-srch" aria-label="Search sessions" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<div class="chips"><button class="chip on">All <span class="n">4</span></button><button class="chip wa">Needs you <span>1</span></button><button class="chip">Open <span class="n">0</span></button><button class="chip">Running <span class="n">3</span></button></div>
+<div class="rows">
+<div class="row"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Resource slot follow-ups</span><span class="d ac-i">1 min</span></div>
+<div class="row seli" title="Companion UI tests · waits for test slot · next in line · 1 of 1 in use · 3 min"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 1.8h7M4.5 14.2h7"/><path d="M5.4 1.8c0 3.3 2.6 4 2.6 6.2s-2.6 2.9-2.6 6.2M10.6 1.8c0 3.3-2.6 4-2.6 6.2s2.6 2.9 2.6 6.2"/></svg><span class="l">Companion UI tests</span><span class="d">test slot</span></div>
+<div class="row"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Voice capture on mac</span><span class="d ac-i">&lt;1 min</span></div>
+<div class="row" title="Audit vendored deps · waits for trust"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="M8 5.5v3M8 10.8v.1"/></svg><span class="l">Audit vendored deps</span><span class="d wa-i">trust</span></div>
+</div>
+<div class="dock" aria-label="Pinned"><div class="row"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 10 4-4 4 4"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg><span class="l">Service</span><span class="d">0</span><span class="pl"></span></div><div class="row"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 10 4-4 4 4"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="m5.6 8 1.7 1.7 3.1-3.3"/></svg><span class="l">Gates</span><span class="d">0</span><span class="pl">+</span></div><div class="row"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 10 4-4 4 4"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg><span class="l">Graphs</span><span class="d">5</span><span class="pl">+</span></div></div>
+</aside>
+<main class="main">
+<div class="hd">
+<svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 1.8h7M4.5 14.2h7"/><path d="M5.4 1.8c0 3.3 2.6 4 2.6 6.2s-2.6 2.9-2.6 6.2M10.6 1.8c0 3.3-2.6 4-2.6 6.2s2.6 2.9 2.6 6.2"/></svg>
+<h1 class="ttl" style="margin: 0">Companion UI tests</h1>
+<span class="wl"><span>waits for test slot</span><span>&#160;· next in line</span><span>&#160;· 1 of 1 in use</span><span>&#160;· 3 min</span></span>
+<span class="faint">Claude · main</span>
+<span style="flex: 1"></span>
+<button class="btn ico gh" aria-label="Session info"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.9v.1"/></svg></button><span class="vs"></span>
+<button class="btn ico gh" aria-label="Transcript view"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M4.5 5.5h7M4.5 8h7M4.5 10.5h5"/></svg></button><span class="vs"></span>
+<button class="btn gh" style="color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.2" style="fill: currentColor"/></svg>Stop <span class="mut">⌘.</span></button>
+</div>
+<div class="tr">
+<div class="ub">waitme please</div>
+<p>The row word fits now. I run the Companion UI tests on my own simulator.</p>
+<div class="tool"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg><span class="c">xcodebuild -scheme Companion test</span><span class="sw"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 1.8h7M4.5 14.2h7"/><path d="M5.4 1.8c0 3.3 2.6 4 2.6 6.2s-2.6 2.9-2.6 6.2M10.6 1.8c0 3.3-2.6 4-2.6 6.2s2.6 2.9 2.6 6.2"/></svg>waits for test slot</span></div>
+</div>
+<div class="hr"></div>
+<div style="height: 12px; flex: none"></div>
+<label class="cmpz" for="p-msg">Queue a message</label>
+<input id="p-msg" aria-label="Queue a message" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<div class="cbar"><span>Claude</span><span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h12M2 8h12M2 11.5h12"/></svg>Options<svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.5 6.5 7 11a2.1 2.1 0 0 1-3-3l5-5a1.4 1.4 0 0 1 2 2L6 10"/></svg><span class="mut">/ for commands, @ for files</span><span style="flex: 1"></span><span class="qbtn">Queue</span></div>
+</main>
+</div>
+<footer class="sb"><span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span><span>4 agents · <span class="wa-i">1 needs you</span></span><span style="flex: 1"></span><span>⌘K</span></footer>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"mate"},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'mate' };
+}
+}
+</script>
+</body>
+</html>

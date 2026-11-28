@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · Settings › Agents › Resource limits · Edit</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/ba828212421821fa1e12ed0c3574745c">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.lab{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:17px;color:#3A3D3B}
+.lab b{font-weight:600;color:#1B1D1C}
+.sx{--win:#F3EFE6;--grp:#EBE7DD;--fld:#FBF9F4;--bd:#DDD8CC;--bd2:#C9C3B5;--fg:#2B2A22;--t2:#4E4B42;--t3:#625E53;--ac:#357A27;--er:#B23A33;
+font-family:-apple-system,'SF Pro Text','Inter',system-ui,sans-serif;font-size:13px;line-height:18px;color:var(--fg);background:var(--win);-webkit-font-smoothing:antialiased;border-radius:10px;border:1px solid #D8D3C7;overflow:hidden}
+.sx *{box-sizing:border-box}
+.sx p{margin:0}
+.sx .mono{font-family:'JetBrains Mono','SF Mono',ui-monospace,monospace;font-size:12px}
+.sx .t3{color:var(--t3)}
+.sx .phd{display:flex;align-items:center;gap:10px;height:52px;padding:0 20px;border-bottom:1px solid var(--bd)}
+.sx .phd .ttl{font-size:15px;font-weight:600}
+.sx .grp{margin:16px 20px;background:var(--grp);border-radius:10px;padding:0 14px}
+.sx .r{display:flex;align-items:center;gap:12px;min-height:44px;padding:10px 0;border-top:1px solid var(--bd)}
+.sx .r:first-child{border-top:0}
+.sx .r .l{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.sx .sub{font-size:11.5px;line-height:15px;color:var(--t3)}
+.sx .tg{width:38px;height:22px;border-radius:11px;background:var(--ac);position:relative;flex:none}
+.sx .tg::after{content:'';position:absolute;right:2px;top:2px;width:18px;height:18px;border-radius:9px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.sx .pk{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:6px;border:1px solid var(--bd2);background:var(--fld);color:var(--ac);font:inherit;white-space:nowrap}
+.sx .b{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--bd2);background:var(--fld);color:var(--fg);font:inherit;white-space:nowrap;flex:none}
+.sx .b.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+.sx .b.dg{color:var(--er);border-color:color-mix(in srgb,var(--er) 45%,transparent)}
+.sx .b.sm{height:22px;padding:0 8px;font-size:12px}
+.sx .b.gh{border-color:transparent;background:transparent}
+.sx .kb{font-size:11px;opacity:.85}
+.sx input.f,.sx textarea.f{font:inherit;color:var(--fg);background:var(--fld);border:1px solid var(--bd2);border-radius:6px;height:24px;padding:0 8px;width:100%;margin:0}
+.sx textarea.f{height:auto;padding:5px 8px;resize:none;line-height:18px}
+/* today */
+.sx .old{background:#DFDBD2;border-radius:8px;border:1px solid #CFCABE}
+.sx .old .ot{display:flex;align-items:center;gap:6px;font-size:17px;font-weight:700;padding-top:2px}
+.sx .old .og{display:grid;grid-template-columns:120px minmax(0,1fr);row-gap:2px;column-gap:0;align-items:center}
+.sx .old .og label{color:var(--t3)}
+.sx .old .ft{display:flex;justify-content:flex-end;gap:0}
+.sx .old .ft .b{border-radius:5px}
+/* pick */
+.sx .ed{border-top:1px solid var(--bd);padding:12px 0 14px;display:flex;flex-direction:column;gap:12px}
+.sx .ed .eh{display:flex;align-items:center;gap:8px}
+.sx .ed .eh .et{font-weight:600}
+.sx .frm{display:grid;grid-template-columns:120px minmax(0,1fr);column-gap:12px;row-gap:8px;align-items:center}
+.sx .frm>label{color:var(--t2)}
+.sx .frm>label.top{align-self:start;padding-top:4px}
+.sx .card{background:var(--win);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.sx .hr{height:1px;background:var(--bd)}
+.sx .sh{display:flex;align-items:baseline;gap:8px}
+.sx .sh b{font-weight:600}
+.sx .lst{display:flex;flex-direction:column}
+.sx .lh{font-size:11px;line-height:16px;color:var(--t3);letter-spacing:.02em;padding:2px 0}
+.sx .li{display:grid;grid-template-columns:18px minmax(0,1fr) minmax(0,1.25fr) 44px 70px;column-gap:10px;align-items:center;min-height:30px}
+.sx .li>*{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sx .li .pl{color:var(--t3);text-align:right}
+.sx .li .tm{color:var(--t3);text-align:right}
+.sx .li .ac{justify-self:end}
+.sx .ftr{display:flex;align-items:center;gap:8px}
+</style>
+</helmet>
+<div class="doc" style="width: 1280px; height: 1280px; padding: 40px 40px; display: grid; grid-template-columns: 560px 560px; column-gap: 80px; align-content: start">
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<p class="lab"><b>today</b> inline under Add kind, a darker inner card titled “Tests slots”: note and labels touch its left edge, footer buttons touch, holds/waits float between fields and footer</p>
+<div class="sx" style="height: 1120px">
+<div class="phd"><svg viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="ttl">Agents</span><span class="mono t3">agents 0.1.0</span><span style="flex: 1"></span><span class="t3">● running</span><button class="b gh" style="color: var(--ac)">Restart</button><span class="tg" aria-hidden="true"></span></div>
+<div class="grp">
+<div class="r"><div class="l"><span>Resource limits</span><span class="sub">Agents' heavy commands (tests, simulator boots) wait for a free slot before they start. Your own terminals are not limited.</span></div><span class="tg" aria-hidden="true"></span></div>
+<div class="r"><div class="l"><span>Max wait</span><span class="sub">A command that gets no slot in this time is not run; the agent is told why.</span></div><button class="pk">60 min ⌄</button></div>
+<div class="r"><div class="l"><span>Simulators</span><span class="sub">sim · 0 of 2 in use · CPU 34 %</span></div><button class="b gh">Edit</button></div>
+<div class="r"><div class="l"><span>Tests</span><span class="sub">test · 1 of 1 in use · CPU 34 % · 1 waiting</span></div><button class="b gh">Edit</button></div>
+<div class="r" style="justify-content: flex-end"><button class="b">+ Add kind</button></div>
+<div class="r" style="display: block; padding-bottom: 14px">
+<div class="old">
+<div class="ot"><svg viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.3"><circle cx="8" cy="8" r="6.5"/><path d="M8 8 10.5 5.5"/></svg>Tests slots</div>
+<p style="margin: 10px 0 6px">A Bash command that matches a pattern waits for a slot. The first slot is always free; more need CPU at or below the limit, the memory floor and the settle pause since the last start.</p>
+<div class="og">
+<label for="o-id">Id</label><input class="f" id="o-id" value="test" readonly>
+<label for="o-nm">Name</label><input class="f" id="o-nm" value="Tests" readonly>
+<label for="o-iu">In use counts</label><span><button class="pk" id="o-iu">commands that hold it ⌄</button></span>
+<label for="o-sl">Slots</label><span><button class="pk" id="o-sl">1 ⌄</button></span>
+<label for="o-cpu">CPU limit</label><span><button class="pk" id="o-cpu">80 % ⌄</button></span>
+<label for="o-mem">Free memory</label><span><button class="pk" id="o-mem">no check ⌄</button></span>
+<label for="o-st">Settle pause</label><span><button class="pk" id="o-st">20 s ⌄</button></span>
+<label for="o-pt" style="align-self: start">Patterns</label><textarea class="f" id="o-pt" rows="5" readonly>\bmake\s+(test|test-stress|lint-tests)\b
+\bgo\s+test\b
+\bxcodebuild\b.*\btest\b
+\bswift\s+test\b
+\bcargo\s+(test|nextest)\b</textarea>
+</div>
+<p class="t3" style="margin-top: 10px">test · 1 of 1 in use · CPU 34 % · 1 waiting</p>
+<div style="display: flex; align-items: center; gap: 8px; height: 30px"><span class="t3">holds</span><span>Resource slot follow-ups</span><span>make test</span><span style="flex: 1"></span><button class="b sm">Release</button></div>
+<div style="display: flex; align-items: center; gap: 8px; height: 30px; white-space: nowrap; overflow: hidden"><span class="t3">waits 1</span><span>Companion UI tests</span><span style="overflow: hidden; text-overflow: ellipsis">xcodebuild -scheme Companion…</span><span class="t3">1 of 1 in use</span></div>
+<div class="ft"><button class="b dg">Remove</button><button class="b">Reset to defaults</button><button class="b" style="box-shadow: 0 0 0 2px var(--ac)">Cancel</button><button class="b pri">Save <span class="kb">⌘↩</span></button></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<p class="lab"><b>pick · inline, fixed</b> Edit opens the kind's own row in place; 16 pt inside, a 120 pt label column, mono for Id, Patterns and commands, a Now block with Holding and Waiting, a footer with Remove apart</p>
+<div class="sx" style="height: 1120px">
+<div class="phd"><svg viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="ttl">Agents</span><span class="mono t3">agents 0.1.0</span><span style="flex: 1"></span><span class="t3">● running</span><button class="b gh" style="color: var(--ac)">Restart</button><span class="tg" aria-hidden="true"></span></div>
+<div class="grp">
+<div class="r"><div class="l"><span>Resource limits</span><span class="sub">Agents' heavy commands (tests, simulator boots) wait for a free slot before they start. Your own terminals are not limited.</span></div><span class="tg" aria-hidden="true"></span></div>
+<div class="r"><div class="l"><span>Max wait</span><span class="sub">A command that gets no slot in this time is not run; the agent is told why.</span></div><button class="pk">60 min ⌄</button></div>
+<div class="r"><div class="l"><span>Simulators</span><span class="sub"><span class="mono">sim</span> · 0 of 2 in use · CPU 34 %</span></div><button class="b gh">Edit</button></div>
+<section class="ed" aria-label="Edit Tests">
+<div class="eh"><span class="et">Tests</span><span class="sub"><span class="mono">test</span> · 1 of 1 in use · CPU 34 % · 1 waiting</span></div>
+<div class="card">
+<p class="sub" style="font-size: 12px; line-height: 17px">A Bash command that matches a pattern waits for a slot. The first slot is always free; more need CPU at or below the limit, the memory floor and the settle pause since the last start.</p>
+<div class="frm">
+<label for="n-id">Id</label><span><input class="f mono" id="n-id" value="test" readonly style="width: 140px"></span>
+<label for="n-nm">Name</label><span><input class="f" id="n-nm" value="Tests" readonly style="width: 240px"></span>
+<label for="n-iu">In use counts</label><span><button class="pk" id="n-iu">commands that hold it ⌄</button></span>
+<label for="n-sl">Slots</label><span><button class="pk" id="n-sl">1 ⌄</button></span>
+<label for="n-cpu">CPU limit</label><span><button class="pk" id="n-cpu">80 % ⌄</button></span>
+<label for="n-mem">Free memory</label><span><button class="pk" id="n-mem">no check ⌄</button></span>
+<label for="n-st">Settle pause</label><span><button class="pk" id="n-st">20 s ⌄</button></span>
+<label for="n-pt" class="top">Patterns</label><span style="display: flex; flex-direction: column; gap: 4px"><textarea class="f mono" id="n-pt" rows="5" readonly>\bmake\s+(test|test-stress|lint-tests)\b
+\bgo\s+test\b
+\bxcodebuild\b.*\btest\b
+\bswift\s+test\b
+\bcargo\s+(test|nextest)\b</textarea><span class="sub">One regular expression per line, matched against the whole Bash command.</span></span>
+</div>
+<div class="hr"></div>
+<div class="lst" aria-label="Now">
+<div class="sh"><b>Now</b><span class="sub">1 of 1 in use · CPU 34 %</span></div>
+<span class="lh" style="padding-top: 8px">Holding</span>
+<div class="li"><span></span><span>Resource slot follow-ups</span><span class="mono t3">make test</span><span class="tm">6 min</span><span class="ac"><button class="b sm">Release</button></span></div>
+<span class="lh" style="padding-top: 6px">Waiting</span>
+<div class="li"><span class="pl">1</span><span>Companion UI tests</span><span class="mono t3">xcodebuild -scheme … test</span><span class="tm">3 min</span><span></span></div>
+</div>
+<div class="hr"></div>
+<div class="ftr"><button class="b dg">Remove…</button><span style="flex: 1"></span><button class="b">Reset to defaults</button><button class="b">Cancel</button><button class="b pri">Save <span class="kb">⌘↩</span></button></div>
+</div>
+</section>
+<div class="r" style="justify-content: flex-end"><button class="b">+ Add kind</button></div>
+</div>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1280}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
