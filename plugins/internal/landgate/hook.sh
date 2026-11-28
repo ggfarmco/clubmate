@@ -91,11 +91,20 @@ NF >= 3 {
 }'
 }
 
+kept() {
+	case $1 in *[!0]*) ;; *) return 1 ;; esac
+	case $2 in *[!0]*) return 1 ;; esac
+	packs=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
+	[ -f "$packs/$3" ] && [ "$(cat "$packs/$3" 2>/dev/null)" = "$1" ] || return 1
+	grep -qxF "$1 $3" "$packs/packed-refs" 2>/dev/null
+}
+
 held() {
 	status=0
 	while read -r old new ref; do
 		case $ref in refs/heads/*) ;; *) continue ;; esac
 		[ -s "$CLUBMATE_LAND_QUEUE/$ref" ] || continue
+		kept "$old" "$new" "$ref" && continue
 		case $old in *[!0]*) ;; *) old=$(git rev-parse -q --verify "$ref" 2>/dev/null || printf '%s' "$old") ;; esac
 		[ "$new" = "$old" ] && continue
 		case $old in *[!0]*) case $new in *[!0]*) synced "$old" "$new" "$ref" && continue ;; esac ;; esac
@@ -116,6 +125,7 @@ gate() {
 	status=0
 	while read -r old new ref; do
 		[ -n "$ref" ] || continue
+		kept "$old" "$new" "$ref" && continue
 		case $new in *[!0]*) ;; *) refuse "$ref"; status=1; continue ;; esac
 		case $new in ref:*) refuse "$ref"; status=1; continue ;; esac
 		case $old in *[!0]*) ;; *) old=$(git rev-parse -q --verify "$ref" 2>/dev/null || printf '%s' "$old") ;; esac

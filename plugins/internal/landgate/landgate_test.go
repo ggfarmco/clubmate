@@ -131,6 +131,36 @@ func TestHookRefusesCommitIntoQueuedBranch(t *testing.T) {
 	g.run(repo, env, "commit", "-q", "--allow-empty", "-m", "own branch")
 }
 
+func TestPackRefsPassesAQueuedProtectedBranch(t *testing.T) {
+	g := newGitEnv(t)
+	repo := g.repo()
+	common := filepath.Join(repo, ".git")
+	g.hold(common, "main")
+	env := g.session(common, []string{"main"}, nil)
+	before := g.run(repo, env, "rev-parse", "main")
+
+	g.run(repo, env, "pack-refs", "--all")
+
+	assert.Equal(t, before, g.run(repo, env, "rev-parse", "main"))
+	g.run(repo, env, "switch", "-q", "--detach")
+	out, err := g.git(repo, env, "branch", "-D", "main")
+	require.Error(t, err)
+	assert.Contains(t, out, "the branch main has a landing queue")
+	steps := []struct {
+		state string
+		make  []string
+	}{
+		{"main packed only", []string{"pack-refs", "--all"}},
+		{"main loose and packed: a no-op update the hold lets pass writes the loose file", []string{"update-ref", "refs/heads/main", before}},
+	}
+	for _, step := range steps {
+		g.run(repo, env, step.make...)
+		_, err = g.git(repo, env, "update-ref", "-d", "refs/heads/main", before)
+		require.Error(t, err, step.state)
+		assert.Equal(t, before, g.run(repo, env, "rev-parse", "main"), step.state)
+	}
+}
+
 func TestHookPassesWhenQueueEmpty(t *testing.T) {
 	g := newGitEnv(t)
 	repo := g.repo()
