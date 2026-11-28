@@ -1,0 +1,48 @@
+/* Resource slots UI, round 1 (draft) — layer on cm.css / c.css */
+.doc .draft{font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:18px;padding:0 7px;border-radius:4px;background:#F3E0C3;color:#71440B;letter-spacing:.04em}
+.doc .dirs{display:flex;gap:40px;align-items:flex-start}
+.doc .dir{display:flex;flex-direction:column;gap:10px;min-width:0}
+.doc .dir h3{margin:0;font-size:16px;line-height:22px;font-weight:600}
+.doc .dir h3 .tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:18px;padding:0 6px;border-radius:4px;background:#E4E2DA;color:#3A3D3B;margin-right:8px;vertical-align:2px}
+.doc .dir h3 .tag.pick{background:#D7E8C4;color:#24521B}
+.doc .dir p.pitch{margin:0;font-size:13.5px;line-height:19px;color:#3A3D3B}
+.doc .note{font-size:13px;line-height:19px;color:#5B5F5C;margin:0}
+.doc .note b{color:#1B1D1C}
+.doc .frm{border-radius:10px;box-shadow:0 0 0 1px #DAD8CF;overflow:hidden;position:relative}
+.cm .tip{position:absolute;z-index:10;padding:4px 8px;border-radius:5px;background:var(--s3);border:1px solid var(--bd2);color:var(--fg);font-size:11px;line-height:16px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.35)}
+.cm .tcard{border:1px solid var(--bd);border-radius:8px;background:var(--s1);display:flex;flex-direction:column;min-width:0}
+.cm .tcard .th{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;white-space:nowrap;min-width:0}
+.cm .tcard .th .cmd{font-family:'JetBrains Mono',monospace;font-size:12px;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .tcard .tl{font-size:11px;line-height:16px;color:var(--t3);padding:0 10px 8px 32px}
+.cm .spin{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--bd2);border-top-color:var(--ac);flex:none}
+.cm .hd{display:flex;flex-direction:column;justify-content:center;gap:2px;height:56px;padding:0 12px 0 20px;border-bottom:1px solid var(--bd);flex:none;min-width:0}
+.cm .hd .r1{display:flex;align-items:center;gap:10px;min-width:0;white-space:nowrap}
+.cm .hd .r2{font-size:11px;line-height:16px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm .strike{position:relative}
+.sx{font-family:-apple-system,'SF Pro Text','Inter',system-ui,sans-serif;font-size:13px;line-height:18px;color:#1D1D1F;-webkit-font-smoothing:antialiased}
+.sx *{box-sizing:border-box}
+.sx .grp{background:#F4F4F5;border-radius:12px;border:1px solid #E6E6E8}
+.sx .r{display:flex;align-items:center;gap:12px;min-height:40px;padding:8px 14px}
+.sx .r .l{flex:1;min-width:0;display:flex;flex-direction:column}
+.sx .sub{font-size:11px;line-height:14px;color:#6E6E73}
+.sx .sep{height:1px;background:#E2E2E4;margin:0 14px}
+.sx .btn{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 10px;border-radius:6px;border:0;background:#E5E5EA;font:inherit;color:#1D1D1F;white-space:nowrap;flex:none}
+.sx .btn.pri{background:#0A7AFF;color:#fff}
+.sx .btn.dg{background:transparent;color:#D70015;box-shadow:inset 0 0 0 1px #F2B8BC}
+.sx .btn.lk{background:transparent;color:#0A63D6;padding:0 4px}
+.sx .btn .k{font-size:11px;opacity:.75}
+.sx h3{margin:0;font-size:13px;font-weight:600;padding:0 4px 6px}
+.sx .mono{font-family:'JetBrains Mono','SF Mono',ui-monospace,monospace;font-size:11.5px;line-height:17px}
+.sx .tog{width:38px;height:22px;border-radius:11px;background:#0A7AFF;position:relative;flex:none}
+.sx .tog::after{content:'';position:absolute;right:2px;top:2px;width:18px;height:18px;border-radius:9px;background:#fff}
+.sx .fm{display:grid;grid-template-columns:104px minmax(0,1fr);column-gap:12px;row-gap:8px;align-items:center}
+.sx .fm>.k{text-align:right;color:#3C3C43}
+.sx .fm>.k.top{align-self:start;padding-top:4px}
+.sx .in{height:22px;border-radius:5px;background:#fff;border:1px solid #D1D1D6;padding:0 7px;display:flex;align-items:center;min-width:0;white-space:nowrap;overflow:hidden}
+.sx .in.ta{height:auto;padding:4px 7px;flex-direction:column;align-items:stretch;white-space:pre}
+.sx .pop{height:22px;border-radius:5px;background:#fff;border:1px solid #D1D1D6;padding:0 6px 0 8px;display:inline-flex;align-items:center;gap:8px;justify-self:start;white-space:nowrap}
+.sx .pop::after{content:'⌃⌄';font-size:9px;letter-spacing:-2px;color:#6E6E73;writing-mode:vertical-lr}
+.sx .ppl{display:flex;flex-direction:column;gap:2px}
+.sx .ppl .p{display:flex;align-items:center;gap:8px;min-height:24px}
+.sx .ppl .p .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sx .bad{outline:2px dashed #D70015;outline-offset:2px}

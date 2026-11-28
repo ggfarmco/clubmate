@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>R1 · Q3 · Mac wait in card and header</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./rs.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="doc" style="width: 1400px; height: 480px; padding: 48px; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="eyebrow">Round 1 · Q3 · Mac session header and Bash card · Mate dark <span class="draft">DRAFT · not from the designer</span></div>
+<h2>The call that waits says so where you look: the card and the header</h2>
+<p class="lead" style="max-width: 1200px">The wait happens before the tool starts, so a spinner and “Running” are false. A: the card's <code>statusWord</code> is the plugin's line word, no spinner; the header glyph and meta line come from the same session field as the row.</p>
+</div>
+<div class="dirs">
+<div class="dir" style="width: 620px"><h3><span class="tag">Today</span>Spinner and Running</h3><div class="frm cm th-mate" style="width: 620px; height: 220px; display: flex; flex-direction: column; background: var(--bg)">
+<div class="hd"><div class="r1"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="ttl">Companion UI tests</span><span class="mut cap ell">Claude · ui/companion · Ask before edits</span><span style="flex: 1"></span><button class="btn sm gh"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/></svg>Stop<span class="kbd">⎋</span></button></div><div class="r2">15 min · Bash</div></div>
+<div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; padding: 0 20px 16px">
+<p class="t2" style="margin: 0">The fix is in. I'll run the companion UI tests to check the iPad header.</p>
+<div class="tcard"><div class="th"><span class="spin"></span><span class="cmd">make companion-ui-test</span><span class="cap" style="color: var(--ac-i)">Running</span></div></div>
+</div></div></div>
+<div class="dir" style="width: 620px"><h3><span class="tag pick">A · draft pick</span>Card word + header meta</h3><div class="frm cm th-mate" style="width: 620px; height: 220px; display: flex; flex-direction: column; background: var(--bg)">
+<div class="hd"><div class="r1"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2h7M4.5 14h7"/><path d="M5.2 2.2c0 3.2 5.6 3.6 5.6 5.8s-5.6 2.6-5.6 5.8M10.8 2.2c0 3.2-5.6 3.6-5.6 5.8s5.6 2.6 5.6 5.8"/></svg><span class="ttl">Companion UI tests</span><span class="mut cap ell">Claude · ui/companion · Ask before edits</span><span style="flex: 1"></span><button class="btn sm gh"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/></svg>Stop<span class="kbd">⎋</span></button></div><div class="r2">waits for test slot · 2nd in line · 1 of 1 in use · 3 min</div></div>
+<div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; padding: 0 20px 16px">
+<p class="t2" style="margin: 0">The fix is in. I'll run the companion UI tests to check the iPad header.</p>
+<div class="tcard"><div class="th"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2h7M4.5 14h7"/><path d="M5.2 2.2c0 3.2 5.6 3.6 5.6 5.8s-5.6 2.6-5.6 5.8M10.8 2.2c0 3.2-5.6 3.6-5.6 5.8s5.6 2.6 5.6 5.8"/></svg><span class="cmd">make companion-ui-test</span><span class="cap" style="color: var(--t3)">waits for test slot</span></div><div class="tl">1 of 1 in use by “Fix sim boot race” · starts when it ends</div></div>
+</div></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":480}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>R1 · Q2 · Resource limits Edit form</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./rs.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="doc" style="width: 1300px; height: 1040px; padding: 48px; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="eyebrow">Round 1 · Q2 · Settings › Agents › Resource limits · Edit form <span class="draft">DRAFT · not from the designer</span></div>
+<h2>Keep the form inline under its kind, with the chrome of a card</h2>
+<p class="lead" style="max-width: 1100px">Today the form sits at the card's edge, the footer buttons touch, mono text is the system font and a multi-line value draws below its row. A fixes the chrome in place; B is the modal sheet, which does not present from the Settings window today.</p>
+</div>
+<div class="dirs">
+<div class="dir" style="width: 560px"><h3><span class="tag pick">A · draft pick</span>Inline, fixed</h3><p class="pitch">An inner card under the edited row: 14 pt padding, labels right-aligned in a 104 pt column, 8 pt row gap, values in JetBrains Mono, Patterns grows its row, Holding / Waiting as form rows. Footer: Remove at the left, then 8 pt gaps, Save ⌘↩ last.</p><div class="sx frm" style="width: 540px; height: 760px; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden"><header style="padding: 10px 14px 10px; border-bottom: 1px solid #E2E2E4; display: flex; align-items: center; gap: 8px; flex: none"><i style="width: 12px; height: 12px; border-radius: 6px; background: #FF5F57; display: block"></i><i style="width: 12px; height: 12px; border-radius: 6px; background: #FEBC2E; display: block"></i><i style="width: 12px; height: 12px; border-radius: 6px; background: #28C840; display: block"></i><span style="flex: 1; text-align: center; font-weight: 600">Agents</span><span style="width: 52px"></span></header><div style="padding: 18px 22px; display: flex; flex-direction: column; overflow: hidden"><h3>Resource limits</h3><div class="grp">
+<label class="r"><div class="l"><span>Limit heavy commands</span><span class="sub">Tests and simulator boots wait for a slot</span></div><span class="tog"></span></label>
+<div class="sep"></div>
+<div class="r"><div class="l"><span>Max wait</span></div><span class="pop">8 min</span></div>
+<div class="sep"></div>
+<div class="r"><div class="l"><span class="mono" style="font-size: 12px">test · 1 of 1 in use · CPU 64 % · 1 waiting</span></div><span class="sub">Editing</span></div><div style="margin: 0 10px 10px; padding: 14px; border-radius: 9px; background: #FFFFFF; border: 1px solid #E2E2E4; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-weight: 600">Edit test</span><span style="flex: 1"></span><span class="sub">Saved values apply at once</span></div>
+<div class="fm">
+<span class="k">Id</span><span class="in mono">test</span>
+<span class="k">Name</span><span class="in">Tests</span>
+<span class="k">In use counts</span><span class="pop">commands that hold it</span>
+<span class="k">Slots</span><span class="pop">1</span>
+<span class="k">CPU limit</span><span class="pop">80 %</span>
+<span class="k">Free memory</span><span class="pop">no check</span>
+<span class="k">Settle pause</span><span class="pop">20 s</span>
+<span class="k top">Patterns</span><span class="in ta mono">\bmake\s+(test|test-stress|lint-tests)\b
+\bgo\s+test\b
+\bxcodebuild\b.*\btest\b
+\bswift\s+test\b
+\bcargo\s+(test|nextest)\b</span>
+<span class="k top">Holding</span><div class="ppl"><div class="p"><span class="n">Fix sim boot race · <span class="mono">go test ./internal/…</span> · 3 min</span><button class="btn lk">Release</button></div></div>
+<span class="k top">Waiting</span><div class="ppl"><div class="p"><span class="n">1 · Companion UI tests · <span class="mono">make companion-ui-test</span> · 3 min</span></div></div>
+</div>
+<div style="height: 1px; background: #E2E2E4; margin: 0 -14px"></div>
+<div style="display: flex; align-items: center; gap: 8px"><button class="btn dg">Remove</button><span style="flex: 1"></span><button class="btn">Reset to defaults</button><button class="btn">Cancel</button><button class="btn pri">Save <span class="k">⌘↩</span></button></div>
+</div><div class="sep"></div>
+<div class="r"><div class="l"><span class="mono" style="font-size: 12px">sim · 1 of 2 in use · CPU 64 % · 4.1 GB free</span></div><button class="btn">Edit</button></div>
+<div class="sep"></div>
+<div class="r"><div class="l"></div><button class="btn">Add kind…</button></div>
+</div></div></div></div>
+<div class="dir" style="width: 560px"><h3><span class="tag">B</span>Modal sheet</h3><p class="pitch">The same form as a sheet over the window. Needs client work (a root <code>sheet</code> must present from the Settings window) and hides the kind lines that update while you edit.</p><div class="sx frm" style="width: 540px; height: 760px; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden"><header style="padding: 10px 14px 10px; border-bottom: 1px solid #E2E2E4; display: flex; align-items: center; gap: 8px; flex: none"><i style="width: 12px; height: 12px; border-radius: 6px; background: #FF5F57; display: block"></i><i style="width: 12px; height: 12px; border-radius: 6px; background: #FEBC2E; display: block"></i><i style="width: 12px; height: 12px; border-radius: 6px; background: #28C840; display: block"></i><span style="flex: 1; text-align: center; font-weight: 600">Agents</span><span style="width: 52px"></span></header><div style="padding: 18px 22px; display: flex; flex-direction: column; overflow: hidden; opacity: .45"><h3>Resource limits</h3><div class="grp">
+<label class="r"><div class="l"><span>Limit heavy commands</span><span class="sub">Tests and simulator boots wait for a slot</span></div><span class="tog"></span></label>
+<div class="sep"></div>
+<div class="r"><div class="l"><span>Max wait</span></div><span class="pop">8 min</span></div>
+<div class="sep"></div>
+<div class="r"><div class="l"><span class="mono" style="font-size: 12px">test · 1 of 1 in use · CPU 64 % · 1 waiting</span></div><button class="btn">Edit</button></div><div class="sep"></div>
+<div class="r"><div class="l"><span class="mono" style="font-size: 12px">sim · 1 of 2 in use · CPU 64 % · 4.1 GB free</span></div><button class="btn">Edit</button></div>
+<div class="sep"></div>
+<div class="r"><div class="l"></div><button class="btn">Add kind…</button></div>
+</div></div><div style="position: absolute; left: 40px; right: 40px; top: 48px; padding: 16px; border-radius: 12px; background: #FFFFFF; border: 1px solid #D1D1D6; box-shadow: 0 18px 50px rgba(0,0,0,.28); display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-weight: 600">Edit test</span><span style="flex: 1"></span><span class="sub">Saved values apply at once</span></div>
+<div class="fm">
+<span class="k">Id</span><span class="in mono">test</span>
+<span class="k">Name</span><span class="in">Tests</span>
+<span class="k">In use counts</span><span class="pop">commands that hold it</span>
+<span class="k">Slots</span><span class="pop">1</span>
+<span class="k">CPU limit</span><span class="pop">80 %</span>
+<span class="k">Free memory</span><span class="pop">no check</span>
+<span class="k">Settle pause</span><span class="pop">20 s</span>
+<span class="k top">Patterns</span><span class="in ta mono">\bmake\s+(test|test-stress|lint-tests)\b
+\bgo\s+test\b
+\bxcodebuild\b.*\btest\b
+\bswift\s+test\b
+\bcargo\s+(test|nextest)\b</span>
+<span class="k top">Holding</span><div class="ppl"><div class="p"><span class="n">Fix sim boot race · <span class="mono">go test ./internal/…</span> · 3 min</span><button class="btn lk">Release</button></div></div>
+<span class="k top">Waiting</span><div class="ppl"><div class="p"><span class="n">1 · Companion UI tests · <span class="mono">make companion-ui-test</span> · 3 min</span></div></div>
+</div>
+<div style="height: 1px; background: #E2E2E4; margin: 0 -14px"></div>
+<div style="display: flex; align-items: center; gap: 8px"><button class="btn dg">Remove</button><span style="flex: 1"></span><button class="btn">Reset to defaults</button><button class="btn">Cancel</button><button class="btn pri">Save <span class="k">⌘↩</span></button></div>
+</div></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1300,"height":1040}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

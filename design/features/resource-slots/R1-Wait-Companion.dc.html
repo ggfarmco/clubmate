@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>R1 · Q3 · Companion wait in header</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./rs.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="doc" style="width: 1400px; height: 540px; padding: 48px; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="eyebrow">Round 1 · Q3 · iPhone and iPad session header <span class="draft">DRAFT · not from the designer</span></div>
+<h2>Phone and iPad say the same words as the Mac</h2>
+<p class="lead" style="max-width: 1200px">The header subtitle takes the session's <code>landing.line</code> start and age instead of “Working…”; the tool row takes the card's <code>statusWord</code>. iPad: the same in its header caption. One field from the plugin, three clients.</p>
+</div>
+<div class="dirs" style="gap: 32px">
+<div class="dir"><h3><span class="tag">Today</span>iPhone dark</h3><div class="frm cm comp th-cdark" style="width: 393px; height: 320px; border-radius: 28px; position: relative; background: var(--bg)">
+<div class="top" style="top: 24px"><span class="gpill" style="width: 44px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></span><div class="t"><span class="tt">Companion UI tests</span><span class="ts">Working…</span></div><span style="width: 44px"></span></div>
+<div style="position: absolute; left: 16px; right: 16px; bottom: 20px; display: flex; flex-direction: column; gap: 10px">
+<p class="sub" style="margin: 0">The fix is in. I'll run the companion UI tests to check the iPad header.</p>
+<div style="border-radius: 16px; background: var(--s1); padding: 12px 14px; display: flex; align-items: center; gap: 10px"><span class="mono foot" style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">make companion-ui-test</span><span class="foot ac-i">Running</span></div>
+</div></div></div>
+<div class="dir"><h3><span class="tag pick">A</span>iPhone dark</h3><div class="frm cm comp th-cdark" style="width: 393px; height: 320px; border-radius: 28px; position: relative; background: var(--bg)">
+<div class="top" style="top: 24px"><span class="gpill" style="width: 44px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></span><div class="t"><span class="tt">Companion UI tests</span><span class="ts">waits for test slot · 3 min</span></div><span style="width: 44px"></span></div>
+<div style="position: absolute; left: 16px; right: 16px; bottom: 20px; display: flex; flex-direction: column; gap: 10px">
+<p class="sub" style="margin: 0">The fix is in. I'll run the companion UI tests to check the iPad header.</p>
+<div style="border-radius: 16px; background: var(--s1); padding: 12px 14px; display: flex; align-items: center; gap: 10px"><span class="mono foot" style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">make companion-ui-test</span><span class="foot mut">waits for test slot</span></div>
+</div></div></div>
+<div class="dir"><h3><span class="tag pick">A</span>iPhone light</h3><div class="frm cm comp th-clight" style="width: 393px; height: 320px; border-radius: 28px; position: relative; background: var(--bg)">
+<div class="top" style="top: 24px"><span class="gpill" style="width: 44px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></span><div class="t"><span class="tt">Companion UI tests</span><span class="ts">waits for test slot · 3 min</span></div><span style="width: 44px"></span></div>
+<div style="position: absolute; left: 16px; right: 16px; bottom: 20px; display: flex; flex-direction: column; gap: 10px">
+<p class="sub" style="margin: 0">The fix is in. I'll run the companion UI tests to check the iPad header.</p>
+<div style="border-radius: 16px; background: var(--s1); padding: 12px 14px; display: flex; align-items: center; gap: 10px"><span class="mono foot" style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">make companion-ui-test</span><span class="foot mut">waits for test slot</span></div>
+</div></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":540}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
