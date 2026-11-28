@@ -13,6 +13,7 @@ REPO=ggfarmco/clubmate
 CM="${SHIP_CLUBMATE:-/Applications/Clubmate.app/Contents/Resources/bin/clubmate}"
 GH="${SHIP_GH:-gh}"
 POLL="${SHIP_POLL_SECONDS:-10}"
+CI_START_SECONDS="${SHIP_CI_START_SECONDS:-3600}"
 export PATH="/opt/homebrew/bin:$PATH"
 cd "$(dirname "$0")/../.." || exit 1
 
@@ -55,10 +56,42 @@ run_of() {
   echo "$id"
 }
 
+repick() {
+  local green tagged
+  git fetch -q --tags origin || stuck "ci run $CI_RUN for $SHA was replaced; fetching origin failed; no tag pushed"
+  green="$(scripts/release/green-sha.sh origin/main)" || stuck "ci run $CI_RUN for $SHA was replaced and origin/main has no green commit; no tag pushed"
+  tagged="$(git tag -l 'v*' --points-at "$green")"
+  [[ -z "$tagged" ]] || stuck "ci run $CI_RUN for $SHA was replaced; the newest green commit $green is already $tagged; no tag pushed"
+  echo "ci run $CI_RUN for $SHA was replaced; shipping the newest green commit $green"
+  SHA="$green"
+  CI_RUN="$(newest_run --workflow ci.yml --commit "$SHA" --event push --status success)"
+  [[ -n "$CI_RUN" ]] || stuck "no green ci run for $SHA; no tag pushed"
+  echo "ci run $CI_RUN"
+  scripts/release/flaky-backlog.sh "$SHA" "$WS" || echo "ship.sh: filing flaky tests of $SHA failed" >&2
+}
+
+wait_ci_start() {
+  local start=$SECONDS state status conclusion
+  while :; do
+    state="$("$GH" run view "$CI_RUN" -R "$REPO" --json status,conclusion -q '"\(.status) \(.conclusion)"')" || stuck "reading ci run $CI_RUN failed; no tag pushed"
+    read -r status conclusion <<<"$state"
+    case "$status $conclusion" in
+      "in_progress "* | "completed success") return 0 ;;
+      "completed cancelled") repick ;;
+      completed*) stuck "ci run $CI_RUN for $SHA ended ${conclusion:-unknown}; no tag pushed" ;;
+      *)
+        ((SECONDS - start >= CI_START_SECONDS)) && stuck "ci run $CI_RUN for $SHA still $status after ${CI_START_SECONDS}s; no tag pushed"
+        sleep "$POLL"
+        ;;
+    esac
+  done
+}
+
 echo "=== $(date) ship v$VERSION on $SHA"
 CI_RUN="$(run_of 0 --workflow ci.yml --commit "$SHA")"
 [[ -n "$CI_RUN" ]] || stuck "no ci run for $SHA; no tag pushed"
 echo "ci run $CI_RUN"
+wait_ci_start
 
 git fetch -q --tags origin
 git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null && stuck "tag v$VERSION already exists; not tagging"

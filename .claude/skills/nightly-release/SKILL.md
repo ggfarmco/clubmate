@@ -15,7 +15,7 @@ Pushing a `v*` tag publishes at once (the `release` environment has no reviewers
 2. Version: the newest tag (`git tag -l 'v*' --sort=-v:refname | head -1`) with the patch number plus one, written without the `v` (`0.0.30`, not `v0.0.30`): `ship.sh` adds it, so `v0.0.30` would tag `vv0.0.30`.
 3. Ship detached, so it outlives this session:
    `python3 -c 'import os,sys; os.setsid(); os.execv("/bin/bash", ["bash"] + sys.argv[1:])' scripts/release/ship.sh <version> $SHA $CLUBMATE_WORKSPACE_ID >>~/Library/Logs/clubmate-ship.log 2>&1 </dev/null &`
-   Once the ci run on `SHA` exists it tags and pushes the tag, so the release builds, signs and notarizes while CI runs; `release.yml` publishes only after that ci run passed (`scripts/release/wait-ci.sh`). It waits for the release run and notifies `done` or `stuck`; when the release run fails before publishing, it deletes the tag.
+   Once the ci run on `SHA` has started (a newer push to main replaces a waiting run, never a running one; a replaced run makes it ship the newest green commit instead and file that commit's flaky tests) it tags and pushes the tag, so the release builds, signs and notarizes while CI runs; `release.yml` publishes only after that ci run passed (`scripts/release/wait-ci.sh`). It waits for the release run and notifies `done` or `stuck`; when the release run fails before publishing, it deletes the tag.
 4. Reply in one line: version, sha, log path. Don't install the update on this Mac (it restarts the core and kills running agent sessions); Sparkle offers it when the user is back.
 
 A release whose CI still went red is spent: don't rerun its jobs or reship that commit under a new version. Find the failing test's race, fix it, and the next green commit ships.
