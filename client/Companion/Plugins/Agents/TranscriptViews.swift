@@ -805,6 +805,8 @@ struct ToolLine: View {
     @Environment(\.subagentStop) private var stop
     @Environment(\.openDoc) private var openDoc
     @Environment(\.toolCallLoader) private var loader
+    @Environment(\.openSession) private var openSession
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var stopping = false
     @State private var confirmingStop = false
     @State private var full: ToolCall?
@@ -833,12 +835,34 @@ struct ToolLine: View {
                                     .lineLimit(1)
                             }
                         }
+                        if sizeClass != .regular, let line = statusLine {
+                            HStack(spacing: 4) {
+                                if let icon = tool.gate?.icon?.nilIfEmpty {
+                                    Image(systemName: icon).font(.caption)
+                                }
+                                Text(line).lineLimit(1)
+                            }
+                            .font(.footnote)
+                            .foregroundStyle(Color.captionInk)
+                        }
                     }
                     Spacer(minLength: 6)
                     if tool.hasDiffs {
                         ChangeCounts(changes: tool.changes)
                     }
-                    if let word = tool.gate?.word?.nilIfEmpty {
+                    if statusLine != nil {
+                        if sizeClass == .regular, let word = tool.gate?.word?.nilIfEmpty {
+                            HStack(spacing: 4) {
+                                if let icon = tool.gate?.icon?.nilIfEmpty {
+                                    Image(systemName: icon)
+                                }
+                                Text(word).lineLimit(1)
+                            }
+                            .font(.footnote)
+                            .foregroundStyle(Color.captionInk)
+                            .fixedSize()
+                        }
+                    } else if let word = tool.gate?.word?.nilIfEmpty {
                         Text(word)
                             .font(.footnote)
                             .foregroundStyle(Color.captionInk)
@@ -887,6 +911,15 @@ struct ToolLine: View {
             }
             if expanded {
                 let shown = full ?? tool
+                if let held = tool.gate?.held {
+                    heldBy(held)
+                }
+                if let wait = tool.gate?.wait?.nilIfEmpty {
+                    Text(wait)
+                        .font(.footnote)
+                        .foregroundStyle(Color.captionInk)
+                        .accessibilityIdentifier("tool.slotWait")
+                }
                 ForEach(Array(shown.diffs.enumerated()), id: \.offset) { _, diff in
                     DiffView(diff: diff)
                 }
@@ -947,7 +980,31 @@ struct ToolLine: View {
     }
 
     private var hasDetails: Bool {
-        tool.hasDetails
+        tool.hasDetails || tool.gate?.held != nil || tool.gate?.wait?.isEmpty == false
+    }
+
+    private var statusLine: String? {
+        tool.gate?.line?.nilIfEmpty
+    }
+
+    @ViewBuilder
+    private func heldBy(_ held: CallBlock.Held) -> some View {
+        if let session = held.session?.nilIfEmpty, let openSession {
+            Button { openSession(session) } label: {
+                Text("Held by \(Text(held.title).foregroundStyle(.tint))\(held.rest?.nilIfEmpty.map { " · " + $0 } ?? "")")
+            }
+            .buttonStyle(.plain)
+            .font(.footnote)
+            .foregroundStyle(Color.captionInk)
+            .frame(minHeight: 32, alignment: .leading)
+            .accessibilityIdentifier("tool.slotHeld")
+            .accessibilityHint("Opens \(held.title)")
+        } else {
+            Text(held.text)
+                .font(.footnote)
+                .foregroundStyle(Color.captionInk)
+                .accessibilityIdentifier("tool.slotHeld")
+        }
     }
 }
 
@@ -1037,7 +1094,9 @@ struct ToolGroupRow: View {
                         }
                     }
                     Spacer(minLength: 6)
-                    if group.running {
+                    if let icon = group.runningIcon {
+                        Image(systemName: icon).font(.footnote).foregroundStyle(Color.captionInk)
+                    } else if group.running {
                         ProgressView().controlSize(.small)
                     }
                     Image(systemName: "chevron.right")

@@ -406,6 +406,60 @@ func TestSessionShowsSlotWait(t *testing.T) {
 	assert.Empty(t, got.SlotHold)
 }
 
+func TestTranscriptCardCarriesTheSlotWaitUntilGranted(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	env, _ := slotEnv(t, "CLUBMATE_AGENTS_SLOT_SILENT=1m")
+	f := startEnv(t, env, slotScript(dir))
+	workspace := f.workspace(t, newRepo(t))
+	f.setSlots(t, workspace, true, testKind(1))
+	one := f.runningSlotSession(t, workspace, "tagone", "One")
+	two := f.runningSlotSession(t, workspace, "tagtwo", "Two")
+	require.Equal(t, "granted", f.acquire(t, workspace, one, "tagone-call", "make test", "").State)
+	waiting := f.acquire(t, workspace, two, "tagtwo-call", "make test", "")
+	require.Equal(t, "wait", waiting.State)
+
+	type view struct {
+		Cursor  string `json:"cursor"`
+		Entries []struct {
+			ID   string          `json:"id"`
+			Gate json.RawMessage `json:"gate"`
+		} `json:"entries"`
+	}
+	card := func(v view) (json.RawMessage, bool) {
+		for _, en := range v.Entries {
+			if en.ID == "tagtwo-call" {
+				return en.Gate, true
+			}
+		}
+		return nil, false
+	}
+	var first view
+	testutil.Eventually(t, func() bool {
+		require.NoError(t, f.run(t, workspace, "agents.transcript", map[string]any{"session": two}, &first))
+		raw, _ := card(first)
+		return len(raw) > 0
+	}, wait)
+	raw, _ := card(first)
+	var block struct {
+		State, Word, Icon, Line, Wait string
+		Held                          struct{ Title, Rest, Session string }
+	}
+	require.NoError(t, json.Unmarshal(raw, &block))
+	assert.Equal(t, []string{"slot", "waits for test slot", "hourglass", "Waits for test slot · next in line"}, []string{block.State, block.Word, block.Icon, block.Line})
+	assert.Regexp(t, `^Next in line · waited .+ of 8$`, block.Wait)
+	assert.Equal(t, []string{"One", one}, []string{block.Held.Title, block.Held.Session})
+	assert.Regexp(t, `^make test · `, block.Held.Rest)
+
+	write(t, filepath.Join(dir, "tagone"), "")
+	f.acquireUntil(t, workspace, two, "tagtwo-call", "make test", waiting.Request, "granted")
+	var delta view
+	require.NoError(t, f.run(t, workspace, "agents.transcript", map[string]any{"session": two, "since": first.Cursor}, &delta))
+	raw, sent := card(delta)
+	assert.True(t, sent)
+	assert.Empty(t, raw)
+}
+
 func TestSlotWaiterOfAnEarlierAgentIsNotGrantedAfterRestart(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

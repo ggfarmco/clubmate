@@ -67,7 +67,7 @@ func TestHeldCallIsNotFolded(t *testing.T) {
 	assert.Equal(t, "agt_1/heldReview/1/agt_rev", nodesOf(block, "button")[0].ID)
 	assert.Equal(t, "held · git push", tree.Children[3].Props["statusWord"])
 	v := transcriptView{Session: sc.View.Session, Entries: []*entry{agent}}
-	withCallContent(&v, nil, nil)
+	withCallContent(&v, nil, nil, nil, "")
 	assert.Equal(t, &callBlock{State: callStateHeld, Word: "held · git push"}, agent.Call)
 	assert.Equal(t, "held", heldWordOf(&entry{HeldCalls: []*entry{gatedTool(t, "s9", 1, &gateMark{State: callStateHeld})}}))
 }

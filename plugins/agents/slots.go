@@ -1178,8 +1178,8 @@ func (a *app) slotWaits(session string, w *slotWaitView) bool {
 	return len(open) > 0 && !slices.ContainsFunc(open, func(id string) bool { return !slices.Contains(w.Calls, id) })
 }
 
-func slotKey(w *slotWaitView, en *entry, now time.Time) string {
-	if w == nil || !slices.Contains(w.Calls, en.ID) {
+func slotKey(w *slotWaitView, call string, now time.Time) string {
+	if w == nil || !slices.Contains(w.Calls, call) {
 		return ""
 	}
 	key := w.Kind + "/" + strconv.Itoa(w.Place) + "/" + elapsed(now.Sub(w.Since))
@@ -1189,39 +1189,72 @@ func slotKey(w *slotWaitView, en *entry, now time.Time) string {
 	return key
 }
 
+func slotStamp(w *slotWaitView, now time.Time) []string {
+	if w == nil {
+		return nil
+	}
+	var out []string
+	for _, call := range slices.Sorted(slices.Values(w.Calls)) {
+		out = append(out, call, slotKey(w, call, now))
+	}
+	return out
+}
+
 func slotOnly(w *slotWaitView, _ *slotHoldView) *slotWaitView {
 	return w
 }
 
-func slotCard(n sdui.Node, en *entry, w *slotWaitView, workspace string, now time.Time) sdui.Node {
+func slotBlock(en *entry, w *slotWaitView, workspace string, now time.Time) *callBlock {
+	if en.Kind != entryTool {
+		return nil
+	}
 	if w != nil && slices.Contains(w.Calls, en.ID) {
-		n.Props["statusWord"], n.Props["statusIcon"] = w.Words, slotWaitGlyph
-		n.Props["statusLine"] = strings.Join(nonEmpty(fmt.Sprintf(slotWaitLine, w.Kind), slotPlace(w.Place)), " · ")
-		waited := fmt.Sprintf(slotWaited, elapsed(now.Sub(w.Since)), int(w.MaxWait/time.Minute))
 		place := slotPlace(w.Place)
+		b := &callBlock{State: callStateSlot, Word: w.Words, Icon: slotWaitGlyph, Line: strings.Join(nonEmpty(fmt.Sprintf(slotWaitLine, w.Kind), place), blockSep)}
 		if place != "" {
 			place = strings.ToUpper(place[:1]) + place[1:]
 		}
-		n.Props["slotWait"] = strings.Join(nonEmpty(place, waited), " · ")
+		b.Wait = strings.Join(nonEmpty(place, fmt.Sprintf(slotWaited, elapsed(now.Sub(w.Since)), int(w.MaxWait/time.Minute))), blockSep)
 		if h := w.Held; h != nil {
-			held := map[string]any{"title": h.Title, "rest": strings.Join(nonEmpty(h.Command, elapsed(now.Sub(h.Since))), " · ")}
+			b.Held = &callBlockHeld{Title: h.Title, Rest: strings.Join(nonEmpty(h.Command, elapsed(now.Sub(h.Since))), blockSep)}
 			if h.Session != "" && h.Workspace == workspace {
-				held["session"] = h.Session
+				b.Held.Session = h.Session
 			}
-			n.Props["slotHeld"] = held
 		}
-		return n
+		return b
 	}
-	if n.Props["status"] != "failed" {
-		return n
+	var status string
+	if json.Unmarshal(en.Tool["status"], &status) != nil || status != "failed" {
+		return nil
 	}
 	f, _, _ := parseTool(en.Tool)
 	for _, c := range f.Content {
 		if m := slotDeniedText.FindStringSubmatch(c.Content.Text); m != nil {
 			word := fmt.Sprintf(slotNotRun, m[1], m[2])
-			n.Props["statusWord"], n.Props["statusLine"] = word, strings.ToUpper(word[:1])+word[1:]
-			return n
+			return &callBlock{State: callStateNotRun, Word: word, Line: strings.ToUpper(word[:1]) + word[1:]}
 		}
+	}
+	return nil
+}
+
+func slotCard(n sdui.Node, en *entry, w *slotWaitView, workspace string, now time.Time) sdui.Node {
+	b := slotBlock(en, w, workspace, now)
+	if b == nil {
+		return n
+	}
+	n.Props["statusWord"], n.Props["statusLine"] = b.Word, b.Line
+	if b.Icon != "" {
+		n.Props["statusIcon"] = b.Icon
+	}
+	if b.Wait != "" {
+		n.Props["slotWait"] = b.Wait
+	}
+	if h := b.Held; h != nil {
+		held := map[string]any{"title": h.Title, "rest": h.Rest}
+		if h.Session != "" {
+			held["session"] = h.Session
+		}
+		n.Props["slotHeld"] = held
 	}
 	return n
 }

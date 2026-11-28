@@ -519,7 +519,7 @@ func entryNode(sc screen, en *entry, sha string) builtNode {
 	if en.node == nil || en.Kind == entryTool && (sc.Expanded[en.ID] || gateDecorated(en)) || en.Kind == entryOpenItems || en.Kind == entryNotice {
 		return build()
 	}
-	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", editor: sc.EditorReview, pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en), note: permissionNote(sc.NeedsYou, sc.View.Session.ID, en) != "", slot: slotKey(sc.Slot, en, sc.Now)}
+	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", editor: sc.EditorReview, pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en), note: permissionNote(sc.NeedsYou, sc.View.Session.ID, en) != "", slot: slotKey(sc.Slot, en.ID, sc.Now)}
 	return en.node.get(key, build)
 }
 

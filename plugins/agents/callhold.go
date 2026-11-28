@@ -26,6 +26,8 @@ const (
 	callInputMax     = 2 << 10
 	callStateHeld    = "held"
 	callStateRefd    = "refused"
+	callStateSlot    = "slot"
+	callStateNotRun  = "notRun"
 	callHint         = "Held by a gate — messages queue"
 	callPhoneHint    = "Messages queue while it's held"
 	callHeaderWord   = "Held"

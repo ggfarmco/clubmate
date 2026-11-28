@@ -55,6 +55,16 @@ type callBlock struct {
 	Input   string          `json:"input,omitempty"`
 	Lines   []callBlockLine `json:"lines,omitempty"`
 	Note    string          `json:"note,omitempty"`
+	Icon    string          `json:"icon,omitempty"`
+	Line    string          `json:"line,omitempty"`
+	Held    *callBlockHeld  `json:"held,omitempty"`
+	Wait    string          `json:"wait,omitempty"`
+}
+
+type callBlockHeld struct {
+	Title   string `json:"title"`
+	Rest    string `json:"rest,omitempty"`
+	Session string `json:"session,omitempty"`
 }
 
 type callBlockLine struct {
@@ -510,7 +520,7 @@ func heldInside(sub *subagent) []*entry {
 	return out
 }
 
-func withCallContent(v *transcriptView, s *session, lives map[string]map[string]callLive) {
+func withCallContent(v *transcriptView, s *session, lives map[string]map[string]callLive, slot *slotWaitView, workspace string) {
 	agent, now := agentLabel(v.Session.Agent), time.Now()
 	for _, en := range v.Entries {
 		en.Call = callBlockOf(en, lives[en.ID], refusalMessage(en, s.messageFor), agent, now)
@@ -519,6 +529,9 @@ func withCallContent(v *transcriptView, s *session, lives map[string]map[string]
 		}
 		if word := heldWordOf(en); en.Call == nil && word != "" {
 			en.Call = &callBlock{State: callStateHeld, Word: word}
+		}
+		if en.Call == nil {
+			en.Call = slotBlock(en, slot, workspace, now)
 		}
 		if en.Gate != nil {
 			en.Gate = titled(*en.Gate)

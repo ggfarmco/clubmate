@@ -721,6 +721,27 @@ public struct CallBlock: Decodable, Sendable, Equatable {
         }
     }
 
+    public struct Held: Decodable, Sendable, Equatable {
+        public let title: String
+        public let rest: String?
+        public let session: String?
+
+        enum CodingKeys: String, CodingKey {
+            case title, rest, session
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? ""
+            rest = try? c.decodeIfPresent(String.self, forKey: .rest)
+            session = try? c.decodeIfPresent(String.self, forKey: .session)
+        }
+
+        public var text: String {
+            (["Held by " + title] + [rest].compactMap { $0?.nilIfEmpty }).joined(separator: " · ")
+        }
+    }
+
     public let state: String
     public let word: String?
     public let tone: String?
@@ -730,9 +751,13 @@ public struct CallBlock: Decodable, Sendable, Equatable {
     public let input: String?
     public let lines: [Line]
     public let note: String?
+    public let icon: String?
+    public let line: String?
+    public let held: Held?
+    public let wait: String?
 
     enum CodingKeys: String, CodingKey {
-        case state, word, tone, title, caption, tool, input, lines, note
+        case state, word, tone, title, caption, tool, input, lines, note, icon, line, held, wait
     }
 
     public init(from decoder: any Decoder) throws {
@@ -746,6 +771,10 @@ public struct CallBlock: Decodable, Sendable, Equatable {
         input = try? c.decodeIfPresent(String.self, forKey: .input)
         lines = (try? c.decodeIfPresent([Line].self, forKey: .lines)) ?? []
         note = try? c.decodeIfPresent(String.self, forKey: .note)
+        icon = try? c.decodeIfPresent(String.self, forKey: .icon)
+        line = try? c.decodeIfPresent(String.self, forKey: .line)
+        held = try? c.decodeIfPresent(Held.self, forKey: .held)
+        wait = try? c.decodeIfPresent(String.self, forKey: .wait)
     }
 
     public var neutral: Bool {

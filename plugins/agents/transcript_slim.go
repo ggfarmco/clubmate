@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -179,13 +180,42 @@ func partsHash(parts []string) string {
 }
 
 func redecorated(seen, key string) func(*entry) bool {
-	switch base, _, _ := strings.Cut(key, callKeySep); {
-	case seen == key:
+	if seen == key {
 		return nil
-	case strings.HasPrefix(seen, base+callKeySep):
-		return gateDecorated
 	}
-	return func(en *entry) bool { return decorated(en) || gateDecorated(en) }
+	base, _, _ := strings.Cut(key, callKeySep)
+	waited := slotCallsOf(seen, key)
+	slot := func(en *entry) bool { return en.Kind == entryTool && waited[callHash(en.ID)] }
+	if strings.HasPrefix(seen, base+callKeySep) {
+		return func(en *entry) bool { return gateDecorated(en) || slot(en) }
+	}
+	return func(en *entry) bool { return decorated(en) || gateDecorated(en) || slot(en) }
+}
+
+func slotCallsKey(w *slotWaitView) string {
+	if w == nil {
+		return ""
+	}
+	var out strings.Builder
+	for _, call := range slices.Sorted(slices.Values(w.Calls)) {
+		out.WriteString(callKeySep + callHash(call))
+	}
+	return out.String()
+}
+
+func slotCallsOf(keys ...string) map[string]bool {
+	out := map[string]bool{}
+	for _, key := range keys {
+		parts := strings.Split(key, callKeySep)
+		for _, p := range parts[min(2, len(parts)):] {
+			out[p] = true
+		}
+	}
+	return out
+}
+
+func callHash(id string) string {
+	return partsHash([]string{id})
 }
 
 func decorated(en *entry) bool {

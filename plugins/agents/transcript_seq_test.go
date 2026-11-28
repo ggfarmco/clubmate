@@ -311,6 +311,20 @@ func TestCallStampChangeResendsOnlyGateEntries(t *testing.T) {
 	assert.Equal(t, []bool{true, true}, []bool{place(perm), place(held)})
 }
 
+func TestSlotStampResendsOnlyTheWaitingCalls(t *testing.T) {
+	t.Parallel()
+	w := pluginsdk.Workspace{Name: "Shop"}
+	open := func(id string) *entry {
+		return &entry{Kind: entryTool, ID: id, Tool: map[string]json.RawMessage{"status": json.RawMessage(`"in_progress"`)}}
+	}
+	waiting, granted, other := open("c1"), open("c2"), open("c3")
+	seen := decorationKey(record{}, w, "c1", "1 min", "c2", "1 min") + slotCallsKey(&slotWaitView{Calls: []string{"c1", "c2"}})
+	next := redecorated(seen, decorationKey(record{}, w, "c1", "2 min")+slotCallsKey(&slotWaitView{Calls: []string{"c1"}}))
+
+	assert.Equal(t, []bool{true, true, false}, []bool{next(waiting), next(granted), next(other)})
+	assert.Nil(t, redecorated(seen, seen))
+}
+
 func TestLineChangesMatchThePhonesLineDiff(t *testing.T) {
 	t.Parallel()
 	added, removed := lineChanges("one\ntwo\nthree\n", "one\n2\nthree\nfour")

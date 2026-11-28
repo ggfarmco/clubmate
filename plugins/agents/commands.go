@@ -598,14 +598,16 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	}
 	var w pluginsdk.Workspace
 	var lives map[string]map[string]callLive
+	var slot *slotWaitView
 	key := ""
 	if !cmd.Agent {
 		if w, err = a.host.GetWorkspace(ctx, cmd.WorkspaceID); err != nil {
 			w = pluginsdk.Workspace{}
 		}
 		rec := s.snapshot()
-		lives = a.callLives(rec)
-		key = decorationKey(rec, w, callStamp(lives, time.Now())...)
+		lives, slot = a.callLives(rec), slotOnly(a.slotView(rec.ID))
+		now := time.Now()
+		key = decorationKey(rec, w, append(callStamp(lives, now), slotStamp(slot, now)...)...) + slotCallsKey(slot)
 	}
 	var since *cursor
 	var always func(*entry) bool
@@ -617,7 +619,7 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	withQuizContent(&v, s.pendingIDs())
 	if !cmd.Agent {
 		withPermissionContent(v.Session, v.Entries, w.Name, a.firstRun.get().NeedsYou)
-		withCallContent(&v, s, lives)
+		withCallContent(&v, s, lives, slot, cmd.WorkspaceID)
 		a.withTaskContent(&v, w)
 		a.withAsideContent(&v, s)
 		g := a.guideViewOf(s, false)

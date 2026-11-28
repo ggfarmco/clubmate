@@ -168,6 +168,23 @@ final class AgentsTests: XCTestCase {
         XCTAssertFalse(group.calls.first?.isHeldBlock ?? true)
     }
 
+    func testSlotWaitCallBlockDecodes() throws {
+        let json = #"""
+        [{"kind":"tool","id":"c1","turn":1,"tool":{"kind":"execute","status":"pending","title":"make test","rawInput":{"command":"make test"}},"gate":{"state":"slot","word":"waits for test slot","icon":"hourglass","line":"Waits for test slot · next in line","wait":"Next in line · waited 3 min of 60","held":{"title":"One","rest":"make test · 6 min","session":"agt_one"}}},
+         {"kind":"tool","id":"c2","turn":1,"tool":{"kind":"execute","status":"failed","title":"go test"},"gate":{"state":"notRun","word":"not run · no test slot in 60 min","line":"Not run · no test slot in 60 min"}}]
+        """#
+        let entries = try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: Data(json.utf8))
+        guard case .tool(let waits) = entries[0].content, case .tool(let denied) = entries[1].content else { return XCTFail("unexpected \(entries)") }
+        let block = try XCTUnwrap(waits.gate)
+        XCTAssertEqual([block.word, block.icon, block.line, block.wait], ["waits for test slot", "hourglass", "Waits for test slot · next in line", "Next in line · waited 3 min of 60"])
+        XCTAssertEqual([block.held?.text, block.held?.session], ["Held by One · make test · 6 min", "agt_one"])
+        XCTAssertFalse(waits.isHeldBlock)
+        let groups = SessionScreen(entries: entries, session: nil).rows.compactMap { row -> ToolGroup? in if case .tools(_, let group) = row { group } else { nil } }
+        XCTAssertEqual(groups.compactMap(\.runningIcon), ["hourglass"])
+        XCTAssertEqual([denied.gate?.line, denied.gate?.icon], ["Not run · no test slot in 60 min", nil])
+        XCTAssertFalse(denied.countsFailed)
+    }
+
     func testGateMessageDecodes() throws {
         guard case .gateMessage(let message) = try gateCalls()[5].content else { return XCTFail("not a gate message") }
         XCTAssertEqual(message.groups.map(\.title), ["From the gate · shop · git push · round 1 of 2 · changes"])

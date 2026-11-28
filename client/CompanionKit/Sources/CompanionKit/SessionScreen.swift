@@ -134,6 +134,10 @@ public struct ToolGroup: Sendable, Equatable {
         calls.contains { $0.status.isOpen }
     }
 
+    public var runningIcon: String? {
+        calls.last { $0.status.isOpen }?.gate?.icon?.nilIfEmpty
+    }
+
     public var symbol: String {
         (calls.last { $0.kind.touchesFiles } ?? calls.last)?.kind.symbol ?? ToolKind.other.symbol
     }
