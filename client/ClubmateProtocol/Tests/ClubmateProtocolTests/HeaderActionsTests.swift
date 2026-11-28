@@ -63,4 +63,10 @@ final class HeaderActionsTests: XCTestCase {
 
         XCTAssertEqual(header.headerStatusTone, "accent")
     }
+
+    func testAStatusToneFromThePluginWinsOverTheStatus() {
+        let header = SDUINode(type: "header", props: ["title": .string("Wait"), "status": .string("running"), "statusTone": .string("neutral")], children: [])
+
+        XCTAssertEqual(header.headerStatusTone, "neutral")
+    }
 }

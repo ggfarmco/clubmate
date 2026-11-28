@@ -229,7 +229,7 @@ var (
 			props:    map[string]propCheck{"values": sparkValues, "max": positive, "height": sparkHeight},
 			children: noChildren,
 		},
-		"text":     {required: []string{"text"}, props: map[string]propCheck{"text": isString, "style": oneOf(textStyles), "lines": textLines, "tone": oneOf(badgeTones), "short": isString}, children: noChildren},
+		"text":     {required: []string{"text"}, props: map[string]propCheck{"text": isString, "style": oneOf(textStyles), "lines": textLines, "tone": oneOf(badgeTones), "short": isString, "truncate": oneOf(truncates)}, children: noChildren},
 		"badge":    {required: []string{"text"}, props: map[string]propCheck{"text": isString, "tone": oneOf(badgeTones), "outline": isBool}, children: noChildren},
 		"icon":     {required: []string{"name"}, props: map[string]propCheck{"name": isString, "tone": oneOf(badgeTones)}, children: noChildren},
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
@@ -247,7 +247,7 @@ var (
 			interactive: true,
 		},
 		"textField": {
-			props:       map[string]propCheck{"value": isString, "placeholder": isString, "lines": linesNumber, "error": isString, "action": actionCheck, "live": isBool, "drop": isBool},
+			props:       map[string]propCheck{"value": isString, "placeholder": isString, "lines": linesNumber, "error": isString, "action": actionCheck, "live": isBool, "drop": isBool, "mono": isBool},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -278,7 +278,7 @@ var (
 			required: []string{"title"},
 			props: map[string]propCheck{
 				"title": isString, "icon": isString, "meta": isString, "badges": listOf(headerBadgeCheck),
-				"status": oneOf(sessionStatuses), "agent": isString, "branch": isString, "mode": isString,
+				"status": oneOf(sessionStatuses), "statusTone": oneOf(badgeTones), "segments": listOf(isString), "agent": isString, "branch": isString, "mode": isString,
 				"field": nonEmptyString, "error": isString, "inline": isBool,
 				"details": listOf(objectCheck([]string{"label", "value"}, map[string]propCheck{"label": isString, "value": isString})),
 				"compact": isBool,
@@ -308,7 +308,8 @@ var (
 			required: []string{"kind", "title"},
 			props: map[string]propCheck{
 				"kind": oneOf(toolKinds), "title": isString, "status": oneOf(toolStatuses), "body": toolBodyCheck,
-				"truncated": isBool, "standalone": isBool, "statusWord": isString, "actions": listOf(cardActionCheck),
+				"truncated": isBool, "standalone": isBool, "statusWord": isString, "statusIcon": isString, "statusLine": isString, "slotWait": isString,
+				"slotHeld": objectCheck([]string{"title"}, map[string]propCheck{"title": isString, "session": isString, "rest": isString}), "actions": listOf(cardActionCheck),
 			},
 			children:    noChildren,
 			interactive: true,

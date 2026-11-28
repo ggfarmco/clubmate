@@ -849,7 +849,8 @@ extension SDUINode {
     }
 
     public var headerStatusTone: String? {
-        switch string("status") {
+        if let tone = string("statusTone") { return tone }
+        return switch string("status") {
         case "running", "childrenRunning", "review", "asksParent": "accent"
         case "waiting", "asks", "childrenWaiting": "warning"
         case "error": "danger"

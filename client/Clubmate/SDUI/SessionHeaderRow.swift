@@ -55,7 +55,7 @@ struct SessionHeaderRow: View {
             if fold.caption, let caption {
                 Text(caption)
                     .font(theme.uiSmall)
-                    .foregroundStyle(theme.muted)
+                    .foregroundStyle(segments.isEmpty ? theme.muted : theme.faint)
                     .lineLimit(1)
                     .fixedSize()
             }
@@ -100,19 +100,34 @@ struct SessionHeaderRow: View {
     @ViewBuilder
     private func title(_ width: CGFloat?) -> some View {
         let text = node.string("title") ?? ""
-        let label = Text(text)
-            .font(theme.title)
-            .foregroundStyle(theme.foreground)
-            .lineLimit(1)
-            .truncationMode(.label)
-            .help(text)
+        let segments = self.segments
+        let help = segments.isEmpty ? text : ([text] + segments).joined(separator: " · ")
         if let width {
-            label
-                .frame(minWidth: width, idealWidth: width, maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(1)
+            ViewThatFits(in: .horizontal) {
+                ForEach(Array(stride(from: segments.count, to: 1, by: -1)), id: \.self) { shown in
+                    titleText(text, segments: segments.prefix(shown)).fixedSize()
+                }
+                titleText(text, segments: segments.prefix(1))
+                    .truncationMode(segments.isEmpty ? .label : .tail)
+            }
+            .help(help)
+            .frame(minWidth: width, idealWidth: width, maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
         } else {
-            label.fixedSize()
+            titleText(text, segments: segments[...])
+                .fixedSize()
+                .help(help)
         }
+    }
+
+    private var segments: [String] {
+        node.props["segments"]?.arrayValue?.compactMap(\.stringValue) ?? []
+    }
+
+    private func titleText(_ text: String, segments: ArraySlice<String>) -> some View {
+        (Text(text).font(theme.title).foregroundStyle(theme.foreground)
+            + (segments.isEmpty ? Text("") : Text("  " + segments.joined(separator: " · ")).font(theme.uiSmall).foregroundStyle(theme.text2)))
+            .lineLimit(1)
     }
 
     @ViewBuilder

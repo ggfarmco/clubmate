@@ -2256,7 +2256,7 @@ func TestPausedGateWaitingForTrustKeepsTheCallHeld(t *testing.T) {
 	waits := f.waitRecord(t, workspace, session, "waits for trust", func(r record) bool {
 		return len(r.Calls) == 1 && r.Calls[0].Held && r.Calls[0].Wait != ""
 	})
-	assert.Equal(t, "waits for trust", waits.Landing.Words)
+	assert.Equal(t, []string{"trust", "exclamationmark.shield", "warning"}, []string{waits.Landing.Words, waits.Landing.Glyph, waits.Landing.GlyphOf})
 
 	f.pauseGate(t, workspace, g.ID)
 	testutil.Eventually(t, func() bool {

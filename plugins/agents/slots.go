@@ -11,13 +11,16 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"clubmate/internal/proc"
 	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
 )
 
@@ -67,6 +70,16 @@ const (
 	slotLineFormat   = "%s · %d of %d in use · CPU %.0f %%"
 	slotLineWaiting  = " · %d waiting"
 	slotWaitWords    = "waits for %s slot"
+	slotWaitLine     = "Waits for %s slot"
+	slotRowWord      = "%s slot"
+	slotNextInLine   = "next in line"
+	slotAhead        = "%d ahead"
+	slotNotRun       = "not run · no %s slot in %s"
+	slotWaitGlyph    = "hourglass"
+	slotWordRunes    = 9
+	slotHeldBy       = "Held by "
+	slotWaited       = "waited %s of %d"
+	errSlotIDLong    = "An Id has at most 9 characters: a–z, 0–9 or -. Rename it to 9 characters or fewer."
 	slotNobody       = "nobody"
 )
 
@@ -81,6 +94,7 @@ var (
 	errSlotUnknown  = errors.New("no such slot holder")
 
 	slotIDPattern  = regexp.MustCompile(`^[a-z0-9-]+$`)
+	slotDeniedText = regexp.MustCompile(`\[Clubmate slots\] no (\S+) slot in ([^:]+):`)
 	simUpTarget    = regexp.MustCompile(`\bsim\.sh\s+up\s+([^\s;&|]+)`)
 	simBootTarget  = regexp.MustCompile(`\bsimctl\s+boot\s+([^\s;&|]+)`)
 	testPatterns   = []string{`\bmake\s+(test|test-stress|lint-tests)\b`, `\bgo\s+test\b`, `\bxcodebuild\b.*\btest\b`, `\bswift\s+test\b`, `\bcargo\s+(test|nextest)\b`}
@@ -176,6 +190,7 @@ type slotBoard struct {
 	live     func(slotWaiter) bool
 	draft    *slotDraft
 	shown    float64
+	minutes  string
 	unread   bool
 	whyMoved bool
 }
@@ -210,11 +225,23 @@ type slotConfigArgs struct {
 }
 
 type slotWaitView struct {
-	Kind  string `json:"kind"`
-	Place int    `json:"place"`
-	Of    int    `json:"of"`
-	Why   string `json:"why,omitempty"`
-	Words string `json:"words"`
+	Kind    string        `json:"kind"`
+	Place   int           `json:"place"`
+	Of      int           `json:"of"`
+	Why     string        `json:"why,omitempty"`
+	Words   string        `json:"words"`
+	Since   time.Time     `json:"since"`
+	Calls   []string      `json:"-"`
+	Held    *slotHeldView `json:"-"`
+	MaxWait time.Duration `json:"-"`
+}
+
+type slotHeldView struct {
+	Session   string
+	Workspace string
+	Title     string
+	Command   string
+	Since     time.Time
 }
 
 type slotHoldView struct {
@@ -737,7 +764,8 @@ func (a *app) slotLoop() {
 			if changed {
 				b.touchLocked()
 			}
-			whyMoved := b.whyMoved
+			minuteMoved := b.minuteMovedLocked(now)
+			whyMoved := b.whyMoved || minuteMoved
 			b.whyMoved = false
 			b.mu.Unlock()
 			if changed {
@@ -1059,10 +1087,15 @@ func (a *app) slotView(session string) (*slotWaitView, *slotHoldView) {
 	}
 	var wait *slotWaitView
 	for _, w := range b.st.Waiters {
-		if w.Session == session {
+		if w.Session != session {
+			continue
+		}
+		if wait == nil {
 			place, of := b.placeLocked(w.ID)
-			wait = &slotWaitView{Kind: w.Kind, Place: place, Of: of, Why: w.Why, Words: fmt.Sprintf(slotWaitWords, w.Kind)}
-			break
+			wait = &slotWaitView{Kind: w.Kind, Place: place, Of: of, Why: w.Why, Words: fmt.Sprintf(slotWaitWords, w.Kind), Since: w.Since, MaxWait: b.maxWaitLocked(), Held: a.slotHeldLocked(w.Kind)}
+		}
+		if w.Call != "" {
+			wait.Calls = append(wait.Calls, w.Call)
 		}
 	}
 	var hold *slotHoldView
@@ -1074,16 +1107,123 @@ func (a *app) slotView(session string) (*slotWaitView, *slotHoldView) {
 	return wait, hold
 }
 
+func (a *app) slotHeldLocked(kind string) *slotHeldView {
+	var first *slotHolder
+	for i, h := range a.resources.st.Holders {
+		if h.Kind == kind && (first == nil || h.Since.Before(first.Since)) {
+			first = &a.resources.st.Holders[i]
+		}
+	}
+	if first == nil {
+		return nil
+	}
+	v := &slotHeldView{Title: a.holderTitle(*first), Command: first.Command, Since: first.Since}
+	if s := a.session(first.Session); s != nil && !first.Step {
+		v.Session, v.Workspace = first.Session, s.snapshot().Workspace
+	}
+	return v
+}
+
 func (a *app) slotLanding(rec record) *landingView {
 	w, _ := a.slotView(rec.ID)
 	if w == nil {
 		return nil
 	}
-	line := w.Words
-	if w.Why != "" {
-		line += " · " + w.Why
+	rest := nonEmpty(slotPlace(w.Place), w.Why)
+	segments := append([]string{fmt.Sprintf(slotWaitLine, w.Kind)}, rest...)
+	mac := append(append([]string{w.Words}, rest...), elapsed(time.Since(w.Since)))
+	since := w.Since
+	return &landingView{Words: slotRowWordOf(w.Kind), Badge: w.Words, Line: strings.Join(segments, " · "), Segments: segments, Since: &since, Glyph: slotWaitGlyph, MacLine: strings.Join(mac, " · "), MacSegments: mac}
+}
+
+func slotRowWordOf(kind string) string {
+	if word := fmt.Sprintf(slotRowWord, kind); utf8.RuneCountInString(word) <= slotWordRunes {
+		return word
 	}
-	return &landingView{Words: w.Words, Tone: tonePlain, Badge: w.Words, BadgeTone: tonePlain, Line: line}
+	return kind
+}
+
+func slotPlace(place int) string {
+	switch {
+	case place < 1:
+		return ""
+	case place == 1:
+		return slotNextInLine
+	}
+	return fmt.Sprintf(slotAhead, place-1)
+}
+
+func (b *slotBoard) minuteMovedLocked(now time.Time) bool {
+	var shown []string
+	for _, w := range b.st.Waiters {
+		shown = append(shown, w.ID+"="+elapsed(now.Sub(w.Since)))
+	}
+	if len(shown) > 0 {
+		for _, h := range b.st.Holders {
+			shown = append(shown, h.ID+"="+elapsed(now.Sub(h.Since)))
+		}
+	}
+	key := strings.Join(shown, ",")
+	moved := key != b.minutes && len(shown) > 0
+	b.minutes = key
+	return moved
+}
+
+func (a *app) slotWaits(session string, w *slotWaitView) bool {
+	s := a.session(session)
+	if w == nil || len(w.Calls) == 0 || s == nil {
+		return false
+	}
+	open := s.openCalls()
+	return len(open) > 0 && !slices.ContainsFunc(open, func(id string) bool { return !slices.Contains(w.Calls, id) })
+}
+
+func slotKey(w *slotWaitView, en *entry, now time.Time) string {
+	if w == nil || !slices.Contains(w.Calls, en.ID) {
+		return ""
+	}
+	key := w.Kind + "/" + strconv.Itoa(w.Place) + "/" + elapsed(now.Sub(w.Since))
+	if h := w.Held; h != nil {
+		key += "/" + h.Session + "/" + h.Title + "/" + elapsed(now.Sub(h.Since))
+	}
+	return key
+}
+
+func slotOnly(w *slotWaitView, _ *slotHoldView) *slotWaitView {
+	return w
+}
+
+func slotCard(n sdui.Node, en *entry, w *slotWaitView, workspace string, now time.Time) sdui.Node {
+	if w != nil && slices.Contains(w.Calls, en.ID) {
+		n.Props["statusWord"], n.Props["statusIcon"] = w.Words, slotWaitGlyph
+		n.Props["statusLine"] = strings.Join(nonEmpty(fmt.Sprintf(slotWaitLine, w.Kind), slotPlace(w.Place)), " · ")
+		waited := fmt.Sprintf(slotWaited, elapsed(now.Sub(w.Since)), int(w.MaxWait/time.Minute))
+		place := slotPlace(w.Place)
+		if place != "" {
+			place = strings.ToUpper(place[:1]) + place[1:]
+		}
+		n.Props["slotWait"] = strings.Join(nonEmpty(place, waited), " · ")
+		if h := w.Held; h != nil {
+			held := map[string]any{"title": h.Title, "rest": strings.Join(nonEmpty(h.Command, elapsed(now.Sub(h.Since))), " · ")}
+			if h.Session != "" && h.Workspace == workspace {
+				held["session"] = h.Session
+			}
+			n.Props["slotHeld"] = held
+		}
+		return n
+	}
+	if n.Props["status"] != "failed" {
+		return n
+	}
+	f, _, _ := parseTool(en.Tool)
+	for _, c := range f.Content {
+		if m := slotDeniedText.FindStringSubmatch(c.Content.Text); m != nil {
+			word := fmt.Sprintf(slotNotRun, m[1], m[2])
+			n.Props["statusWord"], n.Props["statusLine"] = word, strings.ToUpper(word[:1])+word[1:]
+			return n
+		}
+	}
+	return n
 }
 
 func (a *app) slotsSnapshot() slotsView {

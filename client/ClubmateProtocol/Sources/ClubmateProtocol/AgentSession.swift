@@ -84,6 +84,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let older: Bool
     public var suggestion: String?
     public var callHeld = false
+    public var slotWaits = false
     public var numbered = false
     public var needsRank: Int?
 
@@ -194,7 +195,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, paused, pausedUntil, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns, rowDetail
         case limitShare, shareLabel, shareWords, shareDetail, listKey
         case hidden, rowUnder, gateRound, landing, ungated, turnHeld, heldRound
-        case aside, canAside, forkedFrom, composerDraft, suggestion, callHeld, numbered, needsRank
+        case aside, canAside, forkedFrom, composerDraft, suggestion, callHeld, slotWaits, numbered, needsRank
         case listGroupKey, listGroupLabel, listFilters, listOpen, inboxKey, older
     }
 
@@ -290,6 +291,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         )
         suggestion = try optional(.suggestion)
         callHeld = try flag(.callHeld)
+        slotWaits = try flag(.slotWaits)
         numbered = try flag(.numbered)
         needsRank = try c.decodeIfPresent(Int.self, forKey: .needsRank)
     }
@@ -381,6 +383,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(ungated, forKey: .ungated)
         if turnHeld { try c.encode(turnHeld, forKey: .turnHeld) }
         if callHeld { try c.encode(callHeld, forKey: .callHeld) }
+        if slotWaits { try c.encode(slotWaits, forKey: .slotWaits) }
         try c.encodeIfPresent(heldRound, forKey: .heldRound)
         if older { try c.encode(older, forKey: .older) }
     }
@@ -415,8 +418,12 @@ public struct SessionLanding: Codable, Sendable, Hashable {
     public var headerAccent: String?
     public var glyph: String?
     public var glyphTone: String?
+    public var since: String?
+    public var segments: [String]?
 
-    public init(verdict: String, words: String, tone: String? = nil, line: String? = nil, hint: String? = nil, phoneHint: String? = nil, header: String? = nil, headerAccent: String? = nil, glyph: String? = nil, glyphTone: String? = nil) {
+    public var sinceDate: Date? { since.flatMap(Date.parseRFC3339) }
+
+    public init(verdict: String, words: String, tone: String? = nil, line: String? = nil, hint: String? = nil, phoneHint: String? = nil, header: String? = nil, headerAccent: String? = nil, glyph: String? = nil, glyphTone: String? = nil, since: String? = nil, segments: [String]? = nil) {
         self.verdict = verdict
         self.words = words
         self.tone = tone
@@ -427,6 +434,8 @@ public struct SessionLanding: Codable, Sendable, Hashable {
         self.headerAccent = headerAccent
         self.glyph = glyph
         self.glyphTone = glyphTone
+        self.since = since
+        self.segments = segments
     }
 }
 

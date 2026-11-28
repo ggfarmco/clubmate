@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/proc"
+	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/testutil"
 )
 
@@ -372,8 +374,12 @@ func TestSessionShowsSlotWait(t *testing.T) {
 		SlotWait json.RawMessage `json:"slotWait"`
 		SlotHold json.RawMessage `json:"slotHold"`
 		Landing  struct {
-			Words string `json:"words"`
-			Line  string `json:"line"`
+			Words     string   `json:"words"`
+			Line      string   `json:"line"`
+			Segments  []string `json:"segments"`
+			Glyph     string   `json:"glyph"`
+			GlyphTone string   `json:"glyphTone"`
+			Since     string   `json:"since"`
 		} `json:"landing"`
 	}
 	var got row
@@ -387,9 +393,15 @@ func TestSessionShowsSlotWait(t *testing.T) {
 		}
 		return got.Landing.Words != ""
 	}, wait)
-	assert.JSONEq(t, `{"kind":"test","place":1,"of":1,"why":"1 of 1 in use","words":"waits for test slot"}`, string(got.SlotWait))
-	assert.Equal(t, "waits for test slot", got.Landing.Words)
-	assert.Equal(t, "waits for test slot · 1 of 1 in use", got.Landing.Line)
+	var wait map[string]any
+	require.NoError(t, json.Unmarshal(got.SlotWait, &wait))
+	assert.NotEmpty(t, wait["since"])
+	delete(wait, "since")
+	assert.Equal(t, map[string]any{"kind": "test", "place": 1.0, "of": 1.0, "why": "1 of 1 in use", "words": "waits for test slot"}, wait)
+	assert.Equal(t, []string{"test slot", "hourglass", ""}, []string{got.Landing.Words, got.Landing.Glyph, got.Landing.GlyphTone})
+	assert.Equal(t, "Waits for test slot · next in line · 1 of 1 in use", got.Landing.Line)
+	assert.Equal(t, []string{"Waits for test slot", "next in line", "1 of 1 in use"}, got.Landing.Segments)
+	assert.NotEmpty(t, got.Landing.Since)
 	assert.False(t, got.NeedsYou)
 	assert.Empty(t, got.SlotHold)
 }
@@ -418,4 +430,69 @@ func TestSlotWaiterOfAnEarlierAgentIsNotGrantedAfterRestart(t *testing.T) {
 	assert.Empty(t, f.slots(t, workspace).Kinds[0].Waiters)
 	assert.Equal(t, "granted", f.acquire(t, workspace, two, "tagtwo-again", "make test", "").State)
 	assert.Equal(t, "wait", f.acquire(t, workspace, one, "tagone-again", "make test", "sr_neverseen").State)
+}
+
+func TestStoredLongKindIDKeepsWorkingAndSettingsRefusesOnlyANewLongID(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	env, _ := slotEnv(t, "CLUBMATE_AGENTS_SLOT_SILENT=1m")
+	f := startEnv(t, env, slotScript(dir))
+	workspace := f.workspace(t, newRepo(t))
+	long := testKind(1)
+	long["id"], long["label"] = "integration", "Integration"
+	stored, err := json.Marshal(map[string]any{"enabled": true, "maxWait": 480, "kinds": []any{long}})
+	require.NoError(t, err)
+	require.NoError(t, f.h.Sup.SetEnabled(t.Context(), "agents", false))
+	require.NoError(t, f.h.KV.Set(t.Context(), "agents", "slots.config", stored))
+	require.NoError(t, f.h.Sup.SetEnabled(t.Context(), "agents", true))
+	testutil.Eventually(t, func() bool { return f.run(t, workspace, "agents.slots", map[string]any{}, nil) == nil }, restartWait)
+	require.Equal(t, "integration", f.slots(t, workspace).Kinds[0].ID)
+
+	one := f.runningSlotSession(t, workspace, "tagone", "One")
+	two := f.runningSlotSession(t, workspace, "tagtwo", "Two")
+	require.Equal(t, "granted", f.acquire(t, workspace, one, "tagone-call", "make test", "").State)
+	require.Equal(t, "wait", f.acquire(t, workspace, two, "tagtwo-call", "make test", "").State)
+	testutil.Eventually(t, func() bool {
+		var list []struct {
+			ID      string `json:"id"`
+			Landing *struct {
+				Words string `json:"words"`
+			} `json:"landing"`
+		}
+		require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
+		return slices.ContainsFunc(list, func(r struct {
+			ID      string `json:"id"`
+			Landing *struct {
+				Words string `json:"words"`
+			} `json:"landing"`
+		}) bool {
+			return r.ID == two && r.Landing != nil && r.Landing.Words == "integration"
+		})
+	}, wait)
+
+	event := func(node, action string, value any) {
+		require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": "", "slot": "agents.settings", "nodeId": node, "action": action, "value": value}, nil))
+	}
+	var cfg struct {
+		Kinds []struct {
+			ID    string `json:"id"`
+			Label string `json:"label"`
+		} `json:"kinds"`
+	}
+	event("slots-edit/integration", "slots-edit", nil)
+	event("slots-sheet/label", "slots-label", "Integration tests")
+	event("slots-sheet/save", "slots-save", nil)
+	require.NoError(t, f.run(t, workspace, "agents.slot-config", map[string]any{}, &cfg))
+	assert.Equal(t, []string{"integration", "Integration tests"}, []string{cfg.Kinds[0].ID, cfg.Kinds[0].Label})
+
+	event("slots-edit/integration", "slots-edit", nil)
+	event("slots-sheet/id", "slots-id", "integrations")
+	event("slots-sheet/save", "slots-save", nil)
+	require.NoError(t, f.run(t, workspace, "agents.slot-config", map[string]any{}, &cfg))
+	assert.Equal(t, "integration", cfg.Kinds[0].ID)
+	var views []internalsdui.SlotView
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.get", map[string]string{"workspaceId": ""}, &views))
+	i := slices.IndexFunc(views, func(v internalsdui.SlotView) bool { return v.Slot == "agents.settings" })
+	require.GreaterOrEqual(t, i, 0)
+	assert.Contains(t, string(views[i].Tree), "Rename it to 9 characters or fewer.")
 }

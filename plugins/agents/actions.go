@@ -53,6 +53,7 @@ const (
 	actDetach          = "detach"
 	actOpenLocation    = "openLocation"
 	actOpenDoc         = "openDoc"
+	actOpenSlotHolder  = "openSlotHolder"
 	actReview          = "review"
 	actReviewed        = "reviewed"
 	actShowEarlier     = "showEarlier"
@@ -666,6 +667,15 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		}
 		v.Focus = true
 		return a.host.RunCommand(ctx, openCmd, ev.WorkspaceID, v, nil)
+	case actOpenSlotHolder:
+		var holder string
+		if err := decode(ev.Value, &holder); err != nil {
+			return err
+		}
+		if h := a.session(holder); h == nil || h.snapshot().Workspace != ev.WorkspaceID {
+			return fmt.Errorf("%w: %q", errNoSession, holder)
+		}
+		return a.selectSession(ctx, ev.WorkspaceID, holder)
 	case actOpenDoc:
 		var path string
 		if err := decode(ev.Value, &path); err != nil {

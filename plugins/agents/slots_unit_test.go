@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"slices"
@@ -107,22 +108,28 @@ func TestSlotPatternsMatchDefaults(t *testing.T) {
 	assert.Equal(t, "ABC", simTarget("xcrun simctl boot 'ABC'"))
 }
 
-func TestSlotSheetPeopleRowsAreOneLineUnderTheForm(t *testing.T) {
+func TestSlotFormOpensInPlaceWithTheNowBlockAndFooter(t *testing.T) {
 	a := &app{}
 	a.resources.draft = &slotDraft{orig: kindTest, kind: slotKind{ID: kindTest, Label: "Tests", Max: 1, Count: countProcesses}}
-	v := slotsView{Kinds: []slotKindView{{slotKind: slotKind{ID: kindTest}, Holders: []slotHolderView{{ID: "h", Title: "Run the Go tests of the agents plugin with the race detector", Command: "go test -race ./plugins/agents/..."}}}}}
+	now := time.Now()
+	v := slotsView{CPU: 34, Kinds: []slotKindView{{slotKind: slotKind{ID: kindTest, Max: 1}, InUse: 1,
+		Holders: []slotHolderView{{ID: "h", Title: "Run the Go tests of the agents plugin with the race detector", Command: "go test -race ./plugins/agents/...", Since: now.Add(-6 * time.Minute)}},
+		Waiters: []slotWaiterView{{Request: "w", Title: "Companion UI tests", Command: "xcodebuild -scheme Companion test", Place: 1, Since: now.Add(-3 * time.Minute)}}}}}
 
 	sheet, ok := a.slotSheet(v)
 	require.True(t, ok)
-	assert.NotContains(t, sheet.Props, "note")
-	i := slices.IndexFunc(sheet.Children, func(n sdui.Node) bool {
-		return slices.ContainsFunc(n.Children, func(c sdui.Node) bool { return c.ID == actSlotRelease+"/h" })
-	})
-	require.GreaterOrEqual(t, i, 1)
-	row := sheet.Children[i]
-	assert.Equal(t, slotRowGap, row.Props["gap"])
-	assert.Equal(t, 1, row.Children[1].Props["lines"])
-	assert.Equal(t, 1, row.Children[2].Props["lines"])
+	assert.Empty(t, sheet.Props["title"])
+	texts := textsOf(sheet)
+	for _, want := range []string{"Now", "1 of 1 in use · CPU 34 %", "Holding", "6 min", "Waiting", "3 min", slotPattNote} {
+		assert.Contains(t, texts, want)
+	}
+	release := findNode(sheet, actSlotRelease+"/h")
+	require.NotNil(t, release)
+	footer := sheet.Children[len(sheet.Children)-1]
+	assert.Equal(t, []any{"Remove…", "Save"}, []any{footer.Children[0].Props["label"], footer.Children[len(footer.Children)-1].Props["label"]})
+	commands := slices.DeleteFunc(nodesOf(sheet, "text"), func(n sdui.Node) bool { return n.Props["style"] != "mono" })
+	require.Len(t, commands, 2)
+	assert.Equal(t, sdui.TruncateMiddle, commands[0].Props["truncate"])
 }
 
 func TestWaiterWhyChangeAloneIsNotAStateChange(t *testing.T) {
@@ -162,4 +169,62 @@ func TestUnreadableSlotStateIsKeptUntilItIsRead(t *testing.T) {
 	assert.Equal(t, []slotHolder{held}, b.st.Holders)
 	assert.False(t, b.grantLocked(time.Now()))
 	a.saveSlots(t.Context())
+}
+
+func TestSlotCardShowsTheWaitAndTheDenial(t *testing.T) {
+	tool := func(id, status, text string) *entry {
+		content, err := json.Marshal([]map[string]any{{"type": "content", "content": map[string]any{"type": "text", "text": text}}})
+		require.NoError(t, err)
+		return &entry{Kind: entryTool, ID: id, Tool: map[string]json.RawMessage{"kind": json.RawMessage(`"execute"`), "status": json.RawMessage(`"` + status + `"`), "content": content}}
+	}
+	now := time.Now()
+	w := &slotWaitView{Kind: kindTest, Place: 2, Words: "waits for test slot", Calls: []string{"c1"}, Since: now.Add(-3 * time.Minute), MaxWait: time.Hour,
+		Held: &slotHeldView{Session: "agt_one", Workspace: "prj_a", Title: "One", Command: "make test", Since: now.Add(-6 * time.Minute)}}
+	waits := tool("c1", "pending", "")
+	n := slotCard(toolCard("t1", "", waits, false, false, false, ""), waits, w, "prj_a", now)
+	assert.Equal(t, []any{"pending", "waits for test slot", "hourglass", "Waits for test slot · 1 ahead", "1 ahead · waited 3 min of 60"}, []any{n.Props["status"], n.Props["statusWord"], n.Props["statusIcon"], n.Props["statusLine"], n.Props["slotWait"]})
+	assert.Equal(t, map[string]any{"title": "One", "session": "agt_one", "rest": "make test · 6 min"}, n.Props["slotHeld"])
+	assert.NotContains(t, slotCard(toolCard("t1", "", waits, false, false, false, ""), waits, w, "prj_b", now).Props["slotHeld"], "session")
+
+	denied := tool("c2", "failed", "[Clubmate slots] no test slot in 60 min: 1 of 1 in use by \"One\". Run it again later, or end your turn and tell the user.")
+	n = slotCard(toolCard("t2", "", denied, false, false, false, ""), denied, w, "prj_a", now)
+	assert.Equal(t, []any{"not run · no test slot in 60 min", "Not run · no test slot in 60 min"}, []any{n.Props["statusWord"], n.Props["statusLine"]})
+	assert.Nil(t, n.Props["statusIcon"])
+
+	other := tool("c3", "failed", "exit 1")
+	assert.Nil(t, slotCard(toolCard("t3", "", other, false, false, false, ""), other, w, "prj_a", now).Props["statusWord"])
+}
+
+func TestSlotWaitRowKeepsItsWordAndNamesTheLineInTheTooltip(t *testing.T) {
+	l := &landingView{Words: "test slot", Glyph: slotWaitGlyph, MacLine: "waits for test slot · next in line · 1 of 1 in use · 3 min"}
+	item := sessionItem(sessionRow{Rec: record{ID: "agt_a", Title: "Companion UI tests", Status: statusRunning}, Landing: l}, 0, time.Now())
+	assert.Equal(t, []string{"test slot", "hourglass", "", "Companion UI tests · waits for test slot · next in line · 1 of 1 in use · 3 min"}, []string{item.Detail, item.Icon, item.Tone, item.Help})
+}
+
+func TestCachedToolCardPicksUpASlotWait(t *testing.T) {
+	s := newSession(record{}, nil, true, nil)
+	s.running = true
+	s.applyTool(true, 1, rawJSON(t, map[string]any{"sessionUpdate": "tool_call", "toolCallId": "c1", "title": "make test", "kind": "execute", "status": "pending"}))
+	v := s.view(0)
+	require.Len(t, v.Entries, 1)
+	assert.Nil(t, entryNode(screen{View: v}, v.Entries[0], "").node.Props["statusWord"])
+	w := &slotWaitView{Kind: kindTest, Place: 1, Words: "waits for test slot", Calls: []string{"c1"}}
+	assert.Equal(t, "waits for test slot", entryNode(screen{View: v, Slot: w}, v.Entries[0], "").node.Props["statusWord"])
+}
+
+func TestSlotRowWordFitsNineCharacters(t *testing.T) {
+	assert.Equal(t, []string{"test slot", "sim slot", "android", "integration"}, []string{slotRowWordOf("test"), slotRowWordOf("sim"), slotRowWordOf("android"), slotRowWordOf("integration")})
+}
+
+func TestSlotLoopRefreshesWhenAShownMinuteMoves(t *testing.T) {
+	t0 := time.Now()
+	b := &slotBoard{}
+	assert.False(t, b.minuteMovedLocked(t0))
+	b.st.Waiters = []slotWaiter{{ID: "w", Kind: kindTest, Since: t0}}
+	b.st.Holders = []slotHolder{{ID: "h", Kind: kindTest, Since: t0.Add(-30 * time.Second)}}
+	assert.True(t, b.minuteMovedLocked(t0.Add(10*time.Second)))
+	assert.False(t, b.minuteMovedLocked(t0.Add(20*time.Second)))
+	assert.True(t, b.minuteMovedLocked(t0.Add(40*time.Second)))
+	assert.True(t, b.minuteMovedLocked(t0.Add(61*time.Second)))
+	assert.False(t, b.minuteMovedLocked(t0.Add(63*time.Second)))
 }

@@ -619,6 +619,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		GateReview:   gateReview,
 		Held:         held,
 		Calls:        calls,
+		Slot:         slotOnly(a.slotView(v.Session.ID)),
 		Guide:        guide,
 		SendBack:     sendBack,
 		CloseAsk:     closeAsk,

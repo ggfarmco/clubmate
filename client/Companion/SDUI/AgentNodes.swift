@@ -189,7 +189,7 @@ struct ToolCardNode: View {
             .padding(.vertical, 12)
             .background(Color.surface1, in: .rect(cornerRadius: 20))
             .overlay {
-                if node.string("status") == "failed" {
+                if node.string("status") == "failed", node.string("statusLine") == nil {
                     RoundedRectangle(cornerRadius: 20).strokeBorder(Color.danger.opacity(0.5), lineWidth: 1)
                 }
             }
@@ -229,7 +229,9 @@ struct ToolCardGroup: View {
                         }
                     }
                     Spacer(minLength: 6)
-                    if running != nil {
+                    if let icon = running?.string("statusIcon") {
+                        Image(systemName: icon).foregroundStyle(Color.captionInk)
+                    } else if running != nil {
                         ProgressView().controlSize(.small)
                     }
                     Image(systemName: "chevron.right")
@@ -261,6 +263,7 @@ struct ToolCardLine: View {
     let node: SDUINode
     let context: SDUIContext
     @Binding var expanded: Bool
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     private struct Action: Identifiable {
         let action: String
@@ -273,6 +276,7 @@ struct ToolCardLine: View {
 
     private var kind: ToolKind { ToolKind(node.string("kind")) }
     private var status: ToolStatus { ToolStatus(node.string("status") ?? "pending") }
+    private var statusLine: String? { node.string("statusLine") }
     private var format: String? { node.props["body"]?["format"]?.stringValue }
     private var text: String { node.props["body"]?["text"]?.stringValue ?? "" }
 
@@ -301,12 +305,26 @@ struct ToolCardLine: View {
                         .font(kind == .execute ? .callout.monospaced() : .callout)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                        .foregroundStyle(status == .failed ? Color.danger : status == .cancelled ? Color.captionInk : .primary)
+                        .foregroundStyle(status == .failed && statusLine == nil ? Color.danger : status == .cancelled ? Color.captionInk : .primary)
                     Spacer(minLength: 6)
                     if format == "diff" {
                         ChangeCounts(changes: SDUIDiff.changes(text))
                     }
-                    ToolStatusIcon(status: status)
+                    if statusLine != nil, sizeClass == .regular, let word = node.string("statusWord") {
+                        HStack(spacing: 4) {
+                            if let icon = node.string("statusIcon") { Image(systemName: icon) }
+                            Text(word).lineLimit(1)
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(Color.captionInk)
+                        .fixedSize()
+                    } else if statusLine != nil {
+                        if let icon = node.string("statusIcon") {
+                            Image(systemName: icon).foregroundStyle(Color.captionInk)
+                        }
+                    } else {
+                        ToolStatusIcon(status: status)
+                    }
                     if hasDetails {
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
@@ -318,7 +336,24 @@ struct ToolCardLine: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            if sizeClass != .regular, let line = statusLine {
+                Text(line)
+                    .font(.footnote)
+                    .foregroundStyle(Color.captionInk)
+                    .lineLimit(1)
+                    .padding(.leading, 30)
+            }
             if expanded {
+                if let held = node.props["slotHeld"]?.objectValue, let title = held["title"]?.stringValue {
+                    Text((["Held by " + title] + [held["rest"]?.stringValue].compactMap { $0 }).joined(separator: " · "))
+                        .font(.footnote)
+                        .foregroundStyle(Color.captionInk)
+                }
+                if let wait = node.string("slotWait") {
+                    Text(wait)
+                        .font(.footnote)
+                        .foregroundStyle(Color.captionInk)
+                }
                 if format == "diff" {
                     SDUIDiff(text: text)
                 } else if !text.isEmpty {

@@ -768,27 +768,29 @@ struct SessionGlyphView: View {
         case .aside: "bubble.left.and.bubble.right"
         case .gate: "exclamationmark"
         case .held: "shield.fill"
+        case .slotWait: "hourglass"
+        case .trust: "exclamationmark.shield.fill"
         }
     }
 
     private var foreground: Color {
         switch glyph {
-        case .connect, .permission, .question, .step, .cap, .gate: Color.onWarning
+        case .connect, .permission, .question, .step, .cap, .gate, .trust: Color.onWarning
         case .childWaiting: Color.warningInk
         case .asksParent, .running, .review, .held: .accentColor
         case .stopped: Color.dangerInk
         case .open: Color.successInk
-        case .paused, .done, .closed, .aside: Color.captionInk
+        case .paused, .done, .closed, .aside, .slotWait: Color.captionInk
         }
     }
 
     private var background: Color {
         switch glyph {
-        case .connect, .permission, .question, .step, .cap, .gate: Color.warning
+        case .connect, .permission, .question, .step, .cap, .gate, .trust: Color.warning
         case .childWaiting: Color.warning.opacity(0.18)
         case .asksParent, .running, .review, .held: Color.accentColor.opacity(0.18)
         case .stopped: Color.dangerInk.opacity(0.18)
-        case .paused, .open, .done, .closed, .aside: Color(.tertiarySystemFill)
+        case .paused, .open, .done, .closed, .aside, .slotWait: Color(.tertiarySystemFill)
         }
     }
 }

@@ -147,6 +147,8 @@ extension SessionGlyph {
         case "xmark.circle": self = .stopped
         case "archivebox": self = .closed
         case SessionLanding.shield: self = .held
+        case SessionLanding.hourglass: self = .slotWait
+        case SessionLanding.trust: self = .trust
         default: return nil
         }
     }

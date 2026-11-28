@@ -61,19 +61,23 @@ struct TextNodeView: View {
             .help(text)
         } else if lines == 1 {
             Text(text)
-                .font(theme.ui)
+                .font(font)
                 .foregroundStyle(color)
                 .lineLimit(1)
-                .truncationMode(.tail)
+                .truncationMode(node.string("truncate") == "middle" ? .middle : node.string("truncate") == "head" ? .head : .tail)
                 .help(text)
         } else if let lines {
             ClampedText(text: text, lines: lines, color: color)
         } else {
             Text(text)
-                .font(theme.ui)
+                .font(font)
                 .foregroundStyle(color)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var font: Font {
+        node.string("style") == "mono" ? theme.ui.monospaced() : theme.ui
     }
 
     private var color: Color {

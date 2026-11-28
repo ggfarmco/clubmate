@@ -108,6 +108,7 @@ type screen struct {
 	GateReview   *reviewHead
 	Held         *heldBlock
 	Calls        map[string]map[string]callLive
+	Slot         *slotWaitView
 	Back         string
 	SendBack     *sendBackView
 	CloseAsk     string
@@ -423,17 +424,23 @@ func header(sc screen) sdui.Node {
 		if pill, ok := reposPill(rec); ok {
 			buttons = append(buttons, pill)
 		}
+		icon, segments, statusTone := statusIcons[display], []string(nil), ""
+		if l := sc.Row.Landing; l != nil && len(l.MacSegments) > 0 && !needsYou(rec) && rec.Status != statusError {
+			icon, segments, statusTone = l.Glyph, l.MacSegments, toneNeutral
+		}
 		top = sdui.Header(title, sdui.HeaderProps{
-			Icon:    statusIcons[display],
-			Meta:    strings.Join(meta, " · "),
-			Badges:  byUrgency(badges),
-			Status:  display,
-			Agent:   agentLabel(rec.Agent),
-			Branch:  sc.Branch,
-			Mode:    sessionModeLabel(sc.View),
-			Details: details,
-			Context: headerContext(sc.View.Usage),
-			Compact: true,
+			Icon:       icon,
+			Meta:       strings.Join(meta, " · "),
+			Badges:     byUrgency(badges),
+			Status:     display,
+			StatusTone: statusTone,
+			Segments:   segments,
+			Agent:      agentLabel(rec.Agent),
+			Branch:     sc.Branch,
+			Mode:       sessionModeLabel(sc.View),
+			Details:    details,
+			Context:    headerContext(sc.View.Usage),
+			Compact:    true,
 		}, buttons...)
 	}
 	children := []sdui.Node{top}

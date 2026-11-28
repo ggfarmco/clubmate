@@ -590,6 +590,7 @@ func (a *app) infosOf(workspaceID string, recs []record) []sessionInfo {
 		info.Landing = a.landing(info.record)
 		info.LandQueue = a.queuePlaceOf(rec.ID)
 		info.SlotWait, info.SlotHold = a.slotView(rec.ID)
+		info.SlotWaits = a.slotWaits(rec.ID, info.SlotWait)
 		info.Ungated = a.ungated(info.record)
 		info.TurnHeld = a.turnHeld(info.record)
 		info.CallHeld = info.record.callHeld()

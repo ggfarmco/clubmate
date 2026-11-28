@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"clubmate/pkg/sdui"
 )
@@ -37,30 +38,34 @@ const (
 )
 
 type landingView struct {
-	Round        int    `json:"round"`
-	Of           int    `json:"of"`
-	Verdict      string `json:"verdict"`
-	Findings     int    `json:"findings,omitempty"`
-	Asking       bool   `json:"asking,omitempty"`
-	Words        string `json:"words"`
-	Tone         string `json:"tone,omitempty"`
-	Badge        string `json:"badge"`
-	BadgeTone    string `json:"badgeTone,omitempty"`
-	Into         string `json:"into"`
-	Source       string `json:"source,omitempty"`
-	Reviewer     string `json:"reviewer,omitempty"`
-	Check        string `json:"check,omitempty"`
-	Ask          string `json:"ask,omitempty"`
-	Run          string `json:"run,omitempty"`
-	Held         string `json:"held,omitempty"`
-	Line         string `json:"line,omitempty"`
-	Ungated      bool   `json:"ungated,omitempty"`
-	Hint         string `json:"hint,omitempty"`
-	PhoneHint    string `json:"phoneHint,omitempty"`
-	Header       string `json:"header,omitempty"`
-	HeaderAccent string `json:"headerAccent,omitempty"`
-	Glyph        string `json:"glyph,omitempty"`
-	GlyphTone    string `json:"glyphTone,omitempty"`
+	Round        int        `json:"round"`
+	Of           int        `json:"of"`
+	Verdict      string     `json:"verdict"`
+	Findings     int        `json:"findings,omitempty"`
+	Asking       bool       `json:"asking,omitempty"`
+	Words        string     `json:"words"`
+	Tone         string     `json:"tone,omitempty"`
+	Badge        string     `json:"badge"`
+	BadgeTone    string     `json:"badgeTone,omitempty"`
+	Into         string     `json:"into"`
+	Source       string     `json:"source,omitempty"`
+	Reviewer     string     `json:"reviewer,omitempty"`
+	Check        string     `json:"check,omitempty"`
+	Ask          string     `json:"ask,omitempty"`
+	Run          string     `json:"run,omitempty"`
+	Held         string     `json:"held,omitempty"`
+	Line         string     `json:"line,omitempty"`
+	Ungated      bool       `json:"ungated,omitempty"`
+	Hint         string     `json:"hint,omitempty"`
+	PhoneHint    string     `json:"phoneHint,omitempty"`
+	Header       string     `json:"header,omitempty"`
+	HeaderAccent string     `json:"headerAccent,omitempty"`
+	Glyph        string     `json:"glyph,omitempty"`
+	GlyphTone    string     `json:"glyphTone,omitempty"`
+	Since        *time.Time `json:"since,omitempty"`
+	Segments     []string   `json:"segments,omitempty"`
+	MacLine      string     `json:"-"`
+	MacSegments  []string   `json:"-"`
 }
 
 func landingOf(st landReview, reviewing bool, ask *runNeed) (landingView, bool) {
@@ -228,7 +233,14 @@ func (a *app) heldView(rec record, needs map[string]*runNeed) (landingView, bool
 	if !l.Asking {
 		l.Glyph, l.GlyphTone = landingIcon, toneAccent
 	}
+	if heldWaits(rec) && !l.Asking {
+		trustRow(&l)
+	}
 	return l, true
+}
+
+func trustRow(l *landingView) {
+	l.Words, l.Glyph, l.GlyphTone = trustWord, trustGlyph, toneWarning
 }
 
 func reviewRound(rec record, st landReview) gateRound {

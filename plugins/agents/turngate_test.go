@@ -1104,7 +1104,7 @@ func TestNewGraphStartsAHoldWaitingForTrust(t *testing.T) {
 		var list []json.RawMessage
 		require.NoError(t, d.f.run(t, d.workspace, "agents.sessions", map[string]any{"session": d.session}, &list))
 		require.NoError(t, json.Unmarshal(list[0], &waiting))
-		return waiting.Held != nil && waiting.Held.Wait != "" && waiting.Landing != nil && waiting.Landing.Words == "waits for trust"
+		return waiting.Held != nil && waiting.Held.Wait != "" && waiting.Landing != nil && waiting.Landing.Words == "trust"
 	}, wait)
 
 	require.NoError(t, d.f.run(t, d.workspace, "agents.gate-update", map[string]any{"id": d.gate, "graph": "fable-review"}, nil))

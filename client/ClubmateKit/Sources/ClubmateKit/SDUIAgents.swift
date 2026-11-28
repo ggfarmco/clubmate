@@ -230,6 +230,19 @@ extension SDUINode {
         string("statusWord")
     }
 
+    public var toolStatusIcon: String? {
+        string("statusIcon")
+    }
+
+    public var toolSlotWait: String? {
+        string("slotWait")
+    }
+
+    public var toolSlotHeld: (title: String, session: String?, rest: String)? {
+        guard let held = props["slotHeld"]?.objectValue, let title = held["title"]?.stringValue else { return nil }
+        return (title, held["session"]?.stringValue, held["rest"]?.stringValue ?? "")
+    }
+
     public var handoffTo: String? {
         props["handoff"]?.objectValue.map { $0["to"]?.stringValue ?? "" }
     }

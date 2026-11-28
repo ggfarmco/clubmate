@@ -1008,7 +1008,15 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 		Badges:      badges,
 		Open:        openSessionPage,
 		KeepFolded:  true,
+		Help:        rowHelp(row),
 	}
+}
+
+func rowHelp(row sessionRow) string {
+	if l := row.Landing; l != nil && (l.MacLine != "" || l.Glyph == trustGlyph && l.Line != "") {
+		return cmp.Or(row.Rec.Title, "New session") + " · " + cmp.Or(l.MacLine, l.Line)
+	}
+	return ""
 }
 
 func rowGateChip(row sessionRow) (string, string) {

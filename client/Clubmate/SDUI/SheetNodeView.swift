@@ -38,6 +38,7 @@ struct SheetNodeView: View {
     var presented = false
 
     @State private var bodyHeight: CGFloat = 0
+    @State private var anchor = FocusAnchor()
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
 
@@ -53,10 +54,12 @@ struct SheetNodeView: View {
     var body: some View {
         let actions = actions
         let content = actions == nil ? node.children : Array(node.children.dropLast())
-        VStack(alignment: .leading, spacing: theme.spacing.l) {
-            title
+        VStack(alignment: .leading, spacing: presented ? theme.spacing.l : theme.spacing.xl) {
+            if !(node.string("title") ?? "").isEmpty {
+                title
+            }
             ScrollView {
-                VStack(alignment: .leading, spacing: theme.spacing.l) {
+                VStack(alignment: .leading, spacing: presented ? theme.spacing.l : theme.spacing.xl) {
                     ForEach(Array(content.enumerated()), id: \.offset) { _, child in
                         SDUINodeView(node: child).equatable()
                     }
@@ -77,32 +80,40 @@ struct SheetNodeView: View {
                             .padding(.leading, theme.gutter)
                             .layoutPriority(-1)
                     }
+                    let leading = presented ? [] : actions.children.filter { $0.string("variant") == "danger" }
+                    ForEach(Array(leading.enumerated()), id: \.offset) { _, button in
+                        SDUINodeView(node: button)
+                    }
                     Spacer(minLength: 0)
-                    ForEach(Array(actions.children.enumerated()), id: \.offset) { _, button in
+                    ForEach(Array(actions.children.filter { presented || $0.string("variant") != "danger" }.enumerated()), id: \.offset) { _, button in
                         let cancel = button.string("action") == node.string("cancel")
                         SDUINodeView(node: button)
                             .environment(\.buttonKeyHint, cancel ? "⎋" : nil)
-                            .environment(\.buttonIsDefault, cancel)
+                            .environment(\.buttonIsDefault, cancel && presented)
                     }
                 }
             }
         }
         .font(theme.ui)
-        .padding(.vertical, theme.gutter * 2)
-        .padding(.horizontal, theme.gutter)
+        .padding(.vertical, presented ? theme.gutter * 2 : 14)
+        .padding(.horizontal, presented ? theme.gutter : theme.spacing.xxl - theme.gutter)
         .frame(width: presented ? Self.width : nil, alignment: .leading)
-        .frame(maxWidth: presented ? nil : Self.width, alignment: .leading)
+        .frame(maxWidth: presented ? nil : .infinity, alignment: .leading)
         .background {
             if !presented {
-                RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.surface3)
+                RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.background)
                     .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(theme.border, lineWidth: 1))
             }
         }
         .presentationBackground(theme.surface3)
         .interactiveDismissDisabled()
-        .keyMonitor(active: presented) { event in
+        .background {
+            if !presented { FocusAnchorView(anchor: anchor) }
+        }
+        .keyMonitor(active: true) { event in
             guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
-                  event.keyCode == 53 || event.keyCode == 36 || event.keyCode == 76 else { return false }
+                  event.keyCode == 53 || presented && (event.keyCode == 36 || event.keyCode == 76) else { return false }
+            if !presented, !anchor.holdsFocus(in: event.window ?? anchor.view?.window) { return false }
             if event.keyCode != 53, event.window?.firstResponder is NSTextView { return false }
             guard let cancel = node.sheetCancelButton else { return false }
             dispatch(cancel, .click)
@@ -123,6 +134,41 @@ struct SheetNodeView: View {
         }
         .padding(.horizontal, theme.gutter)
     }
+}
+
+final class FocusAnchor {
+    weak var view: NSView?
+
+    @MainActor
+    func holdsFocus(in window: NSWindow?) -> Bool {
+        guard let view, let window, view.window === window, let focused = Self.view(of: window.firstResponder) else { return false }
+        let frame = focused.convert(focused.bounds, to: view)
+        return view.bounds.contains(NSPoint(x: frame.midX, y: frame.midY))
+    }
+
+    @MainActor
+    private static func view(of responder: NSResponder?) -> NSView? {
+        if let text = responder as? NSTextView, text.isFieldEditor, let owner = text.delegate as? NSView { return owner }
+        return responder as? NSView
+    }
+}
+
+private struct FocusAnchorView: NSViewRepresentable {
+    let anchor: FocusAnchor
+
+    func makeNSView(context: Context) -> NSView {
+        let view = PassThroughView()
+        anchor.view = view
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        anchor.view = view
+    }
+}
+
+private final class PassThroughView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 private struct SheetInsetKey: EnvironmentKey {

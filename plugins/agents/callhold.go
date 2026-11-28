@@ -2096,6 +2096,9 @@ func (a *app) callLanding(rec record) (landingView, bool) {
 	if !slices.ContainsFunc(held, func(c *callHold) bool { return c.Hold.Request != "" }) {
 		l.Glyph, l.GlyphTone = landingIcon, toneAccent
 	}
+	if l.Words == heldWaitsTrust {
+		trustRow(&l)
+	}
 	return l, true
 }
 

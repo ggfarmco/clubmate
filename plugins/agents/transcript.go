@@ -897,6 +897,24 @@ func (s *session) cancelTools(turn int) {
 	}
 }
 
+func (s *session) openCalls() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	var out []string
+	for _, en := range s.entries {
+		if en.Kind != entryTool || en.Turn != s.turn || en.sub != nil {
+			continue
+		}
+		var status string
+		_ = json.Unmarshal(en.Tool["status"], &status)
+		if slices.Contains(openToolStatuses, status) {
+			out = append(out, en.ID)
+		}
+	}
+	return out
+}
+
 func closeTool(tool map[string]json.RawMessage) (map[string]json.RawMessage, bool) {
 	var status string
 	_ = json.Unmarshal(tool["status"], &status)

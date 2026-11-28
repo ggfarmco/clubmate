@@ -337,6 +337,33 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(session.composerPlaceholder, "Queue a message")
     }
 
+    func testTrustWaitIsALookAndNeedsYouComesOnlyFromThePlugin() throws {
+        let trust = { (id: String, needsYou: Bool) throws -> AgentSession in
+            let json = #"{"id":"\#(id)","parentSession":"p","status":"running","group":"running","needsYou":\#(needsYou),"callHeld":true,"landing":{"round":1,"of":1,"verdict":"reviewing","words":"trust","tone":"warning","badge":"held · git push","held":"git push","line":"Held · git push · waits for trust","glyph":"exclamationmark.shield","glyphTone":"warning"}}"#
+            return try JSONDecoder.clubmate.decode(AgentSession.self, from: Data(json.utf8))
+        }
+        let waits = try trust("t", false)
+        XCTAssertEqual(waits.glyph, .trust)
+        XCTAssertEqual(waits.glyph.needsYou, waits.needsYou)
+        XCTAssertEqual(waits.stateLine(now: .now).text, "Held · git push · waits for trust")
+        let asks = try trust("a", true)
+        XCTAssertEqual(asks.glyph.needsYou, asks.needsYou)
+
+        let sessions = [AgentSession(id: "p", status: .running), waits]
+        XCTAssertEqual(WorkspaceActivity(sessions).waiting, 0)
+        XCTAssertTrue(NeedsYouItem.collect([("mac", nil, Workspace(id: "w", name: "w"), sessions)]).isEmpty)
+        XCTAssertEqual(try XCTUnwrap(AgentSession.grouped(sessions).first?.sessions.first).waitingDescendants, 0)
+    }
+
+    func testSessionWaitingForASlotTakesTheHourglass() throws {
+        let json = #"{"id":"s","status":"running","group":"running","slotWaits":true,"landing":{"round":0,"of":0,"verdict":"","words":"test slot","badge":"waits for test slot","line":"Waits for test slot · next in line","segments":["Waits for test slot","next in line"],"since":"2026-11-28T10:00:00Z","glyph":"hourglass"}}"#
+        let session = try JSONDecoder.clubmate.decode(AgentSession.self, from: Data(json.utf8))
+        XCTAssertEqual(session.glyph, .slotWait)
+        XCTAssertTrue(session.slotWaits)
+        let line = session.stateLine(now: try XCTUnwrap(Date.parseRFC3339("2026-11-28T10:03:00Z")))
+        XCTAssertEqual([line.text, line.age], ["Waits for test slot · next in line", "3 min"])
+    }
+
     func testUngatedSessionReadsAPlainLineAndKeepsItsHeaderBadge() async throws {
         let runner = ScriptedRunner(replies: [], sessions: [#"""
         {"sessions":[

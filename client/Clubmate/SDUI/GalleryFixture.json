@@ -432,6 +432,8 @@
                     {"type": "text", "props": {"text": "body: the quick brown fox", "style": "body"}},
                     {"type": "text", "props": {"text": "muted: secondary information", "style": "muted"}},
                     {"type": "text", "props": {"text": "mono: go test ./...", "style": "mono"}},
+                    {"type": "text", "props": {"text": "xcodebuild -project Companion.xcodeproj -scheme Companion -sdk iphonesimulator test", "style": "mono", "lines": 1, "truncate": "middle"}},
+                    {"type": "textField", "id": "gallery/mono", "props": {"value": "test", "mono": true}},
                     {"type": "text", "props": {"text": "warning tone: Sun, Nov 1 · 03:00 — not run: Clubmate was closed or the Mac asleep", "tone": "warning"}},
                     {"type": "divider"},
                     {"type": "stack", "props": {"direction": "horizontal"}, "children": [

@@ -23,10 +23,11 @@ struct ToolCardNodeView: View {
                     .textSelection(.enabled)
                 Spacer(minLength: theme.gutter)
                 if oneLine { ToolCardButtons(node: node) }
-                ToolStatusView(status: node.toolStatus, word: node.toolStatusWord)
+                ToolStatusView(status: node.toolStatus, word: node.toolStatusWord, icon: node.toolStatusIcon)
             }
             .padding(.horizontal, theme.gutter + theme.spacing.s)
             .padding(.vertical, theme.spacing.m)
+            ToolSlotLines(node: node)
             if let toolBody {
                 theme.border.frame(height: 1)
                 if toolBody.format == .diff {
@@ -228,17 +229,63 @@ struct TruncatedNote: View {
     }
 }
 
+struct ToolSlotLines: View {
+    let node: SDUINode
+
+    @Environment(\.sduiDispatch) private var dispatch
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        if node.toolSlotHeld != nil || node.toolSlotWait != nil {
+            VStack(alignment: .leading, spacing: theme.spacing.s) {
+                if let held = node.toolSlotHeld {
+                    HStack(spacing: 0) {
+                        Text("Held by ")
+                        if let session = held.session {
+                            Button(held.title) { dispatch(node, .named("openSlotHolder", .string(session))) }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(theme.accentInk)
+                                .lineLimit(1)
+                        } else {
+                            Text(held.title).lineLimit(1)
+                        }
+                        if !held.rest.isEmpty {
+                            Text(" · " + held.rest).lineLimit(1).truncationMode(.middle)
+                        }
+                    }
+                }
+                if let wait = node.toolSlotWait {
+                    Text(wait).lineLimit(1)
+                }
+            }
+            .font(theme.uiSmall)
+            .foregroundStyle(theme.muted)
+            .padding(.horizontal, theme.gutter + theme.spacing.s)
+            .padding(.vertical, theme.spacing.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
 struct ToolStatusView: View {
     let status: ToolStatus
     var word: String?
+    var icon: String?
 
     @Environment(\.theme) private var theme
 
     var body: some View {
         if let word {
-            Text(word)
-                .font(theme.uiSmall)
-                .foregroundStyle(theme.muted)
+            HStack(spacing: theme.spacing.xs) {
+                if let icon {
+                    Image(systemName: SymbolName.resolve(icon))
+                }
+                Text(word)
+            }
+            .font(theme.uiSmall)
+            .foregroundStyle(theme.muted)
+            .lineLimit(1)
+            .fixedSize()
         } else {
             mark
         }

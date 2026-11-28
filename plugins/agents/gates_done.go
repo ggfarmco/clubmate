@@ -44,6 +44,8 @@ const (
 	heldRoundLine      = "Round %d · %s"
 	heldReviewPrefix   = "heldReview/"
 	heldWaitsTrust     = "waits for trust"
+	trustWord          = "trust"
+	trustGlyph         = "exclamationmark.shield"
 	heldChecking       = "checking again"
 	heldCheckingBadge  = "held · checking again"
 	heldCheckingLine   = "Held · checking the gates again…"

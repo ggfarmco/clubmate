@@ -285,7 +285,7 @@ struct SessionDetailView: View {
                 }
                 if let round = session?.heldRound {
                     HeldRoundLine(round: round) { run in pushRun(run) }
-                } else if session?.status == .running, session?.turnHeld != true, session?.callHeld != true {
+                } else if session?.status == .running, session?.turnHeld != true, session?.callHeld != true, session?.slotWaits != true {
                     HStack(spacing: 8) {
                         ProgressView()
                         Text("Working…").foregroundStyle(Color.captionInk)
@@ -1477,6 +1477,11 @@ struct SessionHeader: View {
     }
 
     static func subtitle(_ session: AgentSession, mac: MacTag?, mode: Bool = false, now: Date) -> Text {
+        if !session.state.needsYou, let landing = session.landing, let segments = landing.segments, !segments.isEmpty {
+            let shown = (mode ? segments : Array(segments.prefix(1))) + [landing.sinceDate.map { ShortAge.since($0, now: now) }].compactMap { $0 }
+            return Text(shown.joined(separator: " · ")).foregroundStyle(Color.captionInk)
+                + (mac != nil ? Text(" · ") + mac.lead("") : Text("")).foregroundStyle(Color.captionInk)
+        }
         if !session.state.needsYou, let held = session.landing?.headerParts {
             return Text(held.lead).foregroundStyle(Color.captionInk) + Text(held.accent).foregroundStyle(Color.accentColor) + Text(held.rest).foregroundStyle(Color.captionInk)
                 + (mac != nil ? Text(" · ") + mac.lead("") : Text("")).foregroundStyle(Color.captionInk)

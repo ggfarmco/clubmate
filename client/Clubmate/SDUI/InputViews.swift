@@ -438,7 +438,7 @@ struct TextFieldNodeView: View {
                 if let id = node.id, router?.pending?.node != nil, router?.take(sidebarSlot ?? dispatch.slot, node: id) == true { focused = true }
             }
             .textFieldStyle(.plain)
-            .font(theme.ui)
+            .font(node.bool("mono") == true ? theme.ui.monospaced() : theme.ui)
             .foregroundStyle(theme.foreground)
             .padding(.horizontal, theme.spacing.m)
             .padding(.vertical, lines == nil ? 0 : theme.spacing.s)

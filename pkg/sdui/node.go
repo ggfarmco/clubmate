@@ -182,6 +182,8 @@ type ToolCardProps struct {
 	Truncated  bool
 	Standalone bool
 	StatusWord string
+	StatusIcon string
+	StatusLine string
 	Actions    []CardAction
 }
 
@@ -438,6 +440,10 @@ func MutedText(text string) Node {
 
 func MonoText(text string) Node {
 	return Node{Type: "text", Props: map[string]any{"text": text, "style": "mono"}}
+}
+
+func StrongText(text string) Node {
+	return Node{Type: "text", Props: map[string]any{"text": text, "style": "strong"}}
 }
 
 func BlockText(text string) Node {
@@ -879,23 +885,25 @@ type HeaderContext struct {
 }
 
 type HeaderProps struct {
-	Icon    string
-	Meta    string
-	Badges  []HeaderBadge
-	Status  string
-	Agent   string
-	Branch  string
-	Mode    string
-	Field   string
-	Error   string
-	Details []HeaderDetail
-	Context *HeaderContext
-	Compact bool
+	Icon       string
+	Meta       string
+	Badges     []HeaderBadge
+	Status     string
+	StatusTone string
+	Segments   []string
+	Agent      string
+	Branch     string
+	Mode       string
+	Field      string
+	Error      string
+	Details    []HeaderDetail
+	Context    *HeaderContext
+	Compact    bool
 }
 
 func Header(title string, p HeaderProps, actions ...Node) Node {
 	props := withOptional(withOptional(map[string]any{"title": title}, "icon", p.Icon), "meta", p.Meta)
-	for _, kv := range [][2]string{{"status", p.Status}, {"agent", p.Agent}, {"branch", p.Branch}, {"mode", p.Mode}, {"field", p.Field}, {"error", p.Error}} {
+	for _, kv := range [][2]string{{"status", p.Status}, {"statusTone", p.StatusTone}, {"agent", p.Agent}, {"branch", p.Branch}, {"mode", p.Mode}, {"field", p.Field}, {"error", p.Error}} {
 		props = withOptional(props, kv[0], kv[1])
 	}
 	if len(p.Badges) > 0 {
@@ -903,6 +911,9 @@ func Header(title string, p HeaderProps, actions ...Node) Node {
 	}
 	if len(p.Details) > 0 {
 		props["details"] = p.Details
+	}
+	if len(p.Segments) > 0 {
+		props["segments"] = p.Segments
 	}
 	if p.Context != nil {
 		props["context"] = *p.Context
@@ -982,6 +993,7 @@ func ToolCard(id string, p ToolCardProps) Node {
 	if p.StatusWord != "" {
 		props["statusWord"] = p.StatusWord
 	}
+	props = withOptional(withOptional(props, "statusIcon", p.StatusIcon), "statusLine", p.StatusLine)
 	if len(p.Actions) > 0 {
 		props["actions"] = p.Actions
 	}
@@ -1286,6 +1298,16 @@ func WithAutosave(n Node) Node {
 
 func WithLive(n Node) Node {
 	return withProp(n, "live", true)
+}
+
+const TruncateMiddle = "middle"
+
+func WithTruncate(n Node, mode string) Node {
+	return withProp(n, "truncate", mode)
+}
+
+func WithMono(n Node) Node {
+	return withProp(n, "mono", true)
 }
 
 func WithCopy(n Node, text string) Node {

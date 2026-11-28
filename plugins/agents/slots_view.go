@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -42,13 +43,14 @@ const (
 	slotsWaitHint  = "A command that gets no slot in this time is not run; the agent is told why."
 	slotsAddLabel  = "Add kind"
 	slotsOffLine   = "off"
-	slotNewTitle   = "New kind"
-	slotEditTitle  = "%s slots"
+	slotPattNote   = "One regular expression per line, matched against the whole Bash command."
+	slotNow        = "Now"
+	slotHolding    = "Holding"
+	slotWaiting    = "Waiting"
 	slotSheetNote  = "A Bash command that matches a pattern waits for a slot. The first slot is always free; more need CPU at or below the limit, the memory floor and the settle pause since the last start."
 	slotRemoveAsk  = "Remove this kind? Its commands run without a slot."
-	slotNoHolders  = "Nobody holds or waits for a slot."
-	slotHolds      = "holds"
-	slotWaits      = "waits %d"
+	slotNoHolders  = "Nothing in use"
+	slotNowFormat  = "%d of %d in use · CPU %.0f %%"
 	slotPattHint   = "one regular expression per line"
 	slotIDHint     = "id, e.g. build"
 	slotRowGap     = 8
@@ -80,15 +82,20 @@ func (a *app) slotSettingsRows() []sdui.Node {
 	}
 	wait := int(time.Duration(v.MaxWait) / time.Minute)
 	rows = append(rows, sdui.SettingRow(slotsWaitTitle, slotsWaitHint, sdui.WithAction(sdui.Select(actSlotsWait, minuteOptions(slotWaitChoices, wait), strconv.Itoa(wait)), actSlotsWait)))
+	sheet, open := a.slotSheet(v)
+	opened := a.resources.getDraft()
 	for _, k := range v.Kinds {
+		if open && opened.orig == k.ID {
+			rows = append(rows, sdui.SettingRow(k.Label, k.Line, sdui.Spacer()), sheet)
+			continue
+		}
 		edit := sdui.WithAction(sdui.Button(actSlotEdit+"/"+k.ID, "Edit", ""), actSlotEdit)
 		rows = append(rows, sdui.SettingRow(k.Label, k.Line, edit))
 	}
-	rows = append(rows, sdui.SettingRow("", "", sdui.WithVariant(sdui.WithAction(sdui.Button(actSlotAdd, slotsAddLabel, "plus"), actSlotAdd), sdui.VariantSecondary)))
-	if sheet, ok := a.slotSheet(v); ok {
+	if open && !slices.ContainsFunc(v.Kinds, func(k slotKindView) bool { return k.ID == opened.orig }) {
 		rows = append(rows, sheet)
 	}
-	return rows
+	return append(rows, sdui.SettingRow("", "", sdui.WithVariant(sdui.WithAction(sdui.Button(actSlotAdd, slotsAddLabel, "plus"), actSlotAdd), sdui.VariantSecondary)))
 }
 
 func minuteOptions(values []int, cur int) []sdui.Option {
@@ -128,13 +135,10 @@ func (a *app) slotSheet(v slotsView) (sdui.Node, bool) {
 		return sdui.Node{}, false
 	}
 	k := d.kind
-	title := slotNewTitle
-	if d.orig != "" {
-		title = fmt.Sprintf(slotEditTitle, k.Label)
-	}
 	field := func(id, value, hint, act string) sdui.Node {
 		return sdui.WithAction(sdui.WithLive(sdui.TextField(slotSheetID+"/"+id, value, hint)), act)
 	}
+	mono := func(n sdui.Node) sdui.Node { return sdui.WithMono(n) }
 	pick := func(id string, options []sdui.Option, value int, act string) sdui.Node {
 		return sdui.WithAction(sdui.Select(slotSheetID+"/"+id, options, strconv.Itoa(value)), act)
 	}
@@ -144,23 +148,23 @@ func (a *app) slotSheet(v slotsView) (sdui.Node, bool) {
 		note = sdui.WithTone(sdui.Text(d.err), "danger")
 	}
 	rows := []sdui.Node{
-		note,
-		sdui.HStack(sdui.MutedText("Id"), field("id", k.ID, slotIDHint, actSlotID)),
+		sdui.HStack(sdui.MutedText("Id"), mono(field("id", k.ID, slotIDHint, actSlotID))),
 		sdui.HStack(sdui.MutedText("Name"), field("label", k.Label, slotLabelHint, actSlotLabel)),
 		sdui.HStack(sdui.MutedText("In use counts"), count),
 		sdui.HStack(sdui.MutedText("Slots"), pick("max", numberOptions(slotMaxChoices, k.Max, "", ""), k.Max, actSlotMax)),
 		sdui.HStack(sdui.MutedText("CPU limit"), pick("cpu", numberOptions(slotCPUChoices, int(k.CPU), " %", "no check"), int(k.CPU), actSlotCPU)),
 		sdui.HStack(sdui.MutedText("Free memory"), pick("mem", numberOptions(slotMemChoices, int(k.MemFreeGB), " GB", "no check"), int(k.MemFreeGB), actSlotMem)),
 		sdui.HStack(sdui.MutedText("Settle pause"), pick("settle", numberOptions(slotSettleChoices, int(time.Duration(k.Settle)/time.Second), " s", ""), int(time.Duration(k.Settle)/time.Second), actSlotSettle)),
-		sdui.HStack(sdui.MutedText("Patterns"), sdui.WithLines(field("patterns", d.patterns, slotPattHint, actSlotPatterns), 5)),
+		sdui.HStack(sdui.MutedText("Patterns"), mono(sdui.WithLines(field("patterns", d.patterns, slotPattHint, actSlotPatterns), 5))),
+		sdui.HStack(sdui.MutedText(""), sdui.MutedText(slotPattNote)),
 	}
-	var people []sdui.Node
+	body := []sdui.Node{automation.Properties(rows...)}
 	if i := slices.IndexFunc(v.Kinds, func(kv slotKindView) bool { return kv.ID == d.orig }); i >= 0 {
-		people = a.slotPeople(v.Kinds[i])
+		body = append(body, sdui.Divider(), slotNowBlock(v.Kinds[i], v.CPU, time.Now()))
 	}
 	buttons := []sdui.Node{}
 	if d.orig != "" {
-		buttons = append(buttons, sdui.WithVariant(sdui.WithConfirm(sdui.WithAction(sdui.Button(slotSheetID+"/remove", "Remove", ""), actSlotRemove), slotRemoveAsk), sdui.VariantDanger))
+		buttons = append(buttons, sdui.WithVariant(sdui.WithConfirm(sdui.WithAction(sdui.Button(slotSheetID+"/remove", "Remove…", ""), actSlotRemove), slotRemoveAsk), sdui.VariantDanger))
 	}
 	if slices.ContainsFunc(defaultSlotKinds(runtime.NumCPU()), func(dk slotKind) bool { return dk.ID == k.ID }) {
 		buttons = append(buttons, sdui.WithVariant(sdui.WithAction(sdui.Button(slotSheetID+"/reset", "Reset to defaults", ""), actSlotReset), sdui.VariantSecondary))
@@ -169,28 +173,40 @@ func (a *app) slotSheet(v slotsView) (sdui.Node, bool) {
 		sdui.WithVariant(sdui.WithAction(sdui.Button(slotSheetID+"/cancel", "Cancel", ""), actSlotCancel), sdui.VariantSecondary),
 		sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(slotSheetID+"/save", "Save", ""), actSlotSave), sdui.VariantPrimary), "cmd+return"),
 	)
-	return sdui.Sheet(slotSheetID, sdui.SheetProps{Title: title, Icon: "gauge", Cancel: actSlotCancel},
-		append(append([]sdui.Node{automation.Properties(rows...)}, people...), sdui.WithGap(sdui.HStack(buttons...), slotRowGap))...,
+	return sdui.Sheet(slotSheetID, sdui.SheetProps{Cancel: actSlotCancel},
+		append([]sdui.Node{note}, append(body, sdui.Divider(), sdui.WithGap(sdui.HStack(buttons...), slotRowGap))...)...,
 	), true
 }
 
-func (a *app) slotPeople(k slotKindView) []sdui.Node {
+func slotNowBlock(k slotKindView, cpu float64, now time.Time) sdui.Node {
+	rows := []sdui.Node{sdui.WithGap(sdui.HStack(sdui.StrongText(slotNow), sdui.MutedText(fmt.Sprintf(slotNowFormat, k.InUse, k.Max, cpu))), slotRowGap)}
 	if len(k.Holders) == 0 && len(k.Waiters) == 0 {
-		return []sdui.Node{sdui.MutedText(slotNoHolders)}
+		return sdui.VStack(append(rows, sdui.MutedText(slotNoHolders))...)
 	}
-	rows := []sdui.Node{sdui.MutedText(k.Line)}
+	if len(k.Holders) > 0 {
+		rows = append(rows, sdui.MutedText(slotHolding))
+	}
 	for _, h := range k.Holders {
 		release := sdui.WithVariant(sdui.WithAction(sdui.Button(actSlotRelease+"/"+h.ID, "Release", ""), actSlotRelease), sdui.VariantSecondary)
-		rows = append(rows, slotPerson(slotHolds, h.Title, h.Command, release))
+		rows = append(rows, slotPerson(nil, h.Title, h.Command, elapsed(now.Sub(h.Since)), release))
+	}
+	if len(k.Waiters) > 0 {
+		rows = append(rows, sdui.MutedText(slotWaiting))
 	}
 	for _, w := range k.Waiters {
-		rows = append(rows, slotPerson(fmt.Sprintf(slotWaits, w.Place), w.Title, w.Command, sdui.MutedText(w.Why)))
+		place := sdui.MutedText(strconv.Itoa(w.Place))
+		rows = append(rows, slotPerson(&place, w.Title, w.Command, elapsed(now.Sub(w.Since))))
 	}
-	return rows
+	return sdui.VStack(rows...)
 }
 
-func slotPerson(role, title, command string, end sdui.Node) sdui.Node {
-	return sdui.WithGap(sdui.HStack(sdui.MutedText(role), sdui.WithLines(sdui.Text(title), 1), sdui.WithLines(sdui.MonoText(command), 1), sdui.Spacer(), end), slotRowGap)
+func slotPerson(place *sdui.Node, title, command, since string, end ...sdui.Node) sdui.Node {
+	var row []sdui.Node
+	if place != nil {
+		row = append(row, *place)
+	}
+	row = append(row, sdui.WithLines(sdui.Text(title), 1), sdui.WithTruncate(sdui.WithLines(sdui.MonoText(command), 1), sdui.TruncateMiddle), sdui.Spacer(), sdui.MutedText(since))
+	return sdui.WithGap(sdui.HStack(append(row, end...)...), slotRowGap)
 }
 
 func isSlotAction(action string) bool {
@@ -322,6 +338,13 @@ func (a *app) saveSlotDraft(ctx context.Context) error {
 	}
 	k := d.kind
 	k.Patterns = strings.Split(d.patterns, "\n")
+	if k.ID != d.orig && utf8.RuneCountInString(k.ID) > slotWordRunes {
+		next := *d
+		next.err = errSlotIDLong
+		b.setDraft(&next)
+		a.refreshSettings(ctx)
+		return nil
+	}
 	cfg := a.slotConfig()
 	if i := slices.IndexFunc(cfg.Kinds, func(x slotKind) bool { return x.ID == d.orig }); d.orig != "" && i >= 0 {
 		cfg.Kinds[i] = k

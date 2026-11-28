@@ -37,6 +37,7 @@ func TestValidate(t *testing.T) {
 		{"tree nested", sdui.Tree("t", []sdui.TreeItem{{ID: "a", Label: "A", Children: []sdui.TreeItem{{ID: "b", Label: "B"}}}}, ""), true},
 		{"tree bad nested", sdui.Node{Type: "tree", ID: "t", Props: map[string]any{"items": []any{map[string]any{"id": "a", "label": "A", "children": []any{map[string]any{"id": "b"}}}}}}, false},
 		{"toggle false", sdui.Toggle("t", false), true},
+		{"slot wait props", sdui.VStack(sdui.Header("S", sdui.HeaderProps{Status: "running", StatusTone: "neutral", Segments: []string{"waits for test slot", "3 min"}}), sdui.Node{Type: "toolCard", ID: "c", Props: map[string]any{"kind": "execute", "title": "make test", "statusWord": "waits for test slot", "statusIcon": "hourglass", "statusLine": "Waits for test slot", "slotWait": "Next in line · waited 3 min of 60", "slotHeld": map[string]any{"title": "One", "session": "agt_a", "rest": "make test · 6 min"}}}, sdui.WithTruncate(sdui.WithLines(sdui.MonoText("make test"), 1), sdui.TruncateMiddle), sdui.WithMono(sdui.TextField("f", "test", ""))), true},
 		{"checkbox", sdui.Checkbox("t", "tests 3", true), true},
 		{"radio", sdui.WithDisabled(sdui.WithAction(sdui.Radio("r", "hours", "For", true), "choice")), true},
 		{"radio without on", sdui.Node{Type: "radio", ID: "r", Props: map[string]any{"value": "off"}}, false},

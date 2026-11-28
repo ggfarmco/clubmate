@@ -94,6 +94,7 @@ type nodeKey struct {
 	from       string
 	review     string
 	note       bool
+	slot       string
 }
 
 type builtNode struct {
@@ -518,7 +519,7 @@ func entryNode(sc screen, en *entry, sha string) builtNode {
 	if en.node == nil || en.Kind == entryTool && (sc.Expanded[en.ID] || gateDecorated(en)) || en.Kind == entryOpenItems || en.Kind == entryNotice {
 		return build()
 	}
-	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", editor: sc.EditorReview, pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en), note: permissionNote(sc.NeedsYou, sc.View.Session.ID, en) != ""}
+	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", editor: sc.EditorReview, pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en), note: permissionNote(sc.NeedsYou, sc.View.Session.ID, en) != "", slot: slotKey(sc.Slot, en, sc.Now)}
 	return en.node.get(key, build)
 }
 
@@ -606,7 +607,7 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		if b != nil {
 			word = b.Word
 		}
-		return toolCard(id, root, en, sc.Expanded[en.ID], sha != "" && sc.EditorReview == reviewDiffview, sc.EditorReview != reviewHidden, word), !en.Hidden
+		return slotCard(toolCard(id, root, en, sc.Expanded[en.ID], sha != "" && sc.EditorReview == reviewDiffview, sc.EditorReview != reviewHidden, word), en, sc.Slot, sc.View.Session.Workspace, sc.Now), !en.Hidden
 	case entryPermission:
 		return permissionCard(sc, en), true
 	case entryElicitation:

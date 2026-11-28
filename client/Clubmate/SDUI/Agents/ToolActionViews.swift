@@ -101,7 +101,7 @@ struct ToolActionLine: View, Equatable {
                     }
                 }
                 Spacer(minLength: theme.gutter)
-                ToolStatusView(status: node.toolStatus, word: node.toolStatusWord)
+                ToolStatusView(status: node.toolStatus, word: node.toolStatusWord, icon: node.toolStatusIcon)
             }
             .help(title.help ?? fullTitle)
             if expanded, expandable {
@@ -116,6 +116,7 @@ struct ToolActionLine: View, Equatable {
                     if truncated {
                         TruncatedNote()
                     }
+                    ToolSlotLines(node: node)
                     let below = ToolCardButtons.below(node, body: toolBody)
                     if !below.isEmpty {
                         if toolBody != nil || truncated { theme.border.frame(height: 1) }
