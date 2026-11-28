@@ -120,7 +120,7 @@ func (a *app) reviewAheadOnce(ctx context.Context, qid string) {
 		return
 	}
 	args := landGateArgs{Session: next.Session, Target: q.Target, Worktree: next.Worktree, Into: q.Into, Source: next.Source, Head: next.SourceHead, Old: base, Tree: tree, ahead: true}
-	if _, decided := a.readVerdict(ctx, base, tree); !decided && !docsOnly(ctx, q.Target, base, tree) {
+	if _, decided := a.verdictOf(ctx, g.ID, base, tree); !decided && !docsOnly(ctx, q.Target, base, tree) {
 		if _, err := a.reviewLanding(ctx, q.Workspace, lander, *g, args, a.gateGraphReady(ctx, *g)); err != nil {
 			logError("review the next landing ahead", err)
 			return

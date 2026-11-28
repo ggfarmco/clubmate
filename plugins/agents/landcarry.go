@@ -56,7 +56,7 @@ func (a *app) carriedMove(ctx context.Context, made landReview, args landGateArg
 	if made.Old == "" || made.Tree == "" || made.Old == args.Old {
 		return "", false
 	}
-	if v, ok := a.readVerdict(ctx, made.Old, made.Tree); !ok || !reviewedApproval(v) {
+	if v, ok := a.verdictOf(ctx, made.Gate, made.Old, made.Tree); !ok || !reviewedApproval(v) {
 		return "", false
 	}
 	moved, ok, err := carryMove(ctx, args.Target, made.Old, made.Tree, args.Old, args.Tree)
@@ -69,10 +69,10 @@ func (a *app) carriedMove(ctx context.Context, made landReview, args landGateArg
 
 func (a *app) carryTree(ctx context.Context, workspaceID string, g gateConfig, args landGateArgs) (landGateResult, bool, error) {
 	prior, ok := a.treeVerdict(ctx, args.Target, args.Old, args.Tree)
-	if !ok || prior.Old == args.Old || !reviewedApproval(prior) {
+	if !ok || prior.Gate != g.ID || prior.Old == args.Old || !reviewedApproval(prior) {
 		return landGateResult{}, false, nil
 	}
-	v := landgate.Verdict{Old: args.Old, OldTree: prior.OldTree, Tree: args.Tree, Outcome: gateApproved, By: landgate.ByCarried, Reviewer: prior.Reviewer, Summary: prior.Summary, At: time.Now().UTC()}
+	v := landgate.Verdict{Gate: g.ID, Old: args.Old, OldTree: prior.OldTree, Tree: args.Tree, Outcome: gateApproved, By: landgate.ByCarried, Reviewer: prior.Reviewer, Summary: prior.Summary, At: time.Now().UTC()}
 	if err := a.writeVerdict(ctx, args.Target, v); err != nil {
 		return landGateResult{}, false, err
 	}

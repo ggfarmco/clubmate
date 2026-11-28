@@ -48,6 +48,7 @@ var (
 )
 
 type Verdict struct {
+	Gate     string    `json:"gate,omitempty"`
 	Old      string    `json:"old"`
 	OldTree  string    `json:"oldTree,omitempty"`
 	Tree     string    `json:"tree"`

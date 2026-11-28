@@ -346,6 +346,31 @@ func TestMoveWithNoFilesCarriesWithoutAPrompt(t *testing.T) {
 	assert.Contains(t, git(t, g.repo, "log", "-1", "--format=%B", "main"), "Sums it up.")
 }
 
+func TestVerdictOfAnotherGateDoesNotApprove(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.Error(t, g.land(t))
+	g.verdict(t, "approved")
+	require.NoError(t, g.f.run(t, g.workspace, "agents.gate-delete", map[string]any{"id": g.gate}, nil))
+	require.NoError(t, g.f.run(t, g.workspace, "agents.gate-add", map[string]any{"repo": g.repo}, nil))
+
+	require.ErrorContains(t, g.land(t), "review pending")
+	g.verdict(t, "approved")
+	require.NoError(t, g.land(t))
+}
+
+func TestTreeVerdictOfAnotherGateIsNotCarried(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.Error(t, g.land(t))
+	g.verdict(t, "approved")
+	require.NoError(t, g.f.run(t, g.workspace, "agents.gate-delete", map[string]any{"id": g.gate}, nil))
+	require.NoError(t, g.f.run(t, g.workspace, "agents.gate-add", map[string]any{"repo": g.repo}, nil))
+	git(t, g.repo, "commit", "-q", "--allow-empty", "-m", "empty")
+
+	require.ErrorContains(t, g.land(t), "review pending")
+}
+
 func TestLandAnywayIsNotCarried(t *testing.T) {
 	t.Parallel()
 	g := startGate(t)

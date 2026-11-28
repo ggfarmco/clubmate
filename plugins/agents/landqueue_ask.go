@@ -58,8 +58,13 @@ func (a *app) askBeforeLand(ctx context.Context, workspaceID string, args landGa
 	if err != nil {
 		return landGateResult{}, err
 	}
-	detail := a.askDetail(ctx, workspaceID, args)
-	v, decided := a.readVerdict(ctx, args.Old, args.Tree)
+	g := a.landingGate(ctx, workspaceID, args.Session, args.Target, args.Into, args.Source)
+	detail := askDetail(ctx, g, args)
+	var v landgate.Verdict
+	decided := false
+	if g != nil {
+		v, decided = a.verdictOf(ctx, g.ID, args.Old, args.Tree)
+	}
 	yes := decided && v.Outcome == gateApproved && v.By == landgate.ByUser
 	q, err := a.mutateQueue(ctx, queueID(common, args.Into), nil, args.Session, func(q *landQueue) error {
 		i := q.own(args)
@@ -90,7 +95,7 @@ func (a *app) askBeforeLand(ctx context.Context, workspaceID string, args landGa
 	return res, nil
 }
 
-func (a *app) askDetail(ctx context.Context, workspaceID string, args landGateArgs) string {
+func askDetail(ctx context.Context, g *gateConfig, args landGateArgs) string {
 	parts := []string{queueStaged}
 	if args.Source != "" {
 		out, err := gitrepo.Run(ctx, args.Target, "rev-list", "--count", args.Old+".."+cmp.Or(args.Head, headsPrefix+args.Source))
@@ -100,7 +105,6 @@ func (a *app) askDetail(ctx context.Context, workspaceID string, args landGateAr
 			parts = append(parts, counted(n, "commit"))
 		}
 	}
-	g := a.landingGate(ctx, workspaceID, args.Session, args.Target, args.Into, args.Source)
 	switch {
 	case g == nil:
 		parts = append(parts, queueAskNoGate)

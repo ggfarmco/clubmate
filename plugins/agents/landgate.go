@@ -992,10 +992,11 @@ func (a *app) landGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 
 func (a *app) landHead(ctx context.Context, cmd pluginsdk.CommandRun, args landGateArgs) (landGateResult, error) {
 	g := a.landingGate(ctx, cmd.WorkspaceID, args.Session, args.Target, args.Into, args.Source)
-	v, decided := a.readVerdict(ctx, args.Old, args.Tree)
 	if g == nil {
+		v, decided := a.readVerdict(ctx, args.Old, args.Tree)
 		return landGateResult{State: gateApproved, Summary: reviewedSummary(v, decided)}, nil
 	}
+	v, decided := a.verdictOf(ctx, g.ID, args.Old, args.Tree)
 	if !decided {
 		if res, ok, err := a.carryTree(ctx, cmd.WorkspaceID, *g, args); ok || err != nil {
 			return res, err
@@ -1013,7 +1014,7 @@ func (a *app) landHead(ctx context.Context, cmd pluginsdk.CommandRun, args landG
 		}
 	}
 	if docsOnly(ctx, args.Target, args.Old, args.Tree) {
-		v := landgate.Verdict{Old: args.Old, Tree: args.Tree, Outcome: gateApproved, By: landgate.ByDocs, At: time.Now().UTC()}
+		v := landgate.Verdict{Gate: g.ID, Old: args.Old, Tree: args.Tree, Outcome: gateApproved, By: landgate.ByDocs, At: time.Now().UTC()}
 		if err := a.writeVerdict(ctx, args.Target, v); err != nil {
 			return landGateResult{}, err
 		}
@@ -1585,6 +1586,14 @@ func (a *app) readVerdict(ctx context.Context, old, tree string) (landgate.Verdi
 	return v, err == nil && found
 }
 
+func (a *app) verdictOf(ctx context.Context, gate, old, tree string) (landgate.Verdict, bool) {
+	v, ok := a.readVerdict(ctx, old, tree)
+	if !ok || gate == "" || v.Gate != gate {
+		return landgate.Verdict{}, false
+	}
+	return v, true
+}
+
 func (a *app) treeVerdict(ctx context.Context, repo, old, tree string) (landgate.Verdict, bool) {
 	ot := oldTree(ctx, repo, old)
 	if ot == "" {
@@ -1694,18 +1703,19 @@ func (a *app) landVerdictCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 }
 
 func (a *app) decideLanding(ctx context.Context, workspaceID string, gf gateFor, node *session, v landgate.Verdict) error {
-	if _, ok := a.readVerdict(ctx, gf.Old, gf.Tree); ok {
-		return errDecided
-	}
 	lander := a.session(gf.Lander)
 	st := landReview{Into: gf.Into, Source: gf.Source}
 	if lander != nil {
 		st = lander.landReview(gf.Into, gf.Source)
 	}
+	if _, ok := a.verdictOf(ctx, cmp.Or(gf.Gate, st.Gate), gf.Old, gf.Tree); ok {
+		return errDecided
+	}
 	if gf.Done || gf.Run != "" && lander != nil && st.Run != gf.Run {
 		return errNoReview
 	}
 	v.By = carriedBy(st, gf, v)
+	v.Gate = cmp.Or(gf.Gate, st.Gate)
 	if err := a.writeVerdict(ctx, st.Repo, v); err != nil {
 		return err
 	}
@@ -1713,7 +1723,7 @@ func (a *app) decideLanding(ctx context.Context, workspaceID string, gf gateFor,
 	if gf.Run != "" && node != nil {
 		a.graphs.GateOutcome(ctx, gf.Run, node.snapshot().ID, v.Outcome)
 	}
-	logged := gateVerdict{Gate: cmp.Or(gf.Gate, st.Gate), Outcome: v.Outcome, By: v.By, Lander: gf.Lander, Title: a.titleOf(gf.Lander), Into: gf.Into, Source: gf.Source, Round: st.Rounds + 1, Reviewer: v.Reviewer, Findings: v.Findings, Deferred: v.Deferred, Summary: v.Summary, Old: gf.Old, OldTree: oldTree(ctx, st.Repo, gf.Old), Tree: gf.Tree, Reason: st.Reason, At: v.At}
+	logged := gateVerdict{Gate: v.Gate, Outcome: v.Outcome, By: v.By, Lander: gf.Lander, Title: a.titleOf(gf.Lander), Into: gf.Into, Source: gf.Source, Round: st.Rounds + 1, Reviewer: v.Reviewer, Findings: v.Findings, Deferred: v.Deferred, Summary: v.Summary, Old: gf.Old, OldTree: oldTree(ctx, st.Repo, gf.Old), Tree: gf.Tree, Reason: st.Reason, At: v.At}
 	if v.By == landgate.ByCarried {
 		logged.CarriedFrom = st.Carried
 	}
@@ -1831,7 +1841,7 @@ func (a *app) endGateRound(workspaceID string, also *session, match func(landRev
 		stale = slices.DeleteFunc(a.gateNodes(workspaceID, st.Run), func(s *session) bool { return s.snapshot().Status == statusError })
 	}
 	defer a.closeGateNodes(ctx, stale)
-	if _, decided := a.readVerdict(ctx, st.Old, st.Tree); decided {
+	if _, decided := a.verdictOf(ctx, st.Gate, st.Old, st.Tree); decided {
 		a.gateMu.Unlock()
 		return
 	}
@@ -1889,7 +1899,7 @@ func (a *app) answerGate(ctx context.Context, workspaceID string, args landAnswe
 	var text string
 	switch args.Action {
 	case landActionMerge:
-		v := landgate.Verdict{Old: st.ReqOld, Tree: st.ReqTree, Outcome: gateApproved, By: landgate.ByUser, At: time.Now().UTC()}
+		v := landgate.Verdict{Gate: st.Gate, Old: st.ReqOld, Tree: st.ReqTree, Outcome: gateApproved, By: landgate.ByUser, At: time.Now().UTC()}
 		if err := a.writeVerdict(ctx, st.Repo, v); err != nil {
 			a.gateMu.Unlock()
 			return err
