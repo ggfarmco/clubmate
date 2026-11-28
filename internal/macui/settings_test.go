@@ -9,21 +9,17 @@ import (
 )
 
 func TestSettingsFontMenus(t *testing.T) {
-	for _, tc := range []struct{ name, tab string }{
-		{"interface font", "general"},
-		{"agents chat font", "agents"},
+	for _, tc := range []struct{ name, tab, picker string }{
+		{"interface font", "general", "font.interface"},
+		{"agents pane font", "agents", "font.agents"},
+		{"agents chat font", "agents", "font.chat"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			in := start(t, "macui-settings-"+tc.tab, "", "-NSTreatUnknownArgumentsAsOpen", "NO", "--settings-tab", tc.tab)
+			in := start(t, "macui-settings-"+strings.TrimPrefix(tc.picker, "font."), "", "-NSTreatUnknownArgumentsAsOpen", "NO", "--settings-tab", tc.tab)
 			in.cm("ui", "present", "settings")
-			var picker string
-			in.eventually("the font picker shows", func() bool {
-				e := in.snapshot().kind("settings").find(func(e element) bool { return strings.HasPrefix(e.ID, "font.") })
-				if e != nil {
-					picker = e.ID
-				}
-				return e != nil
-			})
+			picker := tc.picker
+			in.eventually("the font picker shows", func() bool { return in.snapshot().kind("settings").has(picker) })
+			in.reveal("settings", picker)
 
 			menu := in.pointer("click", picker).Menu
 			require.NotEmpty(t, menu)

@@ -2,6 +2,7 @@ package macui_test
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -316,6 +317,36 @@ func (in *instance) selected(id string) bool {
 	in.t.Helper()
 	e := in.snapshot().main().node(id)
 	return e != nil && slices.Contains(strings.Fields(e.Role), "selected")
+}
+
+func (in *instance) reveal(kind, id string) {
+	in.t.Helper()
+	var scrolled *element
+	in.eventually(id+" scrolls into its window", func() bool {
+		w := in.snapshot().kind(kind)
+		e := w.node(id)
+		require.NotNil(in.t, e, "no node %s in the %s window", id, kind)
+		if e.Visible == nil {
+			return true
+		}
+		if scrolled != nil && e.Frame.Y == scrolled.Frame.Y {
+			in.t.Fatalf("%s did not move after a wheel over %s; that node is outside %s's scroll view", id, scrolled.ID, id)
+		}
+		var over *element
+		for i, o := range w.elements {
+			if o.Visible == nil && o.Frame.Height > 0 && (over == nil || math.Abs(o.Frame.Y-e.Frame.Y) < math.Abs(over.Frame.Y-e.Frame.Y)) {
+				over = &w.elements[i]
+			}
+		}
+		require.NotNil(in.t, over, "nothing in the %s window is in view to scroll over", kind)
+		dy := "--dy=5"
+		if e.Frame.Y < over.Frame.Y {
+			dy = "--dy=-5"
+		}
+		in.pointer("scroll", over.ID, dy)
+		scrolled = &element{ID: over.ID, Frame: e.Frame}
+		return false
+	})
 }
 
 func (in *instance) eventually(what string, ok func() bool) {
