@@ -15,7 +15,7 @@ import (
 
 const (
 	signInTitle    = "Sign in to "
-	signedOutStart = "Failed to authenticate"
+	signedOutStart = "Failed to authenticate. API Error: 401"
 )
 
 var (
@@ -56,8 +56,8 @@ func signedOutText(kind string, payload json.RawMessage) string {
 	if kind != acp.UpdateAgentMessageChunk || json.Unmarshal(payload, &chunk) != nil || chunk.Content.Type != "text" {
 		return ""
 	}
-	text := firstLine(chunk.Content.Text)
-	if !strings.HasPrefix(text, signedOutStart) {
+	text := strings.TrimSpace(chunk.Content.Text)
+	if !strings.HasPrefix(text, signedOutStart) || strings.Contains(text, "\n") {
 		return ""
 	}
 	return text

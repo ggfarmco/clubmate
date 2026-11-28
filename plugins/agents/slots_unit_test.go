@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"slices"
 	"testing"
@@ -122,4 +123,43 @@ func TestSlotSheetPeopleRowsAreOneLineUnderTheForm(t *testing.T) {
 	assert.Equal(t, slotRowGap, row.Props["gap"])
 	assert.Equal(t, 1, row.Children[1].Props["lines"])
 	assert.Equal(t, 1, row.Children[2].Props["lines"])
+}
+
+func TestWaiterWhyChangeAloneIsNotAStateChange(t *testing.T) {
+	test := slotKind{ID: kindTest, Max: 3, CPU: 80, Count: countProcesses}
+	load := &fakeLoad{cpu: 90, mem: 32}
+	b := &slotBoard{
+		cfg:   slotConfig{Enabled: true, Kinds: []slotKind{test}},
+		host:  load,
+		owned: map[string]bool{},
+		st: slotState{
+			Holders: []slotHolder{{ID: "h:test", Kind: kindTest}},
+			Waiters: []slotWaiter{{ID: "w", Kind: kindTest}},
+		},
+	}
+	assert.False(t, b.grantLocked(time.Now()))
+	assert.Equal(t, "CPU 90 % > 80 %", b.st.Waiters[0].Why)
+	assert.True(t, b.whyMoved)
+
+	b.whyMoved = false
+	load.cpu = 85
+	assert.False(t, b.grantLocked(time.Now()))
+	assert.Equal(t, "CPU 85 % > 80 %", b.st.Waiters[0].Why)
+	assert.True(t, b.whyMoved)
+}
+
+func TestUnreadableSlotStateIsKeptUntilItIsRead(t *testing.T) {
+	a := &app{}
+	held := slotHolder{ID: "ss_1:test", Request: "ss_1", Kind: kindTest, Step: true}
+	b := &a.resources
+	b.cfg = slotConfig{Enabled: true, Kinds: []slotKind{{ID: kindTest, Max: 1, Count: countProcesses}}}
+	b.host = fakeLoad{mem: 32}
+	b.owned = map[string]bool{}
+	b.st = slotState{Holders: []slotHolder{held}, Waiters: []slotWaiter{{ID: "w", Kind: kindTest}}}
+
+	a.adoptSlotState(t.Context(), slotState{}, false, errors.New("connection closed"))
+	assert.True(t, b.unread)
+	assert.Equal(t, []slotHolder{held}, b.st.Holders)
+	assert.False(t, b.grantLocked(time.Now()))
+	a.saveSlots(t.Context())
 }

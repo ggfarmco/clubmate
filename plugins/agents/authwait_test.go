@@ -6,15 +6,22 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
 )
 
-const signedOut = "Failed to authenticate: OAuth session expired and could not be refreshed"
+const signedOut = "Failed to authenticate. API Error: 401 OAuth session expired and could not be refreshed"
+
+func messageChunk(text string) map[string]any {
+	return map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": text}}}
+}
 
 func signedOutChunk() map[string]any {
-	return map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": signedOut}}}
+	return messageChunk(signedOut)
 }
 
 func TestSignedOutSessionContinuesAfterAnotherTurnSucceeds(t *testing.T) {
@@ -67,4 +74,21 @@ func TestFollowUpSignInFailureStopsTheSession(t *testing.T) {
 	got := f.waitStatus(t, workspace, session, "error")
 	assert.Equal(t, "Sign in to continue using Claude.", got.Error)
 	assert.Equal(t, "end_turn", f.transcript(t, workspace, session).Turns[0].StopReason)
+}
+
+func TestFollowUpMessageAboutAuthenticationIsNotSignedOut(t *testing.T) {
+	t.Parallel()
+	gate := filepath.Join(t.TempDir(), "go")
+	f := start(t, map[string]any{"after": []map[string]any{
+		{"await": gate},
+		messageChunk("Failed to authenticate to the registry, so I skipped the publish step."),
+		{"update": map[string]any{"sessionUpdate": "usage_update", "used": 1, "size": 10, "cost": map[string]any{"amount": 1, "currency": "USD"}}},
+	}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "go")
+	f.waitStatus(t, workspace, session, "done")
+
+	require.NoError(t, os.WriteFile(gate, nil, 0o600))
+	testutil.Never(t, func() bool { return f.session(t, workspace, session).Status == "error" }, time.Second)
 }

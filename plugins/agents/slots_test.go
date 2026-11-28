@@ -252,6 +252,22 @@ func TestStoredStepHolderKeepsItsSlotAcrossRestart(t *testing.T) {
 	testutil.Eventually(t, func() bool { return f.slots(t, workspace).Kinds[0].InUse == 0 }, wait)
 }
 
+func TestUndecodableSlotStateStartsEmptyAndGrants(t *testing.T) {
+	t.Parallel()
+	env, _ := slotEnv(t)
+	f := startEnv(t, env, slotScript(t.TempDir()))
+	workspace := f.workspace(t, newRepo(t))
+	f.setSlots(t, workspace, true, testKind(1))
+	session := f.runningSlotSession(t, workspace, "tagone", "One")
+
+	require.NoError(t, f.h.Sup.SetEnabled(t.Context(), "agents", false))
+	require.NoError(t, f.h.KV.Set(t.Context(), "agents", "slots.state", []byte(`"not a state"`)))
+	require.NoError(t, f.h.Sup.SetEnabled(t.Context(), "agents", true))
+	testutil.Eventually(t, func() bool { return f.run(t, workspace, "agents.slots", map[string]any{}, nil) == nil }, restartWait)
+
+	assert.Equal(t, "granted", f.acquireUntil(t, workspace, session, "c1", "make test", "", "granted").State)
+}
+
 func TestSlotsOffGrantsWaiters(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

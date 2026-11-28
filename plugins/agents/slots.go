@@ -158,24 +158,26 @@ type slotState struct {
 }
 
 type slotBoard struct {
-	mu     sync.Mutex
-	cfg    slotConfig
-	st     slotState
-	res    map[string]*regexp.Regexp
-	owned  map[string]bool
-	stale  map[string]bool
-	wake   chan struct{}
-	gen    uint64
-	saveMu sync.Mutex
-	saved  uint64
-	host   hostLoad
-	poll   time.Duration
-	silent time.Duration
-	tick   time.Duration
-	limit  time.Duration
-	live   func(slotWaiter) bool
-	draft  *slotDraft
-	shown  float64
+	mu       sync.Mutex
+	cfg      slotConfig
+	st       slotState
+	res      map[string]*regexp.Regexp
+	owned    map[string]bool
+	stale    map[string]bool
+	wake     chan struct{}
+	gen      uint64
+	saveMu   sync.Mutex
+	saved    uint64
+	host     hostLoad
+	poll     time.Duration
+	silent   time.Duration
+	tick     time.Duration
+	limit    time.Duration
+	live     func(slotWaiter) bool
+	draft    *slotDraft
+	shown    float64
+	unread   bool
+	whyMoved bool
 }
 
 type slotAcquireArgs struct {
@@ -365,17 +367,34 @@ func (a *app) loadSlots(ctx context.Context) {
 
 func (a *app) restoreSlots(ctx context.Context) {
 	var st slotState
-	if _, err := a.host.StorageGet(ctx, slotsStateKey, &st); err != nil {
-		logError("read the slot state", err)
-	}
+	found, err := a.host.StorageGet(ctx, slotsStateKey, &st)
+	a.adoptSlotState(ctx, st, found, err)
+}
+
+func (a *app) adoptSlotState(ctx context.Context, st slotState, found bool, err error) {
 	b := &a.resources
+	if err != nil {
+		if !found {
+			b.mu.Lock()
+			first := !b.unread
+			b.unread = true
+			b.mu.Unlock()
+			if first {
+				logError("read the slot state", err)
+			}
+			return
+		}
+		logError("decode the slot state", err)
+		st = slotState{}
+	}
 	b.mu.Lock()
 	b.stale = map[string]bool{}
 	for _, w := range st.Waiters {
 		b.stale[w.ID] = true
 	}
-	st.Waiters = nil
+	st.Waiters = b.st.Waiters
 	b.st = st
+	b.unread = false
 	a.settleSlotsLocked(time.Now())
 	b.touchLocked()
 	b.mu.Unlock()
@@ -452,6 +471,10 @@ func (b *slotBoard) touchLocked() {
 func (a *app) saveSlots(ctx context.Context) {
 	b := &a.resources
 	b.mu.Lock()
+	if b.unread {
+		b.mu.Unlock()
+		return
+	}
 	gen := b.gen
 	st := slotState{Holders: slices.Clone(b.st.Holders), Waiters: slices.Clone(b.st.Waiters), LastGrant: b.st.LastGrant}
 	b.mu.Unlock()
@@ -565,6 +588,9 @@ func (b *slotBoard) advanceLocked(i int, now time.Time) {
 }
 
 func (b *slotBoard) grantLocked(now time.Time) bool {
+	if b.unread {
+		return false
+	}
 	changed := false
 	for i := 0; i < len(b.st.Waiters); {
 		w := b.st.Waiters[i]
@@ -583,7 +609,7 @@ func (b *slotBoard) grantLocked(now time.Time) bool {
 				for j := range b.st.Waiters {
 					if b.st.Waiters[j].Kind == k.ID && b.st.Waiters[j].Why != why {
 						b.st.Waiters[j].Why = why
-						changed = true
+						b.whyMoved = true
 					}
 				}
 				break
@@ -700,16 +726,26 @@ func (a *app) slotLoop() {
 			}
 			a.refreshSims(slotWaiter{})
 			b.mu.Lock()
-			moved := b.cfg.Enabled && math.Abs(b.host.CPU()-b.shown) >= slotCPUStep
+			unread := b.unread
+			b.mu.Unlock()
+			if unread {
+				a.restoreSlots(context.Background())
+			}
+			b.mu.Lock()
+			cpuMoved := b.cfg.Enabled && math.Abs(b.host.CPU()-b.shown) >= slotCPUStep
 			changed := a.settleSlotsLocked(now)
 			if changed {
 				b.touchLocked()
 			}
+			whyMoved := b.whyMoved
+			b.whyMoved = false
 			b.mu.Unlock()
 			if changed {
 				a.saveSlots(context.Background())
 				a.slotsChanged()
-			} else if moved {
+			} else if whyMoved {
+				a.slotsChanged()
+			} else if cpuMoved {
 				a.refreshSettings(context.Background())
 			}
 		}
@@ -732,16 +768,8 @@ func (a *app) slotAcquireCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 	if session == "" || a.session(session) == nil {
 		return slotAnswer{State: slotNone}, nil
 	}
-	w := slotWaiter{ID: args.Request, Session: session, Call: args.Call, Command: clipCommand(args.Command), Target: simTarget(args.Command)}
+	w := slotWaiter{ID: args.Request, Session: session, Call: args.Call, Command: clipRunes(oneLine(args.Command), slotCommandRunes), Target: simTarget(args.Command)}
 	return a.acquire(ctx, w, nil), nil
-}
-
-func clipCommand(command string) string {
-	command = strings.Join(strings.Fields(command), " ")
-	if r := []rune(command); len(r) > slotCommandRunes {
-		return string(r[:slotCommandRunes]) + "…"
-	}
-	return command
 }
 
 func (a *app) acquire(ctx context.Context, w slotWaiter, kinds []string) slotAnswer {
