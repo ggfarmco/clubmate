@@ -296,6 +296,29 @@ func TestQueueRowsInTreeOrder(t *testing.T) {
 	assert.Equal(t, "Shares 1 file with T b", q.Entries[1].FileGroups[0].Title)
 }
 
+func TestSessionWithTwoEntriesShowsOneSessionRow(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	rows := []sessionRow{{Rec: record{ID: "own", Worktree: "/r", Agent: agentClaude, Title: "T own", Status: statusIdle, UpdatedAt: now}}}
+	q := queueRow{ID: "q1", Into: "main", Grouped: true, Entries: []queueEntryRow{
+		{ID: "e1", Session: "own", Source: "feat/a", State: queueHead, Mode: queueModeBranch, Place: 1},
+		{ID: "e2", Session: "own", Source: "fix/b", State: queueReady, Mode: queueModeBranch, Place: 2},
+	}}
+	dressQueue(&q, nil)
+	view := sidebarView(rows, "", nil, now, "/r", nil, false, "", sidebarSearch{}, 0, sidebarPlus{queues: []queueRow{q}}, nil)
+	require.NoError(t, internalsdui.Validate(view))
+	items, ok := nodesOf(view, "tree")[0].Props["items"].([]sdui.TreeItem)
+	require.True(t, ok)
+	group := findItem(items, groupPrefix+"lq:q1")
+	require.NotNil(t, group)
+	require.Len(t, group.Children, 2)
+	repeat := group.Children[1]
+	assert.Equal(t, []string{"own", "lqf:own:e2", "fix/b", "ready"}, []string{group.Children[0].ID, repeat.ID, repeat.Label, repeat.Detail})
+	target, ok := queueRowTarget(repeat.ID)
+	assert.True(t, ok)
+	assert.Equal(t, "own", target)
+}
+
 func TestQueueRowNeedsYouOnAsks(t *testing.T) {
 	t.Parallel()
 	kept := landReview{Into: "main", Source: "fix/d", Tree: "t1", Last: gateApproved, Carried: "o0"}

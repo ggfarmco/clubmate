@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -421,7 +422,13 @@ func queueItems(groups []*queueGroup, kids map[string][]sessionRow, collapsed ma
 func queueGroupItem(g *queueGroup, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool, oldest map[string]time.Time) sdui.TreeItem {
 	q := g.row
 	children := make([]sdui.TreeItem, 0, len(q.Entries))
+	shown := map[string]bool{}
 	for _, e := range q.Entries {
+		if _, ok := g.rows[e.Session]; ok && shown[e.Session] && e.Mode != queueModeDirty {
+			children = append(children, repeatEntryItem(e))
+			continue
+		}
+		shown[e.Session] = true
 		children = append(children, queueEntryItem(q, e, g.rows, kids, collapsed, now, path, oldest))
 	}
 	key := landLinePrefix + q.ID
@@ -455,6 +462,12 @@ func queueEntryItem(q queueRow, e queueEntryRow, rows map[string]sessionRow, kid
 		item.Expanded = true
 		item.Children = append(files, item.Children...)
 	}
+	return item
+}
+
+func repeatEntryItem(e queueEntryRow) sdui.TreeItem {
+	item := sdui.TreeItem{ID: queueFilePrefix + e.Session + ":" + e.ID, Label: cmp.Or(e.Source, e.Title), Action: true, Pinned: e.NeedsYou}
+	dressEntry(&item, e)
 	return item
 }
 
