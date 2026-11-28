@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"clubmate/pkg/sdui"
@@ -133,7 +134,7 @@ func (e *Engine) GateStepOpen(ctx context.Context, run string) (GateStep, bool) 
 		}
 		st := GateStep{Node: n.ID, Command: r.stepCommand(n), Since: m.At}
 		if m.Step != nil {
-			st.Waiting = m.Step.Note == noteTestWait
+			st.Waiting = strings.HasPrefix(m.Step.Note, noteWaiting)
 		}
 		return st, true
 	}

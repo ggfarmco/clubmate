@@ -48,7 +48,7 @@ func (a *app) queuedRepos() []string {
 }
 
 func (s *session) editedCallLocked(agentSession, kind string, payload json.RawMessage) *editedCall {
-	if agentSession != "" || s.hookDir == "" || !hookable(s.rec) || kind != acp.UpdateToolCall && kind != acp.UpdateToolCallUpdate {
+	if agentSession != "" || s.hookDir == "" || isSlotDir(s.hookDir) || !hookable(s.rec) || kind != acp.UpdateToolCall && kind != acp.UpdateToolCallUpdate {
 		return nil
 	}
 	var u struct {

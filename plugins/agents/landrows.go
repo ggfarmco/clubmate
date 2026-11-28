@@ -187,6 +187,9 @@ func (a *app) landing(rec record) *landingView {
 		best = &l
 	}
 	if best == nil {
+		if l := a.slotLanding(rec); l != nil {
+			return l
+		}
 		return ungatedLanding(a.ungated(rec))
 	}
 	return best

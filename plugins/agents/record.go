@@ -167,6 +167,8 @@ type sessionInfo struct {
 	RowUnder        string             `json:"rowUnder,omitempty"`
 	Landing         *landingView       `json:"landing,omitempty"`
 	LandQueue       *queuePlace        `json:"landQueue,omitempty"`
+	SlotWait        *slotWaitView      `json:"slotWait,omitempty"`
+	SlotHold        *slotHoldView      `json:"slotHold,omitempty"`
 	TurnHeld        bool               `json:"turnHeld,omitempty"`
 	CallHeld        bool               `json:"callHeld,omitempty"`
 	Calls           []callView         `json:"calls,omitempty"`

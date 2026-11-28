@@ -288,10 +288,10 @@ func TestUnreadHoldWithNoGatesEverRead(t *testing.T) {
 	}
 	dir := toolHookPath(a.toolHooksRoot(), repo)
 
-	require.NoError(t, writeToolHook(dir, "bin", []toolgate.Rule{}))
+	require.NoError(t, writeToolHook(dir, "bin", []toolgate.Rule{}, nil))
 	assert.Empty(t, gateOf(record{ID: "a", Worktree: repo}))
 	assert.Equal(t, "gt_carried", gateOf(record{ID: "a", Worktree: repo, HeldGate: "gt_carried"}))
-	require.NoError(t, writeToolHook(dir, "bin", []toolgate.Rule{{ID: "gt_tool", Tool: "Bash"}}))
+	require.NoError(t, writeToolHook(dir, "bin", []toolgate.Rule{{ID: "gt_tool", Tool: "Bash"}}, nil))
 	assert.Equal(t, "gt_tool", gateOf(record{ID: "a", Worktree: repo}))
 }
 

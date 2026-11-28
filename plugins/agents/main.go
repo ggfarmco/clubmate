@@ -93,6 +93,7 @@ type app struct {
 	gateMu         sync.Mutex
 	gatePrep       map[string]bool
 	queues         landQueues
+	resources      slotBoard
 	gateTreeRun    func(ctx context.Context, workspaceID string, args map[string]any, out any) error
 	gateStart      func(ctx context.Context, gr graphs.GateRun) (string, string, error)
 	gateRuns       sync.Map
@@ -178,6 +179,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.self = newSelfStore(a.stateDir)
 	a.graphs = a.newGraphs(h)
 	installHooks(a.stateDir)
+	a.loadSlots(ctx)
 	logError("write the tool hooks", a.syncToolHooks(ctx))
 	a.sweepToolHooks(time.Now())
 	go a.hookLoop(envDelay(toolHookPollEnv, toolHookPoll))
@@ -242,6 +244,8 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		}
 	}
 	a.sweepInputs()
+	a.restoreSlots(ctx)
+	go a.slotLoop()
 	go a.texts.warm(a.stateDir, recs)
 	go a.reconcileLimitWaits()
 	go a.seedGateRuns()
@@ -475,6 +479,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		}()
 	}
 	s.ran = func(c endedCall) { a.judgeCall(s, c) }
+	s.slotted = func(c slotCall) { a.slotCallEnded(rec.ID, c) }
 	s.queueEdit = func(c editedCall) { a.warnEdit(s, c) }
 	var tree treeKeyCache
 	s.moved = func() { a.overlapCache.move(tree.of(s.snapshot().Worktree)) }
@@ -583,6 +588,7 @@ func (a *app) infosOf(workspaceID string, recs []record) []sessionInfo {
 		info.Gate = a.gateState(info.record)
 		info.Landing = a.landing(info.record)
 		info.LandQueue = a.queuePlaceOf(rec.ID)
+		info.SlotWait, info.SlotHold = a.slotView(rec.ID)
 		info.Ungated = a.ungated(info.record)
 		info.TurnHeld = a.turnHeld(info.record)
 		info.CallHeld = info.record.callHeld()

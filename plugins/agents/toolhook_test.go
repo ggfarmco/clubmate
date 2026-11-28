@@ -347,6 +347,32 @@ func TestBackgroundCommandLeavesSessionsVisiblyUngatedUntilItEnds(t *testing.T) 
 	}, wait/10)
 }
 
+func TestGatedSessionWithoutTheSlotEntryIsNotLimitedYet(t *testing.T) {
+	t.Parallel()
+	release := filepath.Join(t.TempDir(), "release")
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_HOOK_POLL=100ms"}, map[string]any{
+		"resume": true,
+		"prompt": []map[string]any{{"match": "watch", "update": map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "bg", "_meta": map[string]any{"claudeCode": map[string]any{"toolResponse": map[string]any{"backgroundTaskId": "b1"}}}}}},
+		"after": []map[string]any{
+			{"match": "watch", "run": "while [ ! -e " + release + " ]; do sleep 0.05; done"},
+		},
+	})
+	t.Cleanup(func() { write(t, release, "") })
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	f.addPushGate(t, workspace, repo)
+	owner := f.newSession(t, workspace)
+	f.waitRecord(t, workspace, owner, "hooked by the gate", func(r record) bool { return r.Hooked })
+	f.prompt(t, workspace, owner, "watch")
+	f.waitCall(t, "prompt_end", func(fakeCall) bool { return true })
+
+	f.setSlots(t, workspace, true, testKind(1))
+
+	f.waitRecord(t, workspace, owner, "not limited yet", func(r record) bool {
+		return r.Ungated != nil && r.Ungated.Badge == "not limited yet · after its background command" && r.Landing != nil && r.Landing.Words == "not limited yet"
+	})
+}
+
 func TestSessionThatCannotResumeIsVisiblyUngated(t *testing.T) {
 	t.Parallel()
 	f := start(t, map[string]any{})

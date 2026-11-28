@@ -606,7 +606,7 @@ func (a *app) gatedMeta(ctx context.Context, rec record) (*acp.SessionMeta, stri
 	if rec.lean() {
 		leanOptions(&meta.ClaudeCode.Options, userPlugins())
 	}
-	dir := a.toolHookDir(ctx, rec)
+	dir := a.sessionHookDir(ctx, rec)
 	if dir != "" {
 		withToolHook(meta, dir)
 	}

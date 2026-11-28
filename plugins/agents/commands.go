@@ -130,6 +130,10 @@ var (
 		"agents.outcomes":       withArgs((*app).outcomesCommand),
 
 		"agents.land-queue":        withArgs((*app).landQueueCommand),
+		"agents.slot-acquire":      withArgs((*app).slotAcquireCommand),
+		"agents.slots":             withArgs((*app).slotsCommand),
+		"agents.slot-release":      withArgs((*app).slotReleaseCommand),
+		"agents.slot-config":       withArgs((*app).slotConfigCommand),
 		"agents.land-queue-move":   withArgs((*app).landQueueMoveCommand),
 		"agents.land-queue-skip":   withArgs((*app).landQueueSkipCommand),
 		"agents.land-queue-remove": withArgs((*app).landQueueRemoveCommand),

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -230,4 +231,27 @@ func TestGateGraphFieldsAreRefusedOutsideTheirPlace(t *testing.T) {
 			assert.ErrorContains(t, err, tt.err)
 		})
 	}
+}
+
+func TestGateTestStepWaitsForTestSlot(t *testing.T) {
+	g := newTestGate(t, stepResult{})
+	g.a.spawn = func(f func()) { go f() }
+	free := make(chan struct{})
+	var held atomic.Int64
+	g.a.testSlot = func(ctx context.Context, label string, note func(string)) (func(int), func(), error) {
+		note("1 of 1 in use")
+		<-free
+		return func(pid int) { held.Store(int64(pid)) }, func() {}, nil
+	}
+	run, _ := g.start(t, "test-gate", "T1")
+
+	testutil.Eventually(t, func() bool {
+		step, open := g.e.GateStepOpen(t.Context(), run)
+		return open && step.Waiting && stepMoves(g.a, run, "tests")[0].Step.Note == "waiting: test slot, 1 of 1 in use"
+	}, 5*time.Second)
+	assert.Zero(t, g.p.ran())
+	close(free)
+
+	testutil.Eventually(t, func() bool { return len(g.got()) == 1 }, 5*time.Second)
+	assert.Equal(t, int64(1000), held.Load())
 }

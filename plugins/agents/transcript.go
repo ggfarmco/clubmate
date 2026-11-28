@@ -510,6 +510,7 @@ func (s *session) update(params json.RawMessage) {
 		s.gateFailedLocked(e.AgentSession, n.Update)
 	}
 	ran := s.endedCallLocked(e.AgentSession, head.SessionUpdate, was, n.Update)
+	slot := slotCallOf(head.SessionUpdate, n.Update)
 	edit := s.editedCallLocked(e.AgentSession, head.SessionUpdate, n.Update)
 	var started, ended bool
 	if e.AgentSession == "" {
@@ -532,6 +533,9 @@ func (s *session) update(params json.RawMessage) {
 	}
 	if ran != nil && s.ran != nil {
 		go s.ran(*ran)
+	}
+	if slot != nil && s.slotted != nil {
+		go s.slotted(*slot)
 	}
 	if edit != nil && s.queueEdit != nil {
 		go s.queueEdit(*edit)

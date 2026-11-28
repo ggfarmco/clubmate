@@ -1256,6 +1256,64 @@
         }
       },
       {
+        "id": "agents.slot-acquire",
+        "title": "Wait for a resource slot",
+        "hidden": true,
+        "scope": "app",
+        "timeout": 40,
+        "description": "Only the slot hook (clubmate slot hook, a PreToolUse hook on Bash in every agent session while Resource limits are on): asks for the resource slots that command needs before the Bash call starts; the caller is the session ($CLUBMATE_AGENT_SESSION). The plugin matches command against each kind's patterns (Settings › Agents › Resource limits); a command that matches more kinds takes them in kind-id order. Returns within 20 s {state, request?, kind?, place?, of?, why?, text?}: none (no kind matches, or slots are off), granted (go on; the slot is freed when the ACP tool call with that id ends, or for a background call when its background task ends), wait (call again with the same request to keep the place in line; why says what it waits for: count, CPU, memory or the settle pause) or denied (no slot in the max wait; text is the reason for the agent). A waiter that does not call again for 45 s leaves the line. Docs: docs/agents.md § Resource slots.",
+        "args": {
+          "properties": {
+            "call": {"type": "string", "description": "The Bash call's tool_use_id."},
+            "command": {"type": "string", "description": "The Bash command, as the agent wrote it."},
+            "cwd": {"type": "string"},
+            "request": {"type": "string", "description": "The request id a wait answer returned; empty on the first call."}
+          }
+        }
+      },
+      {
+        "id": "agents.slots",
+        "title": "List resource slots",
+        "hidden": true,
+        "scope": "app",
+        "remote": true,
+        "agent": true,
+        "readOnly": true,
+        "description": "The resource slots that limit heavy agent commands (tests, simulator boots): {enabled, maxWait (s), cpu (% of all cores, 10 s average), memFreeGB (free + inactive), booted (cm-* simulators), kinds: [{id, label, max, cpu, memFreeGB, settle (s), count (processes | simulators), patterns, inUse, line, holders: [{id, session?, title, command?, pid?, since}], waiters: [{request, session?, title, command?, place, why?, since}]}]}. A kind grants a slot when fewer than max are in use and, unless none is in use, CPU is at or below its cpu, free memory is at or above memFreeGB and its settle pause since the last grant has passed. For count simulators, in use is the larger of its holders and the booted cm-* simulators. Same data as `clubmate slot status`. Non-destructive.",
+        "args": {"properties": {}}
+      },
+      {
+        "id": "agents.slot-release",
+        "title": "Release a resource slot",
+        "hidden": true,
+        "scope": "app",
+        "remote": true,
+        "description": "Free a resource slot holder (agents.slots holders[].id) whose count is stuck; its process keeps running. The next waiter in line can get the slot. Only the user; an agent gets an error.",
+        "args": {
+          "properties": {"id": {"type": "string", "description": "Holder id (agents.slots)."}},
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "agents.slot-config",
+        "title": "Resource slot settings",
+        "hidden": true,
+        "scope": "app",
+        "remote": true,
+        "description": "With no arguments: the Resource limits settings {enabled, maxWait (s), kinds: [{id, label, max, cpu, memFreeGB, settle (s), count, patterns}]}. With enabled, maxWait or kinds: changes those; with reset (a kind id with defaults: test or sim): puts that kind back to its defaults. A bad value (a pattern that does not compile, max below 1, cpu outside 0–100, a negative memory floor or settle pause, max wait outside 1–60 min, an id that is not unique) is refused with the reason and the old settings stay. Writes are only the user's; an agent gets an error.",
+        "args": {
+          "properties": {
+            "enabled": {"type": "boolean", "description": "Resource limits on or off."},
+            "maxWait": {"type": "number", "description": "Seconds a call waits for a slot at most before it is denied (60–3600)."},
+            "kinds": {"type": "array", "description": "All kinds; replaces the list.", "items": {"type": "object", "properties": {
+              "id": {"type": "string"}, "label": {"type": "string"}, "max": {"type": "integer"}, "cpu": {"type": "number"}, "memFreeGB": {"type": "number"},
+              "settle": {"type": "number"}, "count": {"type": "string", "enum": ["processes", "simulators"]}, "patterns": {"type": "array", "items": {"type": "string"}}
+            }}},
+            "reset": {"type": "string", "description": "A kind id (test or sim) to put back to its defaults."}
+          }
+        }
+      },
+      {
         "id": "agents.outcomes",
         "title": "List child outcomes",
         "hidden": true,

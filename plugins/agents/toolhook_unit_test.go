@@ -81,7 +81,7 @@ func TestToolHookSweepDropsOldMarksAndUnusedDirs(t *testing.T) {
 	a.lastGates.Store(&gates)
 	require.NoError(t, a.writeToolHooks(gates))
 	gated, gone := toolHookPath(a.toolHooksRoot(), "/gated"), toolHookPath(a.toolHooksRoot(), "/gone")
-	require.NoError(t, writeToolHook(gone, "tool-hook", nil))
+	require.NoError(t, writeToolHook(gone, "tool-hook", nil, nil))
 	marks := filepath.Join(gated, toolHookMarks)
 	for _, id := range []string{"toolu_old", "toolu_new"} {
 		require.NoError(t, os.WriteFile(filepath.Join(marks, id), nil, 0o600))
@@ -246,4 +246,38 @@ func TestAutoHandoffWaitsWhileACallIsHeld(t *testing.T) {
 	rec.Calls = []*callHold{{Hold: &heldTurn{Gate: "gt_1"}}}
 
 	assert.True(t, a.handoffBlocked(rec, 0, false))
+}
+
+func TestSlotEntryInEveryHookDirWhileOn(t *testing.T) {
+	t.Parallel()
+	a := &app{stateDir: t.TempDir()}
+	a.sessions = map[string]*session{}
+	cfg := defaultSlotConfig(18)
+	cfg.MaxWait = seconds(5 * time.Minute)
+	a.resources.cfg, a.resources.wake = cfg, make(chan struct{})
+	gates := []gateConfig{{ID: "gt_1", Repo: "/gated", Point: gatePointTool, Tool: "Bash", How: "command", Text: "git push"}}
+	pre := func(dir string) []hookMatcher {
+		raw, err := os.ReadFile(filepath.Join(dir, toolHookHooks))
+		require.NoError(t, err)
+		var hooks hooksFile
+		require.NoError(t, json.Unmarshal(raw, &hooks))
+		return hooks.Hooks[toolHookEvent]
+	}
+	gated := toolHookPath(a.toolHooksRoot(), "/gated")
+
+	require.NoError(t, a.writeToolHooks(gates))
+	got := pre(gated)
+	require.Len(t, got, 2)
+	assert.Equal(t, toolHookMatcher, got[0].Matcher)
+	assert.Equal(t, hookMatcher{Matcher: "Bash", Hooks: []hookCommand{{Type: "command", Command: shellQuote(slotCLIBinary()) + " slot hook || true", Timeout: 360}}}, got[1])
+	assert.Len(t, pre(a.askAllDir()), 2)
+	assert.Equal(t, []hookMatcher{got[1]}, pre(a.slotOnlyDir()))
+	assert.NoFileExists(t, filepath.Join(a.slotOnlyDir(), toolHookRules))
+	assert.Equal(t, a.slotOnlyDir(), a.sessionHookDir(t.Context(), record{Night: "tidy"}))
+
+	a.resources.cfg.Enabled = false
+	require.NoError(t, a.writeToolHooks(gates))
+	assert.Len(t, pre(gated), 1)
+	assert.Empty(t, pre(a.slotOnlyDir()))
+	assert.Empty(t, a.sessionHookDir(t.Context(), record{Night: "tidy"}))
 }

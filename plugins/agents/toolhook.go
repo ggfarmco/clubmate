@@ -44,9 +44,17 @@ const (
 	toolHookMarkAge  = 24 * time.Hour
 	toolHookSweep    = time.Hour
 	toolHookAskAll   = toolgate.AskAllDir
+	toolHookSlots    = "slots"
+	slotHookCLI      = "clubmate"
+	slotHookArgs     = " slot hook || true"
+	slotHookMatcher  = "Bash"
+	slotHookGrace    = 60 * time.Second
 	toolHookPollEnv  = "CLUBMATE_AGENTS_HOOK_POLL"
 	toolHookPoll     = 5 * time.Second
 	ungatedChip      = "not gated yet"
+	unlimitedChip    = "not limited yet"
+	unlimitedBadge   = "not limited yet · %s"
+	unlimitedLine    = "Not limited yet · %s"
 	ungatedBadge     = "not gated yet · %s"
 	ungatedLine      = "Not gated yet · %s"
 	whyBackground    = "after its background command"
@@ -72,6 +80,7 @@ var bgOutputPath = regexp.MustCompile(`Output is being written to: (\S+?\.output
 
 type hookState struct {
 	hookDir    string
+	hookSlots  bool
 	hookWhy    string
 	hookOwed   bool
 	cycled     func()
@@ -80,6 +89,7 @@ type hookState struct {
 	followOwed bool
 	held       map[string][]string
 	ran        func(endedCall)
+	slotted    func(slotCall)
 	queueEdit  func(editedCall)
 	warnMu     sync.Mutex
 	toolGated  func() bool
@@ -140,6 +150,30 @@ func (a *app) askAllDir() string {
 	return filepath.Join(a.toolHooksRoot(), toolHookAskAll)
 }
 
+func (a *app) slotOnlyDir() string {
+	return filepath.Join(a.toolHooksRoot(), toolHookSlots)
+}
+
+func (a *app) slotHookEntry() *hookCommand {
+	if !a.slotsOn() {
+		return nil
+	}
+	h := slotHookEntry(slotCLIBinary(), a.slotWaitLimit())
+	return &h
+}
+
+func slotHookEntry(cli string, maxWait time.Duration) hookCommand {
+	return hookCommand{Type: "command", Command: shellQuote(cli) + slotHookArgs, Timeout: int((maxWait + slotHookGrace) / time.Second)}
+}
+
+func slotCLIBinary() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return slotHookCLI
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(exe), "..", "..", slotHookCLI))
+}
+
 func (a *app) syncToolHooks(ctx context.Context) error {
 	a.hookMu.Lock()
 	defer a.hookMu.Unlock()
@@ -156,8 +190,9 @@ func (a *app) writeToolHooks(gates []gateConfig) error {
 func (a *app) writeToolHooksLocked(gates []gateConfig, known bool) error {
 	root := a.toolHooksRoot()
 	bin := toolHookBinary()
-	wrote := map[string]bool{a.askAllDir(): true}
-	errs := []error{writeToolHook(a.askAllDir(), bin, askAllRules)}
+	slot := a.slotHookEntry()
+	wrote := map[string]bool{a.askAllDir(): true, a.slotOnlyDir(): true}
+	errs := []error{writeToolHook(a.askAllDir(), bin, askAllRules, slot), writeSlotHook(a.slotOnlyDir(), slot)}
 	if !known {
 		return errors.Join(errs...)
 	}
@@ -167,7 +202,7 @@ func (a *app) writeToolHooksLocked(gates []gateConfig, known bool) error {
 			continue
 		}
 		wrote[dir] = true
-		errs = append(errs, writeToolHook(dir, bin, toolRulesOf(gates, primary)))
+		errs = append(errs, writeToolHook(dir, bin, toolRulesOf(gates, primary), slot))
 	}
 	entries, err := os.ReadDir(root)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -181,7 +216,7 @@ func (a *app) writeToolHooksLocked(gates []gateConfig, known bool) error {
 	return errors.Join(errs...)
 }
 
-func writeToolHook(dir, bin string, rules []toolgate.Rule) error {
+func writeToolHook(dir, bin string, rules []toolgate.Rule, slot *hookCommand) error {
 	for _, sub := range []string{toolHookMarks, toolHookFindings, toolHookTold} {
 		if err := os.MkdirAll(filepath.Join(dir, sub), 0o700); err != nil {
 			return err
@@ -189,13 +224,31 @@ func writeToolHook(dir, bin string, rules []toolgate.Rule) error {
 	}
 	hook := hookCommand{Type: "command", Command: toolHookCommand(bin, dir), Timeout: toolHookTimeout, OnFailure: toolHookFailure}
 	batch := hookCommand{Type: "command", Command: toolBatchCommand(bin, dir), Timeout: toolHookTimeout}
+	pre := []hookMatcher{{Matcher: toolHookMatcher, Hooks: []hookCommand{hook}}}
+	if slot != nil {
+		pre = append(pre, hookMatcher{Matcher: slotHookMatcher, Hooks: []hookCommand{*slot}})
+	}
 	return errors.Join(
 		writeJSON(filepath.Join(dir, toolHookManifest), hookManifest{Name: toolHookPlugin, Version: "1"}),
 		writeJSON(filepath.Join(dir, toolHookHooks), hooksFile{Hooks: map[string][]hookMatcher{
-			toolHookEvent: {{Matcher: toolHookMatcher, Hooks: []hookCommand{hook}}},
+			toolHookEvent: pre,
 			toolHookBatch: {{Matcher: toolHookMatcher, Hooks: []hookCommand{batch}}},
 		}}),
 		writeJSON(filepath.Join(dir, toolHookRules), rules),
+	)
+}
+
+func writeSlotHook(dir string, slot *hookCommand) error {
+	hooks := map[string][]hookMatcher{}
+	if slot != nil {
+		hooks[toolHookEvent] = []hookMatcher{{Matcher: slotHookMatcher, Hooks: []hookCommand{*slot}}}
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	return errors.Join(
+		writeJSON(filepath.Join(dir, toolHookManifest), hookManifest{Name: toolHookPlugin, Version: "1"}),
+		writeJSON(filepath.Join(dir, toolHookHooks), hooksFile{Hooks: hooks}),
 	)
 }
 
@@ -326,6 +379,30 @@ func (a *app) toolHookDir(ctx context.Context, rec record) string {
 	return dir
 }
 
+func (a *app) sessionHookDir(ctx context.Context, rec record) string {
+	if dir := a.toolHookDir(ctx, rec); dir != "" || !a.slotsOn() {
+		return dir
+	}
+	dir := a.slotOnlyDir()
+	if !slotDirReady(dir) {
+		logError("write the tool hooks", a.syncToolHooks(ctx))
+	}
+	return dir
+}
+
+func slotDirReady(dir string) bool {
+	for _, f := range []string{toolHookManifest, toolHookHooks} {
+		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func isSlotDir(dir string) bool {
+	return filepath.Base(dir) == toolHookSlots
+}
+
 func hookDirReady(dir string) bool {
 	for _, f := range []string{toolHookManifest, toolHookHooks, toolHookRules, toolHookMarks} {
 		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
@@ -364,8 +441,9 @@ func newlyToolGated(old *[]gateConfig, gates []gateConfig) []string {
 	return slices.DeleteFunc(toolGatedRepos(gates), func(repo string) bool { return slices.Contains(before, repo) })
 }
 
-func (s *session) hookLocked(dir string) {
+func (s *session) hookLocked(dir string, slots bool) {
 	s.hookDir, s.rec.Hooked = dir, dir != ""
+	s.hookSlots = dir != "" && slots
 }
 
 func (s *session) hookView() (record, bool, string, string) {
@@ -374,21 +452,33 @@ func (s *session) hookView() (record, bool, string, string) {
 	return s.rec, s.proc != nil && s.proc.alive(), s.hookDir, s.hookWhy
 }
 
+func (s *session) slotHooked() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.hookSlots
+}
+
 func (a *app) needsHook(ctx context.Context, s *session) bool {
 	rec, live, have, _ := s.hookView()
 	if !live || rec.closed() || !hookable(rec) {
 		return false
 	}
-	if last := a.lastGates.Load(); last != nil && len(toolGatedRepos(*last)) == 0 && have != a.askAllDir() && !a.queuedAny() {
+	slots := a.slotsOn()
+	if slots && have != "" && !s.slotHooked() {
+		return true
+	}
+	if last := a.lastGates.Load(); !slots && last != nil && len(toolGatedRepos(*last)) == 0 && have != a.askAllDir() && !a.queuedAny() {
 		return false
 	}
-	want := a.toolHookDir(ctx, rec)
+	want := a.sessionHookDir(ctx, rec)
 	switch {
 	case want == have:
 		return false
 	case want == "":
 		return have == a.askAllDir()
 	case want == a.askAllDir():
+		return have == ""
+	case isSlotDir(want):
 		return have == ""
 	}
 	return true
@@ -639,7 +729,7 @@ func (a *app) sweepToolHooks(now time.Time) {
 	if !known {
 		return
 	}
-	keep := map[string]bool{a.askAllDir(): true}
+	keep := map[string]bool{a.askAllDir(): true, a.slotOnlyDir(): true}
 	for _, primary := range append(toolGatedRepos(gates), a.queuedRepos()...) {
 		keep[toolHookPath(a.toolHooksRoot(), primary)] = true
 	}
@@ -678,9 +768,12 @@ func (a *app) ungated(rec record) *ungatedView {
 	if s == nil || rec.closed() {
 		return nil
 	}
-	_, _, _, why := s.hookView()
+	_, _, have, why := s.hookView()
 	if why == "" {
 		return nil
+	}
+	if want := a.toolHookDir(context.Background(), rec); want == "" || want == have && !s.slotHooked() {
+		return &ungatedView{Chip: unlimitedChip, Badge: fmt.Sprintf(unlimitedBadge, why), Line: fmt.Sprintf(unlimitedLine, why)}
 	}
 	return &ungatedView{Chip: ungatedChip, Badge: fmt.Sprintf(ungatedBadge, why), Line: fmt.Sprintf(ungatedLine, why)}
 }

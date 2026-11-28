@@ -169,6 +169,18 @@ func TestUngatedCallDropsItsMark(t *testing.T) {
 	assert.NoFileExists(t, mark)
 }
 
+func TestSlotOnlySessionGetsNoQueueEditNote(t *testing.T) {
+	t.Parallel()
+	edit := map[string]any{"sessionUpdate": "tool_call", "toolCallId": "c1", "kind": "edit", "status": "completed", "locations": []map[string]any{{"path": "/r/a.go"}}}
+	s := &session{applying: true, stamp: 1, index: map[string]int{}}
+	s.applyTool(true, 1, rawJSON(t, edit))
+
+	s.hookDir = filepath.Join(t.TempDir(), "repo")
+	assert.NotNil(t, s.editedCallLocked("", acp.UpdateToolCall, rawJSON(t, edit)))
+	s.hookDir = filepath.Join(t.TempDir(), toolHookSlots)
+	assert.Nil(t, s.editedCallLocked("", acp.UpdateToolCall, rawJSON(t, edit)))
+}
+
 func owedSession(t *testing.T) (*session, gateMessage) {
 	t.Helper()
 	msg := gateMessage{Call: "c1", Tail: "again"}

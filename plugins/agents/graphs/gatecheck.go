@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -82,9 +83,10 @@ func (e *Engine) DropGateChecks(ctx context.Context, gate string) error {
 	return a.kvSet(ctx, gateCheckPrefix+gate, gateChecks{})
 }
 
-func (a *app) testLock(ctx context.Context, r *Run, n *Node, spec stepSpec, note func(string)) (func(), bool) {
+func (a *app) testLock(ctx context.Context, r *Run, n *Node, spec stepSpec, note func(string)) (func(int), func(), bool) {
+	none := func(int) {}
 	if !r.Gate || !strings.Contains(n.Run, gateTestRun) {
-		return func() {}, true
+		return none, func() {}, true
 	}
 	key := spec.Main
 	if key == "" {
@@ -105,15 +107,30 @@ func (a *app) testLock(ctx context.Context, r *Run, n *Node, spec stepSpec, note
 	a.mu.Unlock()
 	select {
 	case ch <- struct{}{}:
-		return func() { <-ch }, true
 	default:
+		note(noteTestWait)
+		select {
+		case ch <- struct{}{}:
+			note("")
+		case <-ctx.Done():
+			return nil, nil, false
+		}
 	}
-	note(noteTestWait)
-	select {
-	case ch <- struct{}{}:
+	unlock := func() { <-ch }
+	if a.testSlot == nil {
+		return none, unlock, true
+	}
+	waited := false
+	began, release, err := a.testSlot(ctx, fmt.Sprintf(slotLabel, filepath.Base(key)), func(why string) {
+		waited = true
+		note(fmt.Sprintf(noteSlotWait, why))
+	})
+	if err != nil {
+		unlock()
+		return nil, nil, false
+	}
+	if waited {
 		note("")
-		return func() { <-ch }, true
-	case <-ctx.Done():
-		return nil, false
 	}
+	return began, func() { release(); unlock() }, true
 }

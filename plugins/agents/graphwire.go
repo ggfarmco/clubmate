@@ -40,6 +40,9 @@ func (a *app) newGraphs(h *pluginsdk.Host) *graphs.Engine {
 		PruneAfter: envDelay(runDeleteAfterEnv, runDeleteAfter),
 		GateEnded:  a.gateRunEnded,
 		GateCheck:  a.gateCheckVerdict,
+		TestSlot: func(ctx context.Context, label string, note func(string)) (func(int), func(), error) {
+			return a.acquireStepSlot(ctx, kindTest, label, note)
+		},
 	})
 }
 

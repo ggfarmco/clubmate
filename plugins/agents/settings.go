@@ -218,6 +218,7 @@ func (a *app) renderSettings(ctx context.Context) error {
 		sdui.SettingRow("Review the next landing ahead", aheadHint, sdui.WithAction(sdui.Toggle(aheadID, a.aheadEnabled(ctx)), aheadID)),
 		sdui.SettingRow("Self-improvement", selfHint, sdui.WithAction(sdui.Toggle(selfEnabledID, a.selfEnabled(ctx)), selfEnabledID)),
 	}
+	rows = append(rows, a.slotSettingsRows()...)
 	if a.self.prompt() != "" || len(a.self.skills()) > 0 {
 		rows = append(rows, sdui.SettingRow("The agent's prompt and skills", "", sdui.WithVariant(sdui.WithConfirm(sdui.Button(selfResetID, "Reset", ""), selfResetConfirm), sdui.VariantDanger)))
 	}
@@ -253,6 +254,9 @@ func (a *app) settingsEvent(ctx context.Context, ev pluginsdk.UIEvent) error {
 		return a.setAheadEnabled(ctx, on)
 	case selfResetID:
 		return a.resetSelf(ctx)
+	}
+	if isSlotAction(ev.Action) {
+		return a.slotSettingsEvent(ctx, ev)
 	}
 	return fmt.Errorf("unknown action %q", ev.Action)
 }

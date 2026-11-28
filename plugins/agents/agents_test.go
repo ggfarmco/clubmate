@@ -311,6 +311,7 @@ func startSeeded(t *testing.T, env []string, script map[string]any, seed func(h 
 		"FAKEAGENT_SCRIPT=" + scriptPath,
 		"FAKEAGENT_LOG=" + f.fakeLog,
 		"CLUBMATE_AGENTS_END_HOLD=0s",
+		"CLUBMATE_AGENTS_SLOTS_DEFAULT=off",
 	}, env...)
 	harnesses <- struct{}{}
 	t.Cleanup(func() { <-harnesses })

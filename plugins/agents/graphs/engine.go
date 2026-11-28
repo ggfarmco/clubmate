@@ -21,6 +21,7 @@ type Deps struct {
 	PruneAfter time.Duration
 	GateEnded  func(workspace, run string)
 	GateCheck  func(ctx context.Context, c GateCheck)
+	TestSlot   func(ctx context.Context, label string, note func(why string)) (started func(pid int), release func(), err error)
 }
 
 type Engine struct {
@@ -45,6 +46,7 @@ func New(d Deps) *Engine {
 		a.gateEnded = d.GateEnded
 	}
 	a.gateCheck = d.GateCheck
+	a.testSlot = d.TestSlot
 	e := &Engine{a: a, subscribed: make(chan struct{}), wake: make(chan struct{}, 1)}
 	a.onSubscribed = e.markSubscribed
 	return e

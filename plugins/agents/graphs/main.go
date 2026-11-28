@@ -94,6 +94,7 @@ type app struct {
 	changed      func(workspace string)
 	gateEnded    func(workspace, run string)
 	gateCheck    func(ctx context.Context, c GateCheck)
+	testSlot     func(ctx context.Context, label string, note func(why string)) (func(pid int), func(), error)
 	testLocks    map[string]chan struct{}
 	checkMu      sync.Mutex
 	stateDir     string

@@ -132,6 +132,7 @@ func (a *app) attachAgent(s *session) (*agentProc, error) {
 		return p, a.resumeOn(ctx, s, p, rec, extra)
 	}
 	meta, hookDir := a.gatedMeta(ctx, rec)
+	slots := a.slotsOn()
 	method, params := acp.MethodSessionNew, any(acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcpFor(rec), Meta: meta})
 	if rec.isAside() {
 		from := a.forkSource(rec)
@@ -162,7 +163,7 @@ func (a *app) attachAgent(s *session) (*agentProc, error) {
 	if s.rec.Status == statusError {
 		s.setStatusLocked(statusIdle, "")
 	}
-	s.hookLocked(hookDir)
+	s.hookLocked(hookDir, slots)
 	s.recordLocked(s.actor(), kindNew, raw)
 	s.mu.Unlock()
 	a.notes.persist(ctx, s)
@@ -200,6 +201,7 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 	mode, values := s.settings()
 	var raw json.RawMessage
 	meta, hookDir := a.gatedMeta(ctx, rec)
+	slots := a.slotsOn()
 	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcpFor(rec), Meta: meta}, &raw); err != nil {
 		a.release(p)
 		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
@@ -214,7 +216,7 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 		return errClosed
 	}
 	s.mu.Lock()
-	s.hookLocked(hookDir)
+	s.hookLocked(hookDir, slots)
 	s.recordLocked(s.actor(), kindResume, raw)
 	if s.rec.Status == statusError {
 		s.setStatusLocked(statusIdle, "")

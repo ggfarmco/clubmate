@@ -43,7 +43,10 @@ const (
 	allowedCommand       = "command"
 	allowedBypass        = "mode bypass"
 	allowedGateTest      = "the gate's test command"
-	noteTestWait         = "waiting: another landing's tests run"
+	noteWaiting          = "waiting:"
+	noteTestWait         = noteWaiting + " another landing's tests run"
+	noteSlotWait         = noteWaiting + " test slot, %s"
+	slotLabel            = "gate tests · %s"
 	noteCached           = "cached: passed on this tree at %s"
 	codeDenied           = -32014
 	waitMessage          = "A graph step wants to run a command"
@@ -432,13 +435,14 @@ func (a *app) execStep(ctx context.Context, runID, node string, move int, spec s
 			if snapshot.Spec.check(node) && spec.Start != "" {
 				files = checkOwnFiles(n.Run, changedSince(base, spec.Dir, spec.Start))
 			}
-			release, ok := a.testLock(pctx, snapshot, n, spec, func(note string) { a.stepNote(base, runID, move, note) })
+			began, release, ok := a.testLock(pctx, snapshot, n, spec, func(note string) { a.stepNote(base, runID, move, note) })
 			if !ok {
 				res = stepResult{ExitCode: exitUnknown, Reason: reasonStopped}
 			} else {
 				pid := 0
 				res = a.proc.Run(pctx, spec, func(p int) {
 					pid = p
+					began(p)
 					a.register(base, snapshot.Workspace, p, stepLabel+key)
 					a.stepStarted(base, runID, move, p)
 				})

@@ -2247,7 +2247,7 @@ func (s *session) endedCallLocked(agentSession, kind, was string, payload json.R
 		}
 		return &endedCall{id: u.ID, dir: s.hookDir}
 	}
-	c := &endedCall{id: u.ID, held: held, dir: s.hookDir, unhooked: s.hookDir == "" || s.hookWhy != "", epoch: s.epoch, cycle: s.cycle && !s.running}
+	c := &endedCall{id: u.ID, held: held, dir: s.hookDir, unhooked: s.hookDir == "" || isSlotDir(s.hookDir) || s.hookWhy != "", epoch: s.epoch, cycle: s.cycle && !s.running}
 	if en := s.toolEntryLocked(agentSession, u.ID); en != nil && u.Status == toolCompleted {
 		c.tool, c.input, c.at = en.toolName, en.Tool["rawInput"], en.At
 	}
