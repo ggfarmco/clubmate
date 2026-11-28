@@ -307,6 +307,7 @@ func (p *agentProc) register(agentSessionID string, s *session) bool {
 	gone := s.deleted || s.rec.closed()
 	if !gone {
 		s.proc = p
+		s.attached = time.Now()
 		s.rec.AgentSessionID = agentSessionID
 		s.rec.Suspended = false
 	}

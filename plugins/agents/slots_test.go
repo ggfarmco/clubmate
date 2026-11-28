@@ -3,6 +3,7 @@ package main_test
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/proc"
 	"clubmate/internal/testutil"
 )
 
@@ -218,24 +220,36 @@ func TestSlotBackgroundCallHoldsUntilTaskEnds(t *testing.T) {
 	testutil.Eventually(t, func() bool { return f.slots(t, workspace).Kinds[0].InUse == 0 }, wait)
 }
 
-func TestSlotsSurviveRestart(t *testing.T) {
+func TestStoredStepHolderKeepsItsSlotAcrossRestart(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	env, _ := slotEnv(t, "CLUBMATE_AGENTS_SLOT_SILENT=1m")
-	f := startEnv(t, env, slotScript(dir))
+	env, _ := slotEnv(t)
+	f := startEnv(t, env, slotScript(t.TempDir()))
 	workspace := f.workspace(t, newRepo(t))
 	f.setSlots(t, workspace, true, testKind(1))
-	one := f.runningSlotSession(t, workspace, "tagone", "One")
-	two, three := f.newSession(t, workspace), f.newSession(t, workspace)
-	require.Equal(t, "granted", f.acquire(t, workspace, one, "tagone-call", "make test", "").State)
-	second := f.acquire(t, workspace, two, "tagtwo-call", "make test", "")
-	third := f.acquire(t, workspace, three, "tagthree-call", "make test", "")
-	require.Equal(t, 2, third.Place)
+	step := exec.Command("sleep", "600")
+	require.NoError(t, step.Start())
+	done := false
+	t.Cleanup(func() {
+		if !done {
+			_ = step.Process.Kill()
+			_ = step.Wait()
+		}
+	})
+	start, err := proc.StartTime(step.Process.Pid)
+	require.NoError(t, err)
+	state, err := json.Marshal(map[string]any{"holders": []map[string]any{{"id": "ss_1:test", "request": "ss_1", "kind": "test", "step": true, "label": "make test", "pid": step.Process.Pid, "pidStart": start, "since": time.Now()}}, "waiters": []any{}})
+	require.NoError(t, err)
 
-	f.restartPlugin(t, workspace)
+	require.NoError(t, f.h.Sup.SetEnabled(t.Context(), "agents", false))
+	require.NoError(t, f.h.KV.Set(t.Context(), "agents", "slots.state", state))
+	require.NoError(t, f.h.Sup.SetEnabled(t.Context(), "agents", true))
+	testutil.Eventually(t, func() bool { return f.run(t, workspace, "agents.slots", map[string]any{}, nil) == nil }, restartWait)
+
+	testutil.Never(t, func() bool { return f.slots(t, workspace).Kinds[0].InUse != 1 }, time.Second)
+	require.NoError(t, step.Process.Kill())
+	_ = step.Wait()
+	done = true
 	testutil.Eventually(t, func() bool { return f.slots(t, workspace).Kinds[0].InUse == 0 }, wait)
-	assert.Equal(t, slotAnswer{State: "wait", Request: third.Request, Kind: "test", Place: 2, Of: 2}, f.acquire(t, workspace, three, "tagthree-call", "make test", third.Request))
-	assert.Equal(t, 1, f.acquire(t, workspace, two, "tagtwo-call", "make test", second.Request).Place)
 }
 
 func TestSlotsOffGrantsWaiters(t *testing.T) {
@@ -360,4 +374,30 @@ func TestSessionShowsSlotWait(t *testing.T) {
 	assert.Equal(t, "waits for test slot · 1 of 1 in use", got.Landing.Line)
 	assert.False(t, got.NeedsYou)
 	assert.Empty(t, got.SlotHold)
+}
+
+func TestSlotWaiterOfAnEarlierAgentIsNotGrantedAfterRestart(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	env, _ := slotEnv(t, "CLUBMATE_AGENTS_SLOT_SILENT=1m")
+	script := slotScript(dir)
+	script["resume"] = true
+	f := startEnv(t, env, script)
+	workspace := f.workspace(t, newRepo(t))
+	f.setSlots(t, workspace, true, testKind(1))
+	one := f.runningSlotSession(t, workspace, "tagone", "One")
+	two := f.runningSlotSession(t, workspace, "tagtwo", "Two")
+	agentID := f.agentID(t, workspace, two)
+	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, agentID, "tagtwo")) > 0 }, wait)
+	require.Equal(t, "granted", f.acquire(t, workspace, one, "tagone-call", "make test", "").State)
+	old := f.acquire(t, workspace, two, "tagtwo-call", "make test", "")
+	require.Equal(t, "wait", old.State)
+
+	f.restartPlugin(t, workspace)
+	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, agentID, cutOffText)) > 0 }, wait)
+	testutil.Never(t, func() bool { return f.slots(t, workspace).Kinds[0].InUse > 0 }, time.Second)
+	assert.Equal(t, "denied", f.acquire(t, workspace, two, "tagtwo-call", "make test", old.Request).State)
+	assert.Empty(t, f.slots(t, workspace).Kinds[0].Waiters)
+	assert.Equal(t, "granted", f.acquire(t, workspace, two, "tagtwo-again", "make test", "").State)
+	assert.Equal(t, "wait", f.acquire(t, workspace, one, "tagone-again", "make test", "sr_neverseen").State)
 }

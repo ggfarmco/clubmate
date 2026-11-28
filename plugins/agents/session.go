@@ -28,6 +28,7 @@ type session struct {
 	loaded       bool
 	unread       bool
 	used         time.Time
+	attached     time.Time
 	deleted      bool
 	changed      func(kind string, save bool)
 	turned       func(api.Turn)

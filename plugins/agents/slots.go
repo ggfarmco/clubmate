@@ -45,6 +45,7 @@ const (
 	slotCPUStep      = 5
 	slotRequestKind  = "sr"
 	slotStepKind     = "ss"
+	slotStaleText    = "[Clubmate slots] this slot request was made before the agent restarted, so it is dropped. Run the command again."
 
 	slotNone    = "none"
 	slotWait    = "wait"
@@ -146,6 +147,7 @@ type slotWaiter struct {
 	Target   string    `json:"target,omitempty"`
 	Since    time.Time `json:"since"`
 	LastPoll time.Time `json:"lastPoll"`
+	Agent    time.Time `json:"agent,omitzero"`
 	Why      string    `json:"why,omitempty"`
 }
 
@@ -161,6 +163,7 @@ type slotBoard struct {
 	st     slotState
 	res    map[string]*regexp.Regexp
 	owned  map[string]bool
+	stale  map[string]bool
 	wake   chan struct{}
 	gen    uint64
 	saveMu sync.Mutex
@@ -367,6 +370,11 @@ func (a *app) restoreSlots(ctx context.Context) {
 	}
 	b := &a.resources
 	b.mu.Lock()
+	b.stale = map[string]bool{}
+	for _, w := range st.Waiters {
+		b.stale[w.ID] = true
+	}
+	st.Waiters = nil
 	b.st = st
 	a.settleSlotsLocked(time.Now())
 	b.touchLocked()
@@ -642,7 +650,17 @@ func (a *app) waiterLive(w slotWaiter) bool {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.proc != nil && !s.rec.closed()
+	return s.proc != nil && !s.rec.closed() && (w.Agent.IsZero() || w.Agent.Equal(s.attached))
+}
+
+func (a *app) attachedAt(id string) time.Time {
+	s := a.session(id)
+	if s == nil {
+		return time.Time{}
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.attached
 }
 
 func (a *app) holderGone(b *slotBoard, h slotHolder) bool {
@@ -660,7 +678,7 @@ func (a *app) holderGone(b *slotBoard, h slotHolder) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	switch {
-	case s.rec.closed() || s.deleted || s.proc == nil:
+	case s.rec.closed() || s.deleted || s.proc == nil || h.Since.Before(s.attached):
 		return true
 	case h.Task != "":
 		return !s.background[h.Task]
@@ -745,6 +763,11 @@ func (a *app) acquire(ctx context.Context, w slotWaiter, kinds []string) slotAns
 			b.mu.Unlock()
 			return slotAnswer{State: slotGranted, Request: w.ID}
 		}
+		if b.stale[w.ID] {
+			delete(b.stale, w.ID)
+			b.mu.Unlock()
+			return slotAnswer{State: slotDenied, Request: w.ID, Text: slotStaleText}
+		}
 		if kinds == nil {
 			kinds = b.match(w.Command)
 		}
@@ -753,7 +776,7 @@ func (a *app) acquire(ctx context.Context, w slotWaiter, kinds []string) slotAns
 			return slotAnswer{State: slotNone}
 		}
 		w.ID = cmp.Or(w.ID, id.New(slotRequestKind))
-		w.Kind, w.Rest, w.Since, w.LastPoll = kinds[0], kinds[1:], now, now
+		w.Kind, w.Rest, w.Since, w.LastPoll, w.Agent = kinds[0], kinds[1:], now, now, a.attachedAt(w.Session)
 		b.st.Waiters = append(b.st.Waiters, w)
 		b.touchLocked()
 		joined = true
@@ -770,6 +793,14 @@ func (a *app) acquire(ctx context.Context, w slotWaiter, kinds []string) slotAns
 		}
 		i := b.waiterIndex(request)
 		if i >= 0 {
+			if old := b.st.Waiters[i]; !old.Agent.IsZero() && !old.Agent.Equal(a.attachedAt(old.Session)) {
+				b.dropRequestLocked(request)
+				b.touchLocked()
+				b.mu.Unlock()
+				a.saveSlots(ctx)
+				a.slotsChanged()
+				return slotAnswer{State: slotDenied, Request: request, Text: slotStaleText}
+			}
 			b.st.Waiters[i].LastPoll = now
 		}
 		changed := b.grantLocked(now)

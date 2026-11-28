@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"clubmate/internal/proc"
 )
 
 const (
@@ -59,7 +61,7 @@ func (a *app) slotCmd() *cobra.Command {
 		Hidden: true,
 		Args:   cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return slotHook(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout(), a.slotAcquire)
+			return slotHook(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout(), a.slotAcquire, agentWatch())
 		},
 	}, &cobra.Command{
 		Use:   "status",
@@ -80,7 +82,22 @@ func (a *app) slotAcquire(ctx context.Context, args map[string]any, out *slotAns
 	return a.call(ctx, "command.run", params, out)
 }
 
-func slotHook(ctx context.Context, stdin io.Reader, stdout io.Writer, call slotCall) error {
+func agentWatch() func() bool {
+	parent := os.Getppid()
+	grand, err := proc.ParentPID(parent)
+	if parent <= 1 || err != nil || grand <= 1 {
+		return func() bool { return true }
+	}
+	return func() bool {
+		if os.Getppid() != parent {
+			return true
+		}
+		now, err := proc.ParentPID(parent)
+		return err != nil || now != grand
+	}
+}
+
+func slotHook(ctx context.Context, stdin io.Reader, stdout io.Writer, call slotCall, gone func() bool) error {
 	raw, err := io.ReadAll(io.LimitReader(stdin, slotHookInMax))
 	if err != nil {
 		return nil
@@ -92,6 +109,9 @@ func slotHook(ctx context.Context, stdin io.Reader, stdout io.Writer, call slotC
 	request := ""
 	failing := time.Time{}
 	for {
+		if gone() {
+			return nil
+		}
 		var ans slotAnswer
 		err := call(ctx, map[string]any{"call": in.ToolUseID, "command": in.ToolInput.Command, "cwd": in.Cwd, "request": request}, &ans)
 		if ctx.Err() != nil {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/proc"
+	"clubmate/pkg/sdui"
 )
 
 type fakeLoad struct {
@@ -102,4 +104,22 @@ func TestSlotPatternsMatchDefaults(t *testing.T) {
 	}
 	assert.Equal(t, "cm-a", simTarget("scripts/sim.sh up cm-a && echo"))
 	assert.Equal(t, "ABC", simTarget("xcrun simctl boot 'ABC'"))
+}
+
+func TestSlotSheetPeopleRowsAreOneLineUnderTheForm(t *testing.T) {
+	a := &app{}
+	a.resources.draft = &slotDraft{orig: kindTest, kind: slotKind{ID: kindTest, Label: "Tests", Max: 1, Count: countProcesses}}
+	v := slotsView{Kinds: []slotKindView{{slotKind: slotKind{ID: kindTest}, Holders: []slotHolderView{{ID: "h", Title: "Run the Go tests of the agents plugin with the race detector", Command: "go test -race ./plugins/agents/..."}}}}}
+
+	sheet, ok := a.slotSheet(v)
+	require.True(t, ok)
+	assert.NotContains(t, sheet.Props, "note")
+	i := slices.IndexFunc(sheet.Children, func(n sdui.Node) bool {
+		return slices.ContainsFunc(n.Children, func(c sdui.Node) bool { return c.ID == actSlotRelease+"/h" })
+	})
+	require.GreaterOrEqual(t, i, 1)
+	row := sheet.Children[i]
+	assert.Equal(t, slotRowGap, row.Props["gap"])
+	assert.Equal(t, 1, row.Children[1].Props["lines"])
+	assert.Equal(t, 1, row.Children[2].Props["lines"])
 }

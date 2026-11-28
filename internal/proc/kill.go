@@ -30,6 +30,17 @@ func StartTime(pid int) (time.Time, error) {
 	return startOf(k), nil
 }
 
+func ParentPID(pid int) (int, error) {
+	k, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
+	if err != nil {
+		return 0, err
+	}
+	if int(k.Proc.P_pid) != pid {
+		return 0, unix.ESRCH
+	}
+	return int(k.Eproc.Ppid), nil
+}
+
 func startOf(k *unix.KinfoProc) time.Time {
 	return time.Unix(int64(k.Proc.P_starttime.Sec), int64(k.Proc.P_starttime.Usec)*1000)
 }
