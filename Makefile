@@ -3,7 +3,7 @@ COMMIT ?= $(shell git rev-parse HEAD)
 FLAVOR ?= dev
 RELAY_URL ?= https://clubmate-push.exe.xyz
 LDFLAGS = -X clubmate/internal/buildinfo.Version=$(VERSION) -X clubmate/internal/buildinfo.Commit=$(COMMIT) -X clubmate/internal/buildinfo.Flavor=$(FLAVOR) -X clubmate/internal/buildinfo.RelayURL=$(RELAY_URL)
-MACOS_MIN = 27.0
+MACOS_MIN = 26.0
 GO_ENV = MACOSX_DEPLOYMENT_TARGET=$(MACOS_MIN) CGO_CFLAGS="-O2 -g -mmacosx-version-min=$(MACOS_MIN)" CGO_LDFLAGS="-O2 -g -mmacosx-version-min=$(MACOS_MIN)"
 GO_STRIP = $(if $(filter release,$(FLAVOR)),-trimpath -ldflags "-s -w $(LDFLAGS)",-ldflags "$(LDFLAGS)")
 GO_BUILD = $(GO_ENV) go build $(GO_STRIP)
@@ -97,7 +97,7 @@ kit-test: protocol-test
 
 nvim-distro:
 	scripts/vendor-tools.sh build/resources
-	scripts/vendor-nvim-distro.sh build/resources
+	MACOSX_DEPLOYMENT_TARGET=$(MACOS_MIN) scripts/vendor-nvim-distro.sh build/resources
 
 nvim-test: nvim-distro
 	CLUBMATE_TEST_RESOURCES=$(CURDIR)/build/resources go test ./nvim-distro/...

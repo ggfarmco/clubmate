@@ -63,7 +63,7 @@ final class VoiceCapture: VoiceAudioSource {
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0, let converter = PCMConverter(from: format, chunk: Self.chunkBytes) else { throw Failure.noInput }
-        try input.installAudioTap(onBus: 0, bufferSize: 4096, format: format, tapProvider: Self.tap(converter, onChunk))
+        input.installTap(onBus: 0, bufferSize: 4096, format: format, block: Self.tap(converter, onChunk))
         engine.prepare()
         do {
             try engine.start()
@@ -96,9 +96,9 @@ final class VoiceCapture: VoiceAudioSource {
         onChunk = nil
     }
 
-    private nonisolated static func tap(_ converter: PCMConverter, _ onChunk: @escaping @MainActor (Data) -> Void) -> @Sendable (AVReadOnlyAudioPCMBuffer, AVAudioTime) -> Void {
+    private nonisolated static func tap(_ converter: PCMConverter, _ onChunk: @escaping @MainActor (Data) -> Void) -> AVAudioNodeTapBlock {
         { buffer, _ in
-            for chunk in converter.convert(AVAudioPCMBuffer(copying: buffer)) {
+            for chunk in converter.convert(buffer) {
                 DispatchQueue.main.async { MainActor.assumeIsolated { onChunk(chunk) } }
             }
         }

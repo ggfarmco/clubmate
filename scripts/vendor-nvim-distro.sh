@@ -29,6 +29,7 @@ mkdir -p "$SRC"
 [[ -f "$ROOT/build/go.mod" ]] || echo "module clubmate.build" > "$ROOT/build/go.mod"
 
 PARSERS_LUA="$ROOT/scripts/nvim-distro/parsers.lua"
+MACOS_MIN="${MACOSX_DEPLOYMENT_TARGET:?MACOSX_DEPLOYMENT_TARGET must name the minimum macOS}"
 PARSERS_KEY="$({
   awk '$1 == "parser" || ($1 == "plugin" && $2 == "nvim-treesitter")' "$LOCK"
   "$TREE_SITTER" --version
@@ -37,6 +38,7 @@ PARSERS_KEY="$({
   shasum -a 256 "$PARSERS_LUA" | awk '{print $1}'
   uname -m
   /usr/bin/cc --version | head -n 1
+  echo "$MACOS_MIN"
 } | shasum -a 256 | cut -c 1-16)"
 PARSERS_CACHE="$CACHE/parsers-$PARSERS_KEY"
 
@@ -133,7 +135,7 @@ if [[ ${#parsers[@]} -gt 0 ]]; then
     mkdir -p "$STAGE/site"
     /usr/bin/rsync -a "$PARSERS_CACHE/" "$STAGE/site/"
   else
-    env -i HOME="$TMP" XDG_CACHE_HOME="$TMP/cache" PATH="$(dirname "$TREE_SITTER"):/usr/bin:/bin" TREE_SITTER_JS_RUNTIME=native \
+    env -i HOME="$TMP" XDG_CACHE_HOME="$TMP/cache" MACOSX_DEPLOYMENT_TARGET="$MACOS_MIN" PATH="$(dirname "$TREE_SITTER"):/usr/bin:/bin" TREE_SITTER_JS_RUNTIME=native \
       "$NVIM" --clean --headless -i NONE -l "$PARSERS_LUA" \
       build "$STAGE/plugins/nvim-treesitter" "$STAGE/site" "$SRC"
     for query in "$STAGE/site/queries"/*; do

@@ -92,7 +92,7 @@ cat >"$OUT" <<XML
       <pubDate>$PUB_DATE</pubDate>
       <sparkle:version>$BUILD</sparkle:version>
       <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
       <clubmate:sessionProtocol>$SESSION_PROTOCOL</clubmate:sessionProtocol>
       <description><![CDATA[<ul>
 $NOTES

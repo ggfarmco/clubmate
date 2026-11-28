@@ -9,7 +9,7 @@
 your side threads and your processes, on every project and in Home.
 
 **[Download for macOS](https://github.com/ggfarmco/clubmate/releases/latest)**
-· macOS 27 or later · signed and notarized · updates itself
+· macOS 26 or later · signed and notarized · updates itself
 
 ## What's in the workshop
 
@@ -53,7 +53,7 @@ your side threads and your processes, on every project and in Home.
 
 ## Requirements
 
-- macOS 27 or later
+- macOS 26 or later
 - Claude Code: agents run on it today, so you need a Claude Code
   login and Node 22 or later
 - git, for worktrees, checkpoints and the wiki

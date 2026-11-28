@@ -6,7 +6,7 @@ cd "$ROOT"
 
 VERSION="0.0.0-test"
 OLD_VERSION="0.0.0-old"
-MACOS_MIN="27.0"
+MACOS_MIN="26.0"
 BUILD="$(git rev-list --count HEAD)"
 OLD_BUILD="$((BUILD - 1))"
 APP="dist/Clubmate.app"
