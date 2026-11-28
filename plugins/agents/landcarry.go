@@ -93,6 +93,36 @@ func (a *app) carryTree(ctx context.Context, workspaceID string, g gateConfig, a
 	return landGateResult{State: gateApproved, Summary: reviewedSummary(v, true)}, true, nil
 }
 
+func (a *app) carryUserYes(ctx context.Context, workspaceID string, g gateConfig, args landGateArgs) (landGateResult, bool, error) {
+	lander := a.session(args.Session)
+	if lander == nil {
+		return landGateResult{}, false, nil
+	}
+	a.gateMu.Lock()
+	st := lander.landReview(args.Into, args.Source)
+	a.gateMu.Unlock()
+	old0, tree0, ok := strings.Cut(st.Answered, "-")
+	if !ok || old0 == args.Old || st.Request != "" {
+		return landGateResult{}, false, nil
+	}
+	yes, ok := a.verdictOf(ctx, g.ID, old0, tree0)
+	if !ok || yes.Outcome != gateApproved || yes.By != landgate.ByUser {
+		return landGateResult{}, false, nil
+	}
+	_, same, err := carryMove(ctx, args.Target, old0, tree0, args.Old, args.Tree)
+	logError("carry the user's yes", err)
+	if !same {
+		return landGateResult{}, false, nil
+	}
+	v := landgate.Verdict{Gate: g.ID, Old: args.Old, OldTree: oldTree(ctx, args.Target, args.Old), Tree: args.Tree, Outcome: gateApproved, By: landgate.ByUser, At: time.Now().UTC()}
+	if err := a.writeVerdict(ctx, args.Target, v); err != nil {
+		return landGateResult{}, false, err
+	}
+	a.logGateVerdict(ctx, gateVerdict{Gate: g.ID, Workspace: workspaceID, Outcome: gateApproved, By: landgate.ByUser, Lander: args.Session, Title: a.titleOf(args.Session), Into: args.Into, Source: args.Source, Round: st.Rounds + 1, Old: args.Old, OldTree: v.OldTree, Tree: args.Tree, Reason: reasonBaseMoved, CarriedFrom: old0, At: v.At})
+	a.gatesChanged()
+	return landGateResult{State: gateApproved}, true, nil
+}
+
 func reviewedApproval(v landgate.Verdict) bool {
 	return v.Outcome == gateApproved && (v.By == landgate.ByReviewer || v.By == landgate.ByCheck || v.By == landgate.ByCarried)
 }

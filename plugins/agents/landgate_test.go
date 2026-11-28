@@ -371,19 +371,38 @@ func TestTreeVerdictOfAnotherGateIsNotCarried(t *testing.T) {
 	require.ErrorContains(t, g.land(t), "review pending")
 }
 
-func TestLandAnywayIsNotCarried(t *testing.T) {
+func (g gateSetup) mainCommit(t *testing.T, file, content string) {
+	t.Helper()
+	write(t, filepath.Join(g.repo, file), content)
+	git(t, g.repo, "add", file)
+	git(t, g.repo, "commit", "-qm", "main moved on "+file)
+}
+
+func TestLandAnywayHoldsAcrossDisjointMoves(t *testing.T) {
 	t.Parallel()
 	g := startGate(t)
-	require.NoError(t, g.f.run(t, g.workspace, "agents.gate-update", map[string]any{"id": g.gate, "rounds": 1}, nil))
-	require.ErrorContains(t, g.land(t), "review pending")
-	g.verdict(t, "changes", "b.go:1 — breaks")
-	require.ErrorContains(t, g.land(t), "waits for the user")
-	g.answer(t, g.f.session(t, g.workspace, g.lander).Pending[0], "merge")
-	git(t, g.repo, "commit", "-q", "--allow-empty", "-m", "empty")
+	req, _ := g.cardAtCap(t)
+	g.mainCommit(t, "c.go", "three\n")
+	g.answer(t, req, "merge")
+	g.f.restartAgents(t, g.workspace)
+	g.mainCommit(t, "e.go", "four\n")
+
+	require.NoError(t, g.land(t))
+
+	assert.Equal(t, [2]string{"user", "base-moved"}, [2]string{g.history(t)[0].By, g.history(t)[0].Reason})
+}
+
+func TestLandAnywayIsNotKeptWhenMainTouchesTheLandingsFiles(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	req, _ := g.cardAtCap(t)
+	g.answer(t, req, "merge")
+	g.mainCommit(t, "b.go", "two\n")
 
 	require.ErrorContains(t, g.land(t), "waits for the user")
 
 	assert.NotEqual(t, "carried", g.history(t)[0].By)
+	assert.Contains(t, g.cardCaption(t), "asked again")
 }
 
 func TestChangesRoundsCapWaitsForUser(t *testing.T) {

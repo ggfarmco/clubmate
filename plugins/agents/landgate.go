@@ -1001,6 +1001,9 @@ func (a *app) landHead(ctx context.Context, cmd pluginsdk.CommandRun, args landG
 		if res, ok, err := a.carryTree(ctx, cmd.WorkspaceID, *g, args); ok || err != nil {
 			return res, err
 		}
+		if res, ok, err := a.carryUserYes(ctx, cmd.WorkspaceID, *g, args); ok || err != nil {
+			return res, err
+		}
 	}
 	if decided {
 		switch v.Outcome {
