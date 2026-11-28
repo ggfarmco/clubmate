@@ -17,11 +17,6 @@ const (
 	carryMoreFormat = "%s and %d more"
 )
 
-func carryable(ctx context.Context, repo, old0, tree0, old1, tree1 string) (bool, error) {
-	_, ok, err := carryMove(ctx, repo, old0, tree0, old1, tree1)
-	return ok, err
-}
-
 func carryMove(ctx context.Context, repo, old0, tree0, old1, tree1 string) ([]string, bool, error) {
 	moved, err := changedNames(ctx, repo, old0, old1)
 	if err != nil {

@@ -1232,7 +1232,7 @@
         "title": "Skip a landing queue entry",
         "hidden": true,
         "remote": true,
-        "description": "Move an entry of a landing queue one place back, behind the next entry; its skips count goes up. A new head is prompted to call git_land. Refused when it puts a branch entry before an index entry, and for a dirty entry. Only the user; an agent gets an error.",
+        "description": "Move an entry of a landing queue one place back, behind the next entry; its skips count goes up. Skipping the last entry changes nothing. A new head is prompted to call git_land. Refused when it puts a branch entry before an index entry, and for a dirty entry. Only the user; an agent gets an error.",
         "args": {
           "properties": {
             "queue": {"type": "string", "description": "Queue id (agents.land-queue)."},

@@ -343,9 +343,32 @@ func TestHeadUnderReviewIsNotPassed(t *testing.T) {
 	require.ErrorContains(t, q.land(t, a), "review pending")
 
 	require.ErrorContains(t, q.land(t, b), "queued")
-
 	testutil.Never(t, func() bool { return !slices.Equal(q.order(t), []string{a.id, b.id}) }, 3*stuck)
+	q.approve(t, a)
+
+	q.f.restartPlugin(t, q.workspace)
+
+	testutil.Never(t, func() bool { return !slices.Equal(q.order(t), []string{a.id, b.id}) }, stuck/2)
 	assert.Equal(t, "ready", q.queue(t).Entries[1].State)
+}
+
+func TestQueueIntoRemovedBranchDrains(t *testing.T) {
+	t.Parallel()
+	q := startQueue(t, true, "CLUBMATE_AGENTS_QUEUE_LOOP=50ms")
+	a := q.lander(t, "A", "x.go")
+	rel := filepath.Join(q.repo, ".worktrees", "rel")
+	git(t, q.repo, "worktree", "add", "-q", "-b", "rel", rel, "main")
+	require.ErrorContains(t, q.f.runAs(t, q.workspace, a.id, "git.land", map[string]any{"path": a.worktree, "into": "rel", "message": "feat: a"}, nil), "review pending")
+	require.Equal(t, "rel", q.queue(t).Into)
+
+	git(t, q.repo, "worktree", "remove", "--force", rel)
+	git(t, q.repo, "branch", "-D", "rel")
+
+	testutil.Eventually(t, func() bool { return q.queue(t).ID == "" }, wait)
+	agent := q.f.session(t, q.workspace, a.id).AgentSessionID
+	testutil.Eventually(t, func() bool {
+		return len(q.f.promptsTo(t, agent, "into rel was dropped because its target is gone")) == 1
+	}, wait)
 }
 
 func TestEntryWithNothingToLandLeaves(t *testing.T) {

@@ -35,7 +35,7 @@ func carryCase(t *testing.T, moved, landed string) bool {
 	tree0 := carryGit(t, repo, "rev-parse", carryCommit(t, repo, old0, "a.go", "land\n")+"^{tree}")
 	old1 := carryCommit(t, repo, old0, moved, "moved\n")
 	tree1 := carryGit(t, repo, "rev-parse", carryCommit(t, repo, old1, "a.go", landed)+"^{tree}")
-	ok, err := carryable(context.Background(), repo, old0, tree0, old1, tree1)
+	_, ok, err := carryMove(context.Background(), repo, old0, tree0, old1, tree1)
 	require.NoError(t, err)
 	return ok
 }
@@ -53,4 +53,17 @@ func TestNotCarryableOverlap(t *testing.T) {
 func TestNotCarryableChangedPatch(t *testing.T) {
 	t.Parallel()
 	assert.False(t, carryCase(t, "b.go", "other\n"))
+}
+
+func TestAskForRemovedEntryDoesNotApprove(t *testing.T) {
+	t.Parallel()
+	repo := unitRepo(t)
+	a := landingApp(t)
+	a.sessions = map[string]*session{"agt_1": newSession(record{ID: "agt_1", Finish: finishAsk}, nil, false, func(string, bool) {})}
+	args := landGateArgs{Session: "agt_1", Target: repo, Into: "main", Old: carryGit(t, repo, "rev-parse", "main")}
+
+	res, err := a.askBeforeLand(t.Context(), "ws", args, landGateResult{State: gateApproved})
+
+	require.NoError(t, err)
+	assert.Equal(t, queueStateGit, res.State)
 }

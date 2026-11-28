@@ -74,7 +74,9 @@ func (a *app) askBeforeLand(ctx context.Context, workspaceID string, args landGa
 		return nil
 	})
 	switch {
-	case errors.Is(err, errQueueUnknown) || yes:
+	case errors.Is(err, errQueueUnknown):
+		return landGateResult{State: queueStateGit, Text: fmt.Sprintf(queueLeftFormat, args.Into)}, nil
+	case yes:
 		return res, nil
 	case err != nil:
 		return landGateResult{}, err

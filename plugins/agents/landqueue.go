@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"clubmate/pkg/id"
@@ -53,6 +54,8 @@ const (
 	queueIndexFormat   = "another session's change is staged in %s; wait for it to land, then stage yours"
 	queueDirtyFormat   = "[Clubmate landing queue] Your uncommitted edits in %s (%s) overlap the queued landing of \"%s\" (%s) into %s, which waits for them. Stage them and call git_land with mode index to land them first, or drop them."
 	queueRemovedFormat = "[Clubmate landing queue] The user removed the landing of %s into %s from the queue. Don't call git_land for it again unless the user asks."
+	queueGoneFormat    = "[Clubmate landing queue] The landing queue into %s was dropped because its target is gone; your landing is not queued any more."
+	queueLeftFormat    = "queued: your entry is no longer in the landing queue into %s, so nothing was committed. If the user removed it, don't call git_land again unless the user asks; else call git_land again to take a place."
 	queueStaged        = "staged"
 	queueEditsIn       = "edits in %s"
 	queueWhyHead       = "waits for uncommitted edits in %s"
@@ -152,6 +155,15 @@ type landQueues struct {
 	active map[string]time.Time
 	ahead  map[string]bool
 	shown  bool
+	live   atomic.Bool
+}
+
+func (l *landQueues) markLocked() {
+	live := false
+	for _, q := range l.byID {
+		live = live || len(q.Entries) > 0
+	}
+	l.live.Store(live)
 }
 
 type queueLock struct {
@@ -237,27 +249,6 @@ func queueID(common, into string) string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
-func (a *app) queueOf(_ context.Context, common, into string) (*landQueue, bool) {
-	a.queues.mu.Lock()
-	defer a.queues.mu.Unlock()
-	q, ok := a.queues.byID[queueID(common, into)]
-	if !ok || len(q.Entries) == 0 {
-		return nil, false
-	}
-	c := q.clone()
-	return &c, true
-}
-
-func (a *app) queuesIn(common string) []landQueue {
-	var out []landQueue
-	for _, q := range a.queueList() {
-		if q.Common == common {
-			out = append(out, q)
-		}
-	}
-	return out
-}
-
 func (a *app) queueList() []landQueue {
 	a.queues.mu.Lock()
 	var out []landQueue
@@ -297,6 +288,7 @@ func (a *app) restoreQueues(ctx context.Context) error {
 		return err
 	}
 	byID := map[string]*landQueue{}
+	active := map[string]time.Time{}
 	now := time.Now().UTC()
 	for _, key := range keys {
 		var q landQueue
@@ -310,10 +302,14 @@ func (a *app) restoreQueues(ctx context.Context) error {
 		if !q.empty() {
 			byID[q.ID] = &q
 		}
+		if h := q.head(); h >= 0 {
+			active[q.Entries[h].ID] = now
+		}
 	}
 	shown := a.aheadEnabled(ctx)
 	a.queues.mu.Lock()
-	a.queues.byID, a.queues.shown = byID, shown
+	a.queues.byID, a.queues.shown, a.queues.active = byID, shown, active
+	a.queues.markLocked()
 	a.queues.mu.Unlock()
 	return nil
 }
@@ -388,6 +384,7 @@ func (a *app) mutateLocked(ctx context.Context, qid string, fresh *landQueue, ca
 		stored := q.clone()
 		a.queues.byID[qid] = &stored
 	}
+	a.queues.markLocked()
 	a.queues.mu.Unlock()
 	if !changed {
 		return q, tells, nil, false, nil
@@ -516,7 +513,19 @@ func entryWhat(e queueEntry) string {
 func (a *app) settle(ctx context.Context, q *landQueue, now time.Time, caller string) []queueTell {
 	tip, err := revParseIn(ctx, q.Target, headsPrefix+q.Into)
 	if err != nil {
-		return nil
+		if _, serr := os.Stat(q.Target); !errors.Is(serr, os.ErrNotExist) && !refMissing(ctx, err) {
+			return nil
+		}
+		var tells []queueTell
+		told := map[string]bool{}
+		for _, e := range q.Entries {
+			if e.Session != "" && e.Mode != queueModeDirty && !told[e.Session] {
+				told[e.Session] = true
+				tells = append(tells, queueTell{session: e.Session, text: fmt.Sprintf(queueGoneFormat, q.Into)})
+			}
+		}
+		q.Entries, q.Done = nil, nil
+		return tells
 	}
 	if tip != q.Tip {
 		q.landedTo(ctx, tip, now)
@@ -647,13 +656,17 @@ func (a *app) dirty(ctx context.Context, q *landQueue) []queueTell {
 			}
 		}
 	}
+	var overlap []string
+	for _, f := range changed {
+		if !staged[f] && slices.Contains(head.Files, f) {
+			overlap = append(overlap, f)
+		}
+	}
+	ownerOf := a.dirtyOwners(q.Target, overlap)
 	byOwner := map[string][]string{}
 	var owners []string
-	for _, f := range changed {
-		if staged[f] || !slices.Contains(head.Files, f) {
-			continue
-		}
-		owner := a.dirtyOwner(q.Target, f)
+	for _, f := range overlap {
+		owner := ownerOf[f]
 		if _, ok := byOwner[owner]; !ok {
 			owners = append(owners, owner)
 		}
@@ -699,43 +712,55 @@ func dirtyFiles(ctx context.Context, worktree string) ([]string, bool) {
 	return files, true
 }
 
-func (a *app) dirtyOwner(worktree, file string) string {
+func (a *app) dirtyOwners(worktree string, files []string) map[string]string {
+	owners := map[string]string{}
+	if len(files) == 0 {
+		return owners
+	}
 	dir := gitrepo.Canonical(worktree)
-	path := filepath.Join(dir, filepath.FromSlash(file))
-	var best *session
+	paths := make([]string, len(files))
+	for i, f := range files {
+		paths[i] = filepath.Join(dir, filepath.FromSlash(f))
+	}
+	newest := map[string]time.Time{}
 	for _, s := range a.allSessions() {
 		rec := s.snapshot()
 		if rec.closed() || rec.GateFor != nil || rec.Worktree == "" || gitrepo.Canonical(rec.Worktree) != dir {
 			continue
 		}
-		if s.editedPath(path) && (best == nil || rec.UpdatedAt.After(best.snapshot().UpdatedAt)) {
-			best = s
+		edited := s.editedSet()
+		for i, f := range files {
+			if edited[paths[i]] && (owners[f] == "" || rec.UpdatedAt.After(newest[f])) {
+				owners[f], newest[f] = rec.ID, rec.UpdatedAt
+			}
 		}
 	}
-	if best == nil {
-		return ""
-	}
-	return best.snapshot().ID
+	return owners
 }
 
-func (s *session) editedPath(path string) bool {
+func (s *session) editedSet() map[string]bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadLocked()
-	match := func(entries []*entry) bool {
-		return slices.ContainsFunc(entries, func(en *entry) bool {
-			return en.Tool != nil && slices.ContainsFunc(editedPaths(en.Tool), func(p string) bool { return gitrepo.Canonical(p) == path })
-		})
-	}
-	if match(s.entries) {
-		return true
-	}
-	for _, sub := range s.subagents {
-		if match(sub.entries) {
-			return true
+	seen, set := map[string]bool{}, map[string]bool{}
+	add := func(entries []*entry) {
+		for _, en := range entries {
+			if en.Tool == nil {
+				continue
+			}
+			for _, p := range editedPaths(en.Tool) {
+				if !seen[p] {
+					seen[p] = true
+					set[gitrepo.Canonical(p)] = true
+				}
+			}
 		}
 	}
-	return false
+	add(s.entries)
+	for _, sub := range s.subagents {
+		add(sub.entries)
+	}
+	return set
 }
 
 func landFiles(ctx context.Context, dir, old, tree string) []string {

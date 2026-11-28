@@ -34,7 +34,7 @@ func (a *app) queuedRepo(primary string) bool {
 }
 
 func (a *app) queuedAny() bool {
-	return len(a.queueList()) > 0
+	return a.queues.live.Load()
 }
 
 func (a *app) queuedRepos() []string {
@@ -48,7 +48,7 @@ func (a *app) queuedRepos() []string {
 }
 
 func (s *session) editedCallLocked(agentSession, kind string, payload json.RawMessage) *editedCall {
-	if agentSession != "" || s.hookDir == "" || isSlotDir(s.hookDir) || !hookable(s.rec) || kind != acp.UpdateToolCall && kind != acp.UpdateToolCallUpdate {
+	if s.queuedLand != nil && !s.queuedLand() || agentSession != "" || s.hookDir == "" || isSlotDir(s.hookDir) || !hookable(s.rec) || kind != acp.UpdateToolCall && kind != acp.UpdateToolCallUpdate {
 		return nil
 	}
 	var u struct {

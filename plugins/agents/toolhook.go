@@ -91,6 +91,7 @@ type hookState struct {
 	ran        func(endedCall)
 	slotted    func(slotCall)
 	queueEdit  func(editedCall)
+	queuedLand func() bool
 	warnMu     sync.Mutex
 	toolGated  func() bool
 	blankInput sync.Once

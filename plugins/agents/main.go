@@ -481,6 +481,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 	s.ran = func(c endedCall) { a.judgeCall(s, c) }
 	s.slotted = func(c slotCall) { a.slotCallEnded(rec.ID, c) }
 	s.queueEdit = func(c editedCall) { a.warnEdit(s, c) }
+	s.queuedLand = a.queues.live.Load
 	var tree treeKeyCache
 	s.moved = func() { a.overlapCache.move(tree.of(s.snapshot().Worktree)) }
 	s.toolGated = func() bool {
