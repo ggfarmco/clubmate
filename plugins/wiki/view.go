@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/plural"
 )
 
 const (
@@ -126,7 +127,7 @@ func sidebarHead(d sidebarData) sdui.Node {
 	add := sdui.WithIconOnly(sdui.WithVariant(newButton(), sdui.VariantGhost))
 	head := []sdui.Node{title}
 	if n := pageCount(d.Projects); n > 0 {
-		head = append(head, sdui.MutedText(plural(n, "page")))
+		head = append(head, sdui.MutedText(plural.N(n, "page")))
 	}
 	return sdui.HStack(append(head, sdui.Spacer(), add)...)
 }
@@ -141,13 +142,6 @@ func pageCount(projects []projectView) int {
 		}
 	}
 	return n
-}
-
-func plural(n int, word string) string {
-	if n == 1 {
-		return "1 " + word
-	}
-	return strconv.Itoa(n) + " " + word + "s"
 }
 
 func pageItems(d sidebarData) []sdui.TreeItem {
@@ -403,9 +397,9 @@ func historyMeta(changes []Change, total int) string {
 		return ""
 	}
 	if total > len(changes) {
-		return "latest " + strconv.Itoa(len(changes)) + " of " + plural(total, "change")
+		return "latest " + strconv.Itoa(len(changes)) + " of " + plural.N(total, "change")
 	}
-	return plural(len(changes), "change") + " since " + changes[len(changes)-1].At.Local().Format(dayLayout)
+	return plural.N(len(changes), "change") + " since " + changes[len(changes)-1].At.Local().Format(dayLayout)
 }
 
 func historyBody(d mainData) sdui.Node {

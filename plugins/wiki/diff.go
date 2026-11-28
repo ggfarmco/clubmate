@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"clubmate/plugins/internal/plural"
 )
 
 const maxDiffLines = 2000
@@ -75,7 +77,7 @@ func diffHTML(c Change, when, diff string, after []string) string {
 		b.WriteString(`<p class="diff-at">No text changes</p>`)
 	}
 	if hidden > 0 {
-		b.WriteString(`<p class="diff-at">` + plural(hidden, "more line") + ` not shown</p>`)
+		b.WriteString(`<p class="diff-at">` + plural.N(hidden, "more line") + ` not shown</p>`)
 	}
 	return b.String()
 }

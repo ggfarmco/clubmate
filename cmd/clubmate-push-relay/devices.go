@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -125,19 +124,7 @@ func (b *bindings) save() error {
 	if err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(b.path), filepath.Base(b.path)+".*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(raw); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), b.path)
+	return replaceFile(b.path, raw)
 }
 
 func (r *relay) putDevices(w http.ResponseWriter, req *http.Request) {

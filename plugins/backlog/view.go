@@ -14,6 +14,7 @@ import (
 	"clubmate/pkg/docrender"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/automation"
 	"clubmate/plugins/internal/plural"
 )
 
@@ -333,7 +334,7 @@ func taskMenu(t Task) []sdui.MenuEntry {
 	}
 	for _, p := range priorities {
 		if p != t.Priority {
-			menu = append(menu, sdui.MenuEntry{Action: actionFor("priority", p), Label: "Priority " + titleCase(p)})
+			menu = append(menu, sdui.MenuEntry{Action: actionFor("priority", p), Label: "Priority " + automation.Capitalize(p)})
 		}
 	}
 	return append(menu, sdui.MenuEntry{Action: "delete", Label: "Delete", Confirm: deleteConfirm(t.ID)})
@@ -907,14 +908,7 @@ func clip(s string, n int) string {
 func options(values []string, labels map[string]string) []sdui.Option {
 	out := make([]sdui.Option, 0, len(values))
 	for _, v := range values {
-		out = append(out, sdui.Option{Value: v, Label: cmp.Or(labels[v], titleCase(v))})
+		out = append(out, sdui.Option{Value: v, Label: cmp.Or(labels[v], automation.Capitalize(v))})
 	}
 	return out
-}
-
-func titleCase(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }

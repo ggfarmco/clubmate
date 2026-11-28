@@ -85,7 +85,9 @@ func (g *groups) reap(markers []string) {
 	defer g.mu.Unlock()
 	var list []groupRecord
 	if raw, err := os.ReadFile(g.path); err == nil {
-		_ = json.Unmarshal(raw, &list)
+		if err := json.Unmarshal(raw, &list); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: read agent groups:", err)
+		}
 	}
 	var wg sync.WaitGroup
 	for _, r := range list {

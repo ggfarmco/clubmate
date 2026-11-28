@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"clubmate/plugins/internal/plural"
 )
 
 const (
@@ -146,7 +148,7 @@ func margin(d marginData) string {
 	if d.Page.Stale && d.Page.StaleSource != "" {
 		more := ""
 		if d.Page.StaleMore > 0 {
-			more = " and " + plural(d.Page.StaleMore, "more path")
+			more = " and " + plural.N(d.Page.StaleMore, "more path")
 		}
 		sections = append(sections, `<div class="wm-sec wm-stale"><div class="wm-cap wm-warn">`+warnIcon+`Stale</div><div class="wm-text"><code>`+html.EscapeString(d.Page.StaleSource)+`</code>`+more+` changed `+staleWhen(d.Page.StaleAt, d.Now)+`, after this page.</div></div>`)
 	}
@@ -157,11 +159,11 @@ func margin(d marginData) string {
 			b.WriteString(`<div class="wm-row" title="` + html.EscapeString(c.Summary+" · "+c.By+" · "+c.At.Local().Format(timeLayout)) + `"><span class="wm-label">` + html.EscapeString(c.Summary) + `</span><span class="wm-detail">` + shortTime(c.At, d.Now) + `</span></div>`)
 		}
 		if d.Total > marginChanges {
-			b.WriteString(`<a class="wm-row wm-all" href="` + html.EscapeString(docHref(d.Path, historyAnchor)) + `"><span class="wm-label">All ` + plural(d.Total, "change") + `</span><kbd>⌘Y</kbd></a>`)
+			b.WriteString(`<a class="wm-row wm-all" href="` + html.EscapeString(docHref(d.Path, historyAnchor)) + `"><span class="wm-label">All ` + plural.N(d.Total, "change") + `</span><kbd>⌘Y</kbd></a>`)
 		}
 		b.WriteString(`</div>`)
 		sections = append(sections, b.String())
-		folded = append(folded, plural(d.Total, "change"))
+		folded = append(folded, plural.N(d.Total, "change"))
 	}
 	if d.Page.Stale {
 		folded = append(folded, staleBadge)
@@ -178,7 +180,7 @@ func margin(d marginData) string {
 		}
 		b.WriteString(`</div>`)
 		sections = append(sections, b.String())
-		folded = append(folded, plural(len(d.Linked), "link"))
+		folded = append(folded, plural.N(len(d.Linked), "link"))
 	}
 	if len(sections) == 0 {
 		return ""

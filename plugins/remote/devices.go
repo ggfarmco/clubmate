@@ -150,7 +150,9 @@ func (s *deviceStore) authenticate(ctx context.Context, token string) (device, b
 	}
 	s.mu.Unlock()
 	if persist {
-		_ = s.persist(ctx, d.ID)
+		if err := s.persist(ctx, d.ID); err != nil {
+			logEvent("save device", "device", logID(d.ID), "err", err.Error())
+		}
 	}
 	return d, true
 }
