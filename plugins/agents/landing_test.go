@@ -808,8 +808,10 @@ func queuedLandPrompt(t *testing.T, f *fixture) *landing {
 	l := f.landing(t, "ask", "pause", 1)
 	l.report(t, 0, "ready")
 	ready := l.waitState(t, 0, "ready")
-	f.prompt(t, l.workspace, l.kids[0].Session, "hold")
-	f.waitStatus(t, l.workspace, l.kids[0].Session, "running")
+	kid := l.kids[0].Session
+	f.prompt(t, l.workspace, kid, "hold")
+	agent := f.sessionOf(t, kid).AgentSessionID
+	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, agent, "hold")) > 0 }, wait)
 	require.NoError(t, f.run(t, l.workspace, "agents.land-answer", map[string]any{"request": ready.Request, "action": "merge"}, nil))
 	return l
 }

@@ -317,8 +317,13 @@ func TestQueuedTopLevelSessionStaysOpenUntilItLeavesTheQueue(t *testing.T) {
 
 func TestSilentHeadIsPassedAfterStuckTime(t *testing.T) {
 	t.Parallel()
-	q := startQueue(t, false, "CLUBMATE_AGENTS_QUEUE_LOOP=50ms", "CLUBMATE_AGENTS_QUEUE_STUCK="+testutil.Timeout(time.Second).String())
+	hold := filepath.Join(t.TempDir(), "hold")
+	q := startQueueWith(t, false, func(string) []map[string]any {
+		return []map[string]any{{"match": "hold", "wait": hold}}
+	}, "CLUBMATE_AGENTS_QUEUE_LOOP=50ms", "CLUBMATE_AGENTS_QUEUE_STUCK="+testutil.Timeout(time.Second).String())
 	h, a, b := q.lander(t, "H", "h.go"), q.lander(t, "A", "x.go"), q.lander(t, "B", "y.go")
+	q.f.prompt(t, q.workspace, h.id, "hold")
+	q.f.waitStatus(t, q.workspace, h.id, "running")
 	q.stage(t, "c.go")
 	require.ErrorContains(t, q.land(t, h), "staged changes")
 	require.ErrorContains(t, q.land(t, a), "queued")
