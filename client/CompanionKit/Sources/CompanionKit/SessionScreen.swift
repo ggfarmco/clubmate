@@ -81,6 +81,12 @@ extension AgentSession {
         return parentSession == nil ? worktreeName : "subagent"
     }
 
+    public func slotHeaderLine(whole: Bool, now: Date) -> String? {
+        guard !state.needsYou, let landing, let segments = landing.segments, !segments.isEmpty else { return nil }
+        let age = landing.sinceDate.map { ShortAge.since($0, now: now) }
+        return ((whole ? segments : Array(segments.prefix(1))) + [age].compactMap { $0 }).joined(separator: " · ")
+    }
+
     public var composerPlaceholder: String {
         switch state {
         case .askingYou: "Answer \(agentName)…"

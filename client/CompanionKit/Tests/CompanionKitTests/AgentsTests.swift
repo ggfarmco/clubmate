@@ -360,8 +360,11 @@ final class AgentsTests: XCTestCase {
         let session = try JSONDecoder.clubmate.decode(AgentSession.self, from: Data(json.utf8))
         XCTAssertEqual(session.glyph, .slotWait)
         XCTAssertTrue(session.slotWaits)
-        let line = session.stateLine(now: try XCTUnwrap(Date.parseRFC3339("2026-11-28T10:03:00Z")))
+        let now = try XCTUnwrap(Date.parseRFC3339("2026-11-28T10:03:00Z"))
+        let line = session.stateLine(now: now)
         XCTAssertEqual([line.text, line.age], ["Waits for test slot · next in line", "3 min"])
+        XCTAssertEqual(session.slotHeaderLine(whole: false, now: now), "Waits for test slot · 3 min")
+        XCTAssertEqual(session.slotHeaderLine(whole: true, now: now), "Waits for test slot · next in line · 3 min")
     }
 
     func testUngatedSessionReadsAPlainLineAndKeepsItsHeaderBadge() async throws {

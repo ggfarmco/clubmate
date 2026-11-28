@@ -1477,16 +1477,15 @@ struct SessionHeader: View {
     }
 
     static func subtitle(_ session: AgentSession, mac: MacTag?, mode: Bool = false, now: Date) -> Text {
-        if !session.state.needsYou, let landing = session.landing, let segments = landing.segments, !segments.isEmpty {
-            let shown = (mode ? segments : Array(segments.prefix(1))) + [landing.sinceDate.map { ShortAge.since($0, now: now) }].compactMap { $0 }
-            return Text(shown.joined(separator: " · ")).foregroundStyle(Color.captionInk)
-                + (mac != nil ? Text(" · ") + mac.lead("") : Text("")).foregroundStyle(Color.captionInk)
+        let detail = [session.headerDetail, (mode ? session.shareDetail : session.shareLabel) ?? "", mode ? session.modeLabel ?? "" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
+        if let wait = session.slotHeaderLine(whole: mode, now: now) {
+            return Text(wait).foregroundStyle(Color.captionInk)
+                + (mac != nil || !detail.isEmpty ? Text(" · ") + mac.lead(detail) : Text("")).foregroundStyle(Color.captionInk)
         }
         if !session.state.needsYou, let held = session.landing?.headerParts {
             return Text(held.lead).foregroundStyle(Color.captionInk) + Text(held.accent).foregroundStyle(Color.accentColor) + Text(held.rest).foregroundStyle(Color.captionInk)
                 + (mac != nil ? Text(" · ") + mac.lead("") : Text("")).foregroundStyle(Color.captionInk)
         }
-        let detail = [session.headerDetail, (mode ? session.shareDetail : session.shareLabel) ?? "", mode ? session.modeLabel ?? "" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
         let activity = session.headerActivity(now: now).map { Text(" · " + $0).foregroundStyle(Color.captionInk) } ?? Text("")
         let open = session.openLabel.map { Text(" · ").foregroundStyle(Color.captionInk) + Text($0).foregroundStyle(Color.warningInk) } ?? Text("")
         let done = session.openLabel != nil || session.archivable
