@@ -392,6 +392,40 @@ func TestLandAnywayHoldsAcrossDisjointMoves(t *testing.T) {
 	assert.Equal(t, [2]string{"user", "base-moved"}, [2]string{g.history(t)[0].By, g.history(t)[0].Reason})
 }
 
+func TestLandAnywayAfterAMoveOnItsFilesReopensTheCard(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	req, _ := g.cardAtCap(t)
+	g.mainCommit(t, "d.go", "fix\n")
+
+	g.answer(t, req, "merge")
+	g.waitLanderTold(t, "Clubmate asks the user again")
+
+	require.ErrorContains(t, g.land(t), "waits for the user")
+	assert.False(t, g.f.transcriptHas(t, g.workspace, g.lander, "The user agreed"))
+	assert.True(t, strings.HasSuffix(g.cardCaption(t), "asked again because the target moved on files this landing changes"))
+	h := g.history(t)
+	assert.Equal(t, [3]string{"asked-again", "user", "moved-on-landing"}, [3]string{h[0].Outcome, h[0].By, h[0].Reason})
+	pending := g.f.session(t, g.workspace, g.lander).Pending
+	require.Len(t, pending, 1)
+	require.NotEqual(t, req, pending[0])
+	g.answer(t, pending[0], "merge")
+	require.NoError(t, g.land(t))
+}
+
+func TestLandAnywayAfterBothMovedSaysBothOnTheCard(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	req, _ := g.cardAtCap(t)
+	g.commit(t, "e.go", "more\n")
+	g.mainCommit(t, "d.go", "fix\n")
+
+	g.answer(t, req, "merge")
+	g.waitLanderTold(t, "Clubmate asks the user again")
+
+	assert.True(t, strings.HasSuffix(g.cardCaption(t), "the target moved on files this landing changes and the change moved"))
+}
+
 func TestLandAnywayIsNotKeptWhenMainTouchesTheLandingsFiles(t *testing.T) {
 	t.Parallel()
 	g := startGate(t)

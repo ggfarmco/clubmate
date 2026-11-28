@@ -1067,7 +1067,7 @@
         "title": "Answer a landing request",
         "hidden": true,
         "remote": true,
-        "description": "The user's answer to a Land request: review returns {session, worktree} and leaves the request open, merge prompts the child to land, more (a land gate's card) allows one more review round, leave records left, which holds what depends on the repo. On a landing queue's Land card (request lq_…): merge (Land) is the user's yes, stored on the entry, and prompts the lander to call git_land again; leave (Not yet) removes the entry and tells the lander not to land it unless the user asks. An agent gets an error.",
+        "description": "The user's answer to a Land request: review returns {session, worktree} and leaves the request open, merge prompts the child to land (on a land gate's card it is Land anyway, kept across a target move on other files; when the target moved on files the landing changes before the answer, it is no yes: it is logged asked-again and the card opens again at once for the new tip), more (a land gate's card) allows one more review round, leave records left, which holds what depends on the repo. On a landing queue's Land card (request lq_…): merge (Land) is the user's yes, stored on the entry, and prompts the lander to call git_land again; leave (Not yet) removes the entry and tells the lander not to land it unless the user asks. An agent gets an error.",
         "args": {
           "properties": {
             "request": {"type": "string", "description": "Request id."},

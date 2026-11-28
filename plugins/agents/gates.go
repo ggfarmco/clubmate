@@ -27,11 +27,13 @@ const (
 	gateNameBase     = "the parent's branch"
 	gateNameDefault  = "the default branch"
 	gateUngated      = "ungated"
+	gateAskedAgain   = "asked-again"
 	gateChangesWaits = "changes · waits for %s"
 
-	reasonBaseMoved   = "base-moved"
-	reasonTreeChanged = "tree-changed"
-	reasonRound       = "round"
+	reasonBaseMoved      = "base-moved"
+	reasonTreeChanged    = "tree-changed"
+	reasonRound          = "round"
+	reasonMovedOnLanding = "moved-on-landing"
 )
 
 var gateRank = map[string]int{gateApproved: 1, gateChanges: 2, gateStateReview: 3, gateStateNeedsMe: 4}

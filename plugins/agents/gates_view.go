@@ -342,6 +342,8 @@ func verdictLook(v gateVerdict, point string) gateVerdictLook {
 		return gateVerdictLook{Word: "refused: no turn", Tone: "warning", Cell: "warn", Icon: "xmark.circle"}
 	case v.Outcome == gateUngated:
 		return gateVerdictLook{Word: gateRanUngated, Tone: "warning", Cell: "warn", Icon: "exclamationmark.triangle"}
+	case v.Outcome == gateAskedAgain:
+		return gateVerdictLook{Word: "you: land · asked again", Tone: "accent", Icon: "arrow.clockwise"}
 	case v.Outcome == gateReleased:
 		return gateVerdictLook{Word: "released: " + releasedWords[v.By], Tone: "warning", Cell: "warn", Icon: "lock.open"}
 	case v.By == landgate.ByDocs:

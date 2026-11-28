@@ -140,3 +140,46 @@ func carriedBy(st landReview, gf gateFor, v landgate.Verdict) string {
 	}
 	return landgate.ByCarried
 }
+
+type landingMove struct {
+	tip     string
+	tree    string
+	changed bool
+	reqOld  string
+	reqTree string
+}
+
+func movedOnLanding(ctx context.Context, st landReview) (landingMove, bool) {
+	if st.Repo == "" || st.ReqOld == "" || st.ReqTree == "" {
+		return landingMove{}, false
+	}
+	out, err := gitrepo.Run(ctx, st.Repo, "rev-parse", "--verify", "-q", "--end-of-options", headsPrefix+st.Into+"^{commit}")
+	tip := strings.TrimSpace(string(out))
+	if err != nil || tip == st.ReqOld {
+		return landingMove{}, false
+	}
+	moved, err := changedNames(ctx, st.Repo, st.ReqOld, tip)
+	if err != nil {
+		return landingMove{}, false
+	}
+	landing, err := changedNames(ctx, st.Repo, st.ReqOld, st.ReqTree)
+	if err != nil || !slices.ContainsFunc(landing, func(f string) bool { return slices.Contains(moved, f) }) {
+		return landingMove{}, false
+	}
+	m := landingMove{tip: tip}
+	if st.Source == "" {
+		return m, true
+	}
+	m.tree = mergedTree(ctx, st.Repo, tip, headsPrefix+st.Source)
+	m.changed = m.tree != "" && mergedTree(ctx, st.Repo, st.ReqOld, headsPrefix+st.Source) != st.ReqTree
+	return m, true
+}
+
+func mergedTree(ctx context.Context, repo, old, head string) string {
+	out, err := gitrepo.Run(ctx, repo, "merge-tree", "--write-tree", "--no-messages", old, head)
+	if err != nil {
+		return ""
+	}
+	tree, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+	return tree
+}
